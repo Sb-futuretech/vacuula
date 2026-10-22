@@ -6,6 +6,7 @@ import logging
 from vacuula_server.db import get_session
 from vacuula_server.generation import get_robot_by_serial, get_gen3_robot_data
 import json
+import threading
 import time
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,17 @@ def sign_cmd(robot_serial: str, cmd: str):
 
 
 req_id = 1
+# Commands come from several HTTP threads at once: without these, two sends can
+# share a reqId or interleave their bytes on the robot's TLS socket, and the
+# robot drops the connection.
+_req_id_lock = threading.Lock()
+_send_lock = threading.Lock()
 
 def send_chunk(wfile, payload_bytes):
     chunk = f"{len(payload_bytes):X}\r\n".encode() + payload_bytes + b"\r\n"
-    wfile.write(chunk)
-    wfile.flush()
+    with _send_lock:
+        wfile.write(chunk)
+        wfile.flush()
 
 
 def build_heartbeat():
@@ -66,14 +73,17 @@ def build_heartbeat():
 def build_command(robot_serial: str, cmd: dict):
     global req_id
 
+    with _req_id_lock:
+        this_id = req_id
+        req_id += 1
+
     payload = json.dumps({
-        "reqId": str(req_id),
+        "reqId": str(this_id),
         **cmd
     }).encode()
 
-    req_id += 1
+    return [this_id, sign_cmd(robot_serial, payload.decode()).encode()]
 
-    return [(req_id - 1), sign_cmd(robot_serial, payload.decode()).encode()]
 
 def send_command(wfile, robot_serial: str, cmd: dict, slot) -> str:
     """Register `slot` for the reply and send `cmd`; returns the reqId key.
