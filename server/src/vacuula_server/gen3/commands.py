@@ -74,3 +74,18 @@ def build_command(robot_serial: str, cmd: dict):
     req_id += 1
 
     return [(req_id - 1), sign_cmd(robot_serial, payload.decode()).encode()]
+
+def send_command(wfile, robot_serial: str, cmd: dict, slot) -> str:
+    """Register `slot` for the reply and send `cmd`; returns the reqId key.
+    On a send failure the slot is unregistered again and the error re-raised."""
+    from vacuula_server.state import pending_requests
+
+    req_id, msg = build_command(robot_serial, cmd)
+    key = str(req_id)
+    pending_requests[key] = slot
+    try:
+        send_chunk(wfile, msg)
+    except Exception:
+        pending_requests.pop(key, None)
+        raise
+    return key

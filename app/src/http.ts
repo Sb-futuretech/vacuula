@@ -77,6 +77,11 @@ export class Http {
     return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
   }
 
+  // Gen3: the server cleans the zones one after another (the D7 ignores `boundaryIds`)
+  static startZoneQueue(serial: string, zones: { mapId: string, boundaryId: string, name?: string }[], mode: number, navigationMode: number) {
+    return instance.post(`/robot/${serial}/zone-queue`, { zones, mode, navigationMode })
+  }
+
   static getPersistentMaps(serial: string) {
     return instance.get<Neato.Gen3.PersistentMap[] | Neato.Gen4.Floorplan[]>(`/robot/${serial}/maps`)
   }
