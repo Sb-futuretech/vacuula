@@ -278,10 +278,18 @@ export default function Home() {
                                         && (persistentMaps ?? []).filter(m => 'enabled' in m && m.enabled).length === 0
                                     ) cat = CleaningCategory.HOUSE; // fallback to house if no maps exist
 
-                                    // TODO: gen3 has no mutlizone yet
                                     if (cat === CleaningCategory.MAP && selectedZones.length === 1 && isDocked(robot)) {
                                         const [mapId, zoneId] = selectedZones[0].split('||:||')
                                         GEN3_COMMANDS.startCleaningZone(robot.serial, mapId, zoneId, gen3__cleaningMode, gen3__navigationMode)
+                                        return
+                                    }
+                                    // several zones: cleaned in the order they were tapped
+                                    if (cat === CleaningCategory.MAP && selectedZones.length > 1 && isDocked(robot)) {
+                                        const zones = selectedZones.map(z => {
+                                            const [mapId, boundaryId] = z.split('||:||')
+                                            return { mapId, boundaryId, name: zoneOptions.find(o => o.value === z)?.label }
+                                        })
+                                        GEN3_COMMANDS.startCleaningZones(robot.serial, zones, gen3__cleaningMode, gen3__navigationMode)
                                         return
                                     }
                                     GEN3_COMMANDS.startCleaning(robot.serial, cat, gen3__cleaningMode, gen3__navigationMode)
@@ -384,13 +392,12 @@ export default function Home() {
 
                             {robot.type === RobotType.NeatoGen3 && zoneOptions.length > 0 && (
                                 <Input
-                                    type="select"
+                                    type="multi-select"
                                     label={t('schedule.selectZones')}
                                     extraInfo={t('schedule.selectZonesHelp')}
                                     options={zoneOptions}
-                                    allowDeselect={true}
-                                    value={selectedZones[0]}
-                                    onChange={(value) => value ? setSelectedZones([value]) : setSelectedZones([])}
+                                    value={selectedZones}
+                                    onChange={setSelectedZones}
                                 />
                             )}
                         </>

@@ -99,17 +99,10 @@ function startCleaningZone(serial: string, mapId: string, zoneId: string, mode: 
     })
 }
 
-// Is this really how it works?
-function startCleaningZones(serial: string, zoneIds: string[], mode: CleaningMode, navigationMode: CleaningNavigationMode) {
-    return Http.sendCmd(serial, {
-        cmd: "startCleaning",
-        params: {
-            category: CleaningCategory.MAP,
-            mode,
-            navigationMode,
-            boundaryIds: zoneIds,
-        }
-    })
+// The D7 answers `ok` to `boundaryIds` but cleans the whole map, so the server
+// queues the zones and starts each one with its own `boundaryId`
+function startCleaningZones(serial: string, zones: { mapId: string, boundaryId: string, name?: string }[], mode: CleaningMode, navigationMode: CleaningNavigationMode) {
+    return Http.startZoneQueue(serial, zones, mode, navigationMode)
 }
 
 

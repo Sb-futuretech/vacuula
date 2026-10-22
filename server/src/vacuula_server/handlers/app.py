@@ -1,7 +1,8 @@
 from __future__ import annotations
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
-from vacuula_server.gen3.commands import send_chunk, build_command
+from vacuula_server.gen3.commands import send_command
+from vacuula_server.gen3 import zone_queue
 from vacuula_server.env import GEN3_PORT, GEN4_PORT
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
 from vacuula_server.state import robot_connections, client_connections, pending_requests, PendingRequest
@@ -256,13 +257,13 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
             return
     elif (conn.gen == Generation.GEN3) and isinstance(conn.conn, Gen2Gen3Conn):
         # gen3
-        req_id, msg = build_command(serial, data)
-        pending_requests[str(req_id)] = slot
+        # any manual start/stop/dock takes over from a running zone queue
+        if data.get("cmd") in zone_queue.CANCELLING_COMMANDS:
+            zone_queue.cancel(serial, f"app sent {data.get('cmd')}")
         logger.debug("Sending command to robot %s: %s", serial, data)
         try:
-            send_chunk(conn.conn.wfile, msg) # TODO
+            req_id = send_command(conn.conn.wfile, serial, data, slot)
         except Exception:
-            pending_requests.pop(str(req_id), None)
             _send_quietly(lambda: req.send_error_response(502, "Failed to send command to robot"))
             return
     else:
@@ -278,3 +279,39 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
         _send_quietly(lambda: req.send_error_response(504, "Robot did not answer in time"))
     
     
+
+def get_zone_queue(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/zone-queue - zones still queued for a gen3 robot (null when idle)"""
+    req.send_ok({"queue": zone_queue.get_status(serial)})
+
+def post_zone_queue(req: RouterHandler, serial: str) -> None:
+    """POST /robot/<serial>/zone-queue - clean several gen3 zones one after another
+
+    body: {"zones": [{"mapId", "boundaryId", "name"?}], "mode", "navigationMode"}
+    """
+    if not (data := req.read_json()): return
+
+    if get_robot_by_serial(serial) is None:
+        return req.send_not_found("Robot not found")
+    conn = robot_connections.get(serial)
+    if conn is None or conn.gen != Generation.GEN3:
+        return req.send_bad_request("Robot not connected or not gen3")
+
+    try:
+        zones = [zone_queue.Zone(str(z["mapId"]), str(z["boundaryId"]), str(z.get("name") or "")) for z in data["zones"]]
+        mode = int(data["mode"])
+        navigation_mode = int(data["navigationMode"])
+    except (KeyError, TypeError, ValueError):
+        return req.send_bad_request("zones (mapId, boundaryId), mode and navigationMode are required")
+    if not zones:
+        return req.send_bad_request("zones must not be empty")
+
+    ok, msg = zone_queue.start(serial, zones, mode, navigation_mode)
+    if not ok:
+        return _send_quietly(lambda: req.send_error_response(502, msg))
+    _send_quietly(lambda: req.send_ok({"queue": zone_queue.get_status(serial)}))
+
+def delete_zone_queue(req: RouterHandler, serial: str) -> None:
+    """DELETE /robot/<serial>/zone-queue - drop the remaining zones (the current run continues)"""
+    zone_queue.cancel(serial, "cancelled from the app")
+    req.send_ok()
