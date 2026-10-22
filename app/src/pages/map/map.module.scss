@@ -71,6 +71,21 @@
         opacity: 0.5;
         pointer-events: none;
     }
+
+    .pointCount {
+        position: absolute;
+        bottom: calc(100% + 1rem);
+        padding: 0.3rem 1rem;
+        border-radius: 1rem;
+        background: $surface;
+        font-size: 1.1rem;
+        font-weight: 600;
+
+        &.limit {
+            background: $warn-bg;
+            color: $warn-text;
+        }
+    }
 }
 
 .editBoundaryDetails {

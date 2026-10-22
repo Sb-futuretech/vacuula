@@ -22,6 +22,7 @@ interface MapCanvasProps {
     closedAsPolygon: boolean
     setClosedAsPolygon: UseState<boolean>
     setDrawerOpen: (open: boolean) => void
+    maxPoints?: number // robot-side vertex limit, undefined = unlimited
 }
 
 // Owns everything that genuinely can't exist without a selected map: the hook, the
@@ -37,7 +38,8 @@ export default function MapCanvas({
     setCurrentLinePoints,
     closedAsPolygon,
     setClosedAsPolygon,
-    setDrawerOpen
+    setDrawerOpen,
+    maxPoints
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
@@ -52,7 +54,7 @@ export default function MapCanvas({
 
     const addPointAtCrosshair = () => {
         const coords = getCrosshairWorldCoords(canvasRef, offset, zoom, mapSize)
-        setCurrentLinePoints(prev => [...prev, coords])
+        setCurrentLinePoints(prev => maxPoints !== undefined && prev.length >= maxPoints ? prev : [...prev, coords])
     }
 
     const undo = () => {
@@ -69,6 +71,8 @@ export default function MapCanvas({
         setClosedAsPolygon(true)
         setDrawerOpen(true)
     }
+
+    const atPointLimit = maxPoints !== undefined && currentLinePoints.length >= maxPoints
 
     const onTouchMove = (e: React.TouchEvent) => {
         canvasHandlers.onTouchMove(e)
@@ -106,10 +110,15 @@ export default function MapCanvas({
 
             {mode === 'boundary-edit' && (
                 <div className={styles.actionButtons}>
+                    {maxPoints !== undefined && (
+                        <span className={`${styles.pointCount} ${atPointLimit ? styles.limit : ''}`}>
+                            {currentLinePoints.length}/{maxPoints}
+                        </span>
+                    )}
                     <div onClick={undo} className={styles.undo}>
                         <FaUndo size={20} color="var(--text)" />
                     </div>
-                    <div onClick={addPointAtCrosshair} className={`${styles.add} ${closedAsPolygon ? styles.disabled : ''}`}>
+                    <div onClick={addPointAtCrosshair} className={`${styles.add} ${closedAsPolygon || atPointLimit ? styles.disabled : ''}`}>
                         <FaPlus size={40} color="var(--text)" />
                     </div>
                     <div onClick={closeAsPolygon} className={`${styles.closePolygon} ${((currentLinePoints.length > 2) && !closedAsPolygon) ? '' : styles.disabled}`}>
