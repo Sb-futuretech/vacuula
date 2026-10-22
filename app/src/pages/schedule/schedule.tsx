@@ -42,11 +42,12 @@ export default () => {
         .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: z.id, label: `${m.name} - ${z.name}` })))
 
 
-    const [scheduleForm, SetScheduleForm] = useState<ScheduleEvent>({
+    const [scheduleForm, SetScheduleForm] = useState<Omit<ScheduleEvent, 'day'>>({
         startTime: '',
-        day: -1,
-        mode: 0
+        mode: CleaningMode.ECO
     })
+    // one robot event is created per selected day
+    const [days, setDays] = useState<RobotDay[]>([])
 
     const getSchedule = () => {
         GEN3_COMMANDS.getSchedule(robot.serial).then(res => {
@@ -59,10 +60,19 @@ export default () => {
         getSchedule();
     }, [robot])
 
-    const removeEvent = (index: number) => {
+    const removeEvent = (event: ScheduleEvent) => {
         if (!schedule) return;
-        schedule.events.splice(index, 1)
-        GEN3_COMMANDS.setSchedule(robot.serial, schedule.events).finally(() => getSchedule())
+        GEN3_COMMANDS.setSchedule(robot.serial, schedule.events.filter(e => e !== event)).finally(() => getSchedule())
+    }
+
+    const addEvents = () => {
+        if (!schedule) return;
+        const zoneOf = (e: ScheduleEvent) => e.boundaryId ?? e.boundary?.id
+        const added: ScheduleEvent[] = days.map(day => ({ ...scheduleForm, day }))
+        // an identical day/time/zone entry is replaced instead of duplicated
+        const kept = schedule.events.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
+        setDrawerOpen(false)
+        GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept]).finally(() => getSchedule())
     }
 
     const updateForm = <T extends object>(update: UseState<T>, patch: Partial<T>) => {
@@ -73,6 +83,20 @@ export default () => {
     }
 
     if (!schedule) return
+
+    // Monday first, then by time
+    const sortedEvents = [...(schedule.events ?? [])].sort((a, b) =>
+        ((a.day + 6) % 7) - ((b.day + 6) % 7) || a.startTime.localeCompare(b.startTime))
+
+    const WEEKDAYS = [RobotDay.MONDAY, RobotDay.TUESDAY, RobotDay.WEDNESDAY, RobotDay.THURSDAY, RobotDay.FRIDAY]
+    const WEEKEND = [RobotDay.SATURDAY, RobotDay.SUNDAY]
+    const presets: Record<'weekdays' | 'daily' | 'weekend', RobotDay[]> = {
+        weekdays: WEEKDAYS,
+        daily: [...WEEKDAYS, ...WEEKEND],
+        weekend: WEEKEND,
+    }
+    const activePreset = (Object.keys(presets) as (keyof typeof presets)[])
+        .find(k => presets[k].length === days.length && presets[k].every(d => days.includes(d)))
 
     return (
         <div className={styles.container}>
@@ -101,7 +125,7 @@ export default () => {
                     </div>
                 </div>
 
-                {schedule.events?.map((item, i) => {
+                {sortedEvents.map((item, i) => {
                     return (
                         <div key={i} className={styles.item}>
                             <div className={styles.info}>
@@ -111,11 +135,11 @@ export default () => {
                                     {item.boundary && ` | ${t('schedule.gen3SummaryZone', { zone: item.boundary.name })}`}
                                 </span>
                             </div>
-                            <FaTrash onClick={() => removeEvent(i)} />
+                            <FaTrash onClick={() => removeEvent(item)} />
                         </div>
                     )
                 })}
-                {schedule.events?.length === 0 && (
+                {sortedEvents.length === 0 && (
                     <span style={{ textAlign: 'center' }}>{t('schedule.noSchedules')}</span>
                 )}
             </div>
@@ -130,7 +154,20 @@ export default () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <Input
                         type="select"
-                        label={t('common.day')}
+                        label={t('schedule.days')}
+                        options={[
+                            { value: 'weekdays' as const, label: t('schedule.weekdaysShort') },
+                            { value: 'daily' as const, label: t('schedule.daily') },
+                            { value: 'weekend' as const, label: t('schedule.weekendShort') },
+                        ]}
+                        allowDeselect
+                        value={activePreset}
+                        onChange={(preset) => setDays(preset ? presets[preset] : [])}
+                    />
+
+                    <Input
+                        type="multi-select"
+                        skipSection={true}
                         options={[
                             { value: RobotDay.MONDAY, label: t('days.monday') },
                             { value: RobotDay.TUESDAY, label: t('days.tuesday') },
@@ -140,8 +177,8 @@ export default () => {
                             { value: RobotDay.SATURDAY, label: t('days.saturday') },
                             { value: RobotDay.SUNDAY, label: t('days.sunday') },
                         ]}
-                        value={scheduleForm.day}
-                        onChange={(day) => updateForm(SetScheduleForm, { day })}
+                        value={days}
+                        onChange={setDays}
                     />
 
                     <Input
@@ -168,13 +205,10 @@ export default () => {
                         options={zoneOptions}
                         allowDeselect
                         value={scheduleForm.boundaryId}
-                        onChange={(boundaryId) => boundaryId && updateForm(SetScheduleForm, { boundaryId })}
+                        onChange={(boundaryId) => updateForm(SetScheduleForm, { boundaryId })}
                     />
 
-                    <Button text={t('common.save')} style='success' onClick={() => {
-                        setDrawerOpen(false)
-                        GEN3_COMMANDS.setSchedule(robot.serial, [scheduleForm, ...schedule.events]).finally(() => getSchedule())
-                    }} />
+                    <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={addEvents} />
                 </div>
 
             </Drawer>

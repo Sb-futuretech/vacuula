@@ -127,6 +127,10 @@
         "usePromoted": "Usar mapa",
         "useNogoLayer": "Evitar linhas e zonas No-Go",
         "selectZones": "Zonas de limpeza",
+        "daily": "Diário",
+        "weekdaysShort": "Seg–Sex",
+        "weekendShort": "Fim de semana",
+        "days": "Dias",
         "selectZonesHelp": "Opcional: selecione uma ou mais zonas para limpar; se nenhuma for selecionada, todo o mapa será limpo."
     },
     "map": {

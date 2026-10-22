@@ -141,8 +141,15 @@ function getSchedule(serial: string) {
     return Http.sendCmd<GetScheduleResponse>(serial, { cmd: "getSchedule" })
 }
 
+// setSchedule only understands `boundaryId`; events read back from the robot carry
+// `boundary` instead, and the robot silently drops a zone it does not recognise.
+function toSetScheduleEvent({ mode, day, startTime, boundaryId, boundary }: ScheduleEvent): ScheduleEvent {
+    const zone = boundaryId ?? boundary?.id
+    return { mode, day, startTime, ...(zone && { boundaryId: zone }) }
+}
+
 function setSchedule(serial: string, events: ScheduleEvent[]) {
-    return Http.sendCmd(serial, { cmd: "setSchedule", params: { events } })
+    return Http.sendCmd(serial, { cmd: "setSchedule", params: { events: events.map(toSetScheduleEvent) } })
 }
 
 function enableSchedule(serial: string) {

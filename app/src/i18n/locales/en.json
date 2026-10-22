@@ -127,6 +127,10 @@
         "usePromoted": "Use floorplan",
         "useNogoLayer": "Avoid nogo lines & zones",
         "selectZones": "Clean zones",
+        "daily": "Daily",
+        "weekdaysShort": "Mon–Fri",
+        "weekendShort": "Weekend",
+        "days": "Days",
         "selectZonesHelp": "Optional, select one or more zones to clean, if none selected, it will clean entire map."
     },
     "map": {
