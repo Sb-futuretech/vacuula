@@ -85,7 +85,7 @@ export default () => {
             const normX = ((baseData[0] - originX) / resolution) / imgW
             const normY = ((baseData[1] - originY) / resolution) / imgH
             drawBase(ctx, { x: normX, y: normY, dir: baseData[2] ?? 0 }, currentZoom, currentOffset, mapSize, resolution)
-        } else if (Array.isArray(baseData) && robot.type === RobotType.NeatoGen3) {
+        } else if (Array.isArray(baseData) && baseData[0] !== NO_BASE && robot.type === RobotType.NeatoGen3) {
             drawBase(ctx, { x: baseData[0], y: baseData[1], dir: baseData[2] ?? 0 }, currentZoom, currentOffset, mapSize, 0)
         }
 
