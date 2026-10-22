@@ -17,6 +17,7 @@ import { GrCertificate } from 'react-icons/gr'
 import { VscFeedback } from 'react-icons/vsc'
 import { FaFileLines } from 'react-icons/fa6'
 import type { UseState } from '../../components/map/types'
+import { formatHHMM, formatUtcOffset } from '../../utils/clockTime'
 
 export default () => {
     const { t, i18n } = useTranslation()
@@ -27,6 +28,14 @@ export default () => {
     const { robot, updateRobotName, serverInfo } = useRobot()
 
     const [robotName, setRobotName] = useState(robot.name)
+
+    // ticks the server clock below; the browser clock is UTC-correct, the server only adds its offset
+    const [now, setNow] = useState(Date.now())
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 15_000)
+        return () => clearInterval(timer)
+    }, [])
+    const serverTime = formatHHMM(Math.floor(now / 60_000) + (serverInfo.utc_offset_minutes ?? 0))
 
     useEffect(() => {
         setRobotName(robot.name)
@@ -122,6 +131,8 @@ export default () => {
                     extraInfo={(
                         <>
                             <span>Vacuula {serverInfo.version}</span>
+                            <br />
+                            <span>{t('settings.serverTime', { time: serverTime, timezone: serverInfo.timezone, offset: formatUtcOffset(serverInfo.utc_offset_minutes ?? 0) })}</span>
                             <br />
                             <span>{t('settings.comingSoon')}</span>
                         </>
