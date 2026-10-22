@@ -163,6 +163,7 @@
         "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround"
     },
     "settings": {
+        "serverTime": "Server time: {{time}} ({{timezone}}, {{offset}})",
         "serial": "Serial nr: {{serial}}",
         "birthday": "Birthday: {{date}}",
         "robotSettings": "Robot settings",
