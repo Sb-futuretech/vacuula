@@ -278,6 +278,8 @@ export default () => {
                     closedAsPolygon={closedAsPolygon}
                     setClosedAsPolygon={setClosedAsPolygon}
                     setDrawerOpen={setDrawerOpen}
+                    // Gen3 firmware silently keeps only the first 10 vertices of a boundary
+                    maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
                 />
             ) : (
                 <canvas className={styles.canvas} />
