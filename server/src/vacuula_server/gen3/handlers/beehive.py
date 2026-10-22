@@ -14,6 +14,9 @@ from sqlalchemy import select
 
 from typing import TYPE_CHECKING, Literal
 
+# same "unknown dock position" sentinel the app already understands (INT32_MAX)
+NO_BASE = 2147483647
+
 if TYPE_CHECKING:
     from vacuula_server.handlers.router import RouterHandler
 
@@ -166,7 +169,9 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
     manifest_path = f"{job_folder}/manifest.json"
     floormap_meta, _ = parse_session(floor_map_path, run_map_path, job_folder)
 
-    base = (floormap_meta["dock"]["normalised_x"], floormap_meta["dock"]["normalised_y"])
+    # a run that ends away from the dock (stopped, picked up) has no dock marker in its RunMap
+    dock = floormap_meta.get("dock")
+    base = (dock["normalised_x"], dock["normalised_y"]) if dock else None
     valid = run['valid_as_persistent_map']
 
     with get_session() as session:
@@ -176,13 +181,14 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
                 id=run_id,
                 robot=serial,
                 name="(unnamed)",
-                base=base,
+                base=base if base is not None else (NO_BASE, NO_BASE),
                 enabled=valid,
                 in_maps_list=valid,
             ))
         else:
             logger.debug("Persistent map %s exists, updating", run_id)
-            pmap.base = base
+            if base is not None:
+                pmap.base = base
             # an upload during the run is not yet valid; promote once a later upload is
             if valid and not pmap.in_maps_list:
                 pmap.in_maps_list = True
