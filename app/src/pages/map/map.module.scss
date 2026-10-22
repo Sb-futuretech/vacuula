@@ -96,6 +96,13 @@
     flex-direction: column;
     justify-content: space-between;
 
+    .modeButtons {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        padding-top: 1rem;
+    }
+
     .zoneActions {
         display: flex;
         flex-direction: column;
