@@ -43,6 +43,8 @@ interface AppContextType {
     getGen3State: (serial: string, name: string) => void
 }
 
+const GEN3_STATE_POLL_MS = 60_000
+
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -194,8 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             `${BASE_PATH}/api/robot/${robot.serial}/connect`,
         );
 
-        events.onopen = () => {
-            if (!robots) return;
+        const refreshState = () => {
             if (robot.type === RobotType.NeatoGen3) {
                 GEN3_COMMANDS.getRobotState(robot.serial).then((res) => {
                     setRobot(cur => cur ? {
@@ -223,6 +224,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     } : cur)
                 })
             }
+        }
+
+        events.onopen = () => {
+            if (!robots) return;
+            refreshState()
+        }
+
+        // Gen3 only pushes state when state/action changes, never for battery level
+        // (e.g. while charging on the dock), so poll while the page is visible.
+        let poll: ReturnType<typeof setInterval> | undefined
+        const onVisibility = () => {
+            if (document.hidden) return
+            refreshState()
+        }
+        if (robot.type === RobotType.NeatoGen3) {
+            poll = setInterval(() => { if (!document.hidden) refreshState() }, GEN3_STATE_POLL_MS)
+            document.addEventListener('visibilitychange', onVisibility)
         }
 
         interface VacuulaRobotEvent {
@@ -283,6 +301,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         return () => {
             events.close();
+            clearInterval(poll);
+            document.removeEventListener('visibilitychange', onVisibility);
         };
     }, [robot?.serial, robot?.type]);
 
