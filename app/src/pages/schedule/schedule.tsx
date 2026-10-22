@@ -12,6 +12,7 @@ import { useRobot } from '../../context/useRobot'
 import { RobotDay } from '../../types/neato/gen3/api'
 import { RobotType } from '../../types'
 import Scheudle_gen4 from './scheudle_gen4'
+import { decodeRobotText } from '../../utils/robotText'
 import { useTranslation } from 'react-i18next'
 import { dayKey } from '../../i18n/days'
 import { usePersistentMaps } from '../../loaders/resources'
@@ -132,7 +133,7 @@ export default () => {
                                 <span>{item.startTime}</span>
                                 <span className={styles.type}>
                                     {t('schedule.gen3Summary', { day: t(`days.${dayKey(item.day)}`), mode: CleaningMode[item.mode] })}
-                                    {item.boundary && ` | ${t('schedule.gen3SummaryZone', { zone: item.boundary.name })}`}
+                                    {item.boundary && ` | ${t('schedule.gen3SummaryZone', { zone: decodeRobotText(item.boundary.name) })}`}
                                 </span>
                             </div>
                             <FaTrash onClick={() => removeEvent(item)} />
