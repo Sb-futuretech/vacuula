@@ -1,5 +1,6 @@
 import { GEN3_COMMANDS } from '../http/gen3'
 import type { NoGoLine, Zone } from '../components/map/types'
+import { decodeRobotText } from '../utils/robotText'
 
 export type Boundaries = (NoGoLine | Zone)[]
 
@@ -10,7 +11,8 @@ const k = (serial: string, mapId: string) => `${serial}:${mapId}`
 // fetch one map from the robot and save it in the cache
 export async function fetchGen3MapBoundaries(serial: string, mapId: string) {
     const res = await GEN3_COMMANDS.getMapBoundaries(serial, mapId)
-    gen3Boundaries[k(serial, mapId)] = res.data.data.boundaries ?? []
+    gen3Boundaries[k(serial, mapId)] = (res.data.data.boundaries ?? [])
+        .map(b => b.name ? { ...b, name: decodeRobotText(b.name) } : b)
     return gen3Boundaries[k(serial, mapId)]
 }
 
