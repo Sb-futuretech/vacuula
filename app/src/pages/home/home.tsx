@@ -371,7 +371,7 @@ export default function Home() {
 
             </div>
 
-            <Drawer open={categoryDrawerOpen} handle={false} onOpenChange={(open) => setCategoryDrawerOpen(open)} openHeightPercent={40} title={t('home.selectMode')}>
+            <Drawer open={categoryDrawerOpen} handle={false} onOpenChange={(open) => setCategoryDrawerOpen(open)} openHeightPercent={gen3__cleaningCategory === CleaningCategory.MAP ? 70 : 40} title={t('home.selectMode')}>
                 <div className={styles.drawerContent}>
                     {/* Category Selection */}
 

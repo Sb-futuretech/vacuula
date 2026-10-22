@@ -51,9 +51,11 @@
     padding: 1.6rem;
     color: $text-primary;
     flex: 1;
+    min-height: 0; // lets the flex child shrink so tall content scrolls instead of overflowing
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    touch-action: pan-y; // .drawer disables touch gestures for dragging; content still has to scroll
 }
 
 
