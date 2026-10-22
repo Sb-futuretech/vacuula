@@ -10,6 +10,7 @@ from vacuula_server.models.robot import Robot
 from vacuula_server.models.persistent_map import PersistentMap
 from vacuula_server.models.run import Gen3__Run
 import os
+import re
 from sqlalchemy import select
 
 from typing import TYPE_CHECKING, Literal
@@ -206,3 +207,32 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
             grun.run = run
 
         session.commit()
+
+
+# run ids are timestamps like 2026-10-22T20:26:27Z; anything else must not reach the filesystem
+RUN_ID_RE = re.compile(r"^[0-9A-Za-z:.\-]+$")
+
+def post_life_stats(req: RouterHandler, run_id: str) -> None:
+    """POST /runs/<run_id>/life_stats - lifetime statistics the robot sends after a run.
+
+    The format is not known yet, so the body is stored as-is next to the run's maps.
+    """
+    if not (serial := get_robot_serial(req)): return
+    if not RUN_ID_RE.match(run_id):
+        req.send_bad_request("invalid run id")
+        return
+
+    if (body := req.read_data()) is None: return
+    logger.info("life_stats from %s for run %s: %s", serial, run_id, body[:2000])
+
+    folder = MAPS_DIR / serial / run_id
+    try:
+        os.makedirs(folder, exist_ok=True)
+        with open(folder / "life_stats.json", "wb") as f:
+            f.write(body)
+    except Exception:
+        logger.exception("Failed to store life_stats for run %s", run_id)
+        req.send_internal_error()
+        return
+
+    req.send_ok()
