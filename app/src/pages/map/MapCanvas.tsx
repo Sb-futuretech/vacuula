@@ -8,6 +8,14 @@ import type { Point, UseState } from '../../components/map/types'
 import { getCrosshairWorldCoords } from '../../components/map/utils'
 import { useMap, type ExtraDrawFn } from '../../components/map/useMap'
 
+// [x, y] direction per arrow key; map y grows downwards
+const ARROW_DIRECTIONS: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1],
+}
+
 // Single source of truth for the page's mode union — map.tsx imports this rather
 // than declaring its own copy.
 export type MapMode = 'maps' | 'map-edit' | 'boundaries' | 'boundary-info' | 'boundary-edit'
@@ -23,6 +31,7 @@ interface MapCanvasProps {
     closedAsPolygon: boolean
     setClosedAsPolygon: UseState<boolean>
     setDrawerOpen: (open: boolean) => void
+    mmPerPixel?: number // map resolution; gen3 maps have none, the app assumes 40 mm
 }
 
 // Owns everything that genuinely can't exist without a selected map: the hook, the
@@ -38,7 +47,8 @@ export default function MapCanvas({
     setCurrentLinePoints,
     closedAsPolygon,
     setClosedAsPolygon,
-    setDrawerOpen
+    setDrawerOpen,
+    mmPerPixel = 40
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
@@ -51,18 +61,27 @@ export default function MapCanvas({
         backgroundToken: '--map-editor-bg'
     })
 
-    // + / - zoom, 0 fits the map; ignored while typing in a form field
+    // + / - zoom, 0 fits the map, arrows nudge the last zone point; ignored while typing in a form field
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement
             if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
-            if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
+            const arrow = ARROW_DIRECTIONS[e.key]
+            if (arrow) {
+                if (mode !== 'boundary-edit' || !mapSize) return
+                e.preventDefault()
+                const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
+                setCurrentLinePoints(prev => prev.map((p, i) => i === prev.length - 1
+                    ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
+                    : p))
+            }
+            else if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
             else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
             else if (e.key === '0') resetView()
         }
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
-    }, [zoomStep, resetView])
+    }, [zoomStep, resetView, mode, mapSize, mmPerPixel, setCurrentLinePoints])
 
     const addPointAtCrosshair = () => {
         const coords = getCrosshairWorldCoords(canvasRef, offset, zoom, mapSize)

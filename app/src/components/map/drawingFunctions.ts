@@ -354,6 +354,16 @@ export function drawInProgressPolyline(
         )
         ctx.fill()
     }
+
+    // ring around the last point: the one the arrow keys move
+    const last = pts[pts.length - 1]
+    if (last) {
+        ctx.strokeStyle = COLORS.IN_PROGRESS
+        ctx.lineWidth = DRAWING.MIN_LINE_WIDTH
+        ctx.beginPath()
+        ctx.arc(offset.x + last[0] * sx, offset.y + last[1] * sy, DRAWING.POINT_RADIUS * 2.2, 0, Math.PI * 2)
+        ctx.stroke()
+    }
 }
 
 /* ---------------- CROSSHAIR ---------------- */

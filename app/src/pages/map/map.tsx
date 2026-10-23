@@ -277,6 +277,7 @@ export default () => {
                         closedAsPolygon={closedAsPolygon}
                         setClosedAsPolygon={setClosedAsPolygon}
                         setDrawerOpen={setDrawerOpen}
+                        mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
                     />
                 ) : (
                     <canvas className={styles.canvas} />
