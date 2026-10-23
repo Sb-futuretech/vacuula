@@ -236,3 +236,14 @@ def post_life_stats(req: RouterHandler, run_id: str) -> None:
         return
 
     req.send_ok()
+
+
+def post_push_notifications(req: RouterHandler) -> None:
+    """POST /push_notifications - the robot asks the cloud to notify the user's phone (e.g. on an alert).
+
+    There is no phone to push to; log the body so its format can be learned.
+    """
+    if not (serial := get_robot_serial(req)): return
+    if (body := req.read_data()) is None: return
+    logger.info("push_notifications from %s: %s", serial, body[:2000])
+    req.send_ok()
