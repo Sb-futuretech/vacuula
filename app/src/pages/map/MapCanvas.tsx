@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styles from './map.module.scss'
 import { FaMinus, FaPlus, FaUndo } from 'react-icons/fa'
 import { MdOutlineFitScreen } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { DRAWING } from '../../components/map/constants'
 import type { Point, UseState } from '../../components/map/types'
-import { getCrosshairWorldCoords } from '../../components/map/utils'
+import { getCrosshairWorldCoords, getWorldCoords } from '../../components/map/utils'
 import { useMap, type ExtraDrawFn } from '../../components/map/useMap'
 
 // [x, y] direction per arrow key; map y grows downwards
@@ -31,6 +31,8 @@ interface MapCanvasProps {
     closedAsPolygon: boolean
     setClosedAsPolygon: UseState<boolean>
     setDrawerOpen: (open: boolean) => void
+    selectedPoint: number | null // null = the last point
+    setSelectedPoint: (index: number | null) => void
     mmPerPixel?: number // map resolution; gen3 maps have none, the app assumes 40 mm
 }
 
@@ -48,6 +50,8 @@ export default function MapCanvas({
     closedAsPolygon,
     setClosedAsPolygon,
     setDrawerOpen,
+    selectedPoint,
+    setSelectedPoint,
     mmPerPixel = 40
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
@@ -61,19 +65,31 @@ export default function MapCanvas({
         backgroundToken: '--map-editor-bg'
     })
 
-    // + / - zoom, 0 fits the map, arrows nudge the last zone point; ignored while typing in a form field
+    // + / - zoom, 0 fits the map; while drawing: arrows nudge the selected point, Backspace/Delete
+    // removes it, Enter closes the zone, Escape drops the selection. Ignored while typing in a form field.
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement
             if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
             const arrow = ARROW_DIRECTIONS[e.key]
-            if (arrow) {
-                if (mode !== 'boundary-edit' || !mapSize) return
+            const active = selectedPoint ?? currentLinePoints.length - 1
+            if (mode === 'boundary-edit' && (arrow || ['Backspace', 'Delete', 'Enter', 'Escape'].includes(e.key))) {
                 e.preventDefault()
-                const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
-                setCurrentLinePoints(prev => prev.map((p, i) => i === prev.length - 1
-                    ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
-                    : p))
+                if (arrow && mapSize) {
+                    const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
+                    setCurrentLinePoints(prev => prev.map((p, i) => i === active
+                        ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
+                        : p))
+                } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                    if (active < 0) return
+                    if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
+                    setCurrentLinePoints(prev => prev.filter((_, i) => i !== active))
+                    setSelectedPoint(null)
+                } else if (e.key === 'Enter') {
+                    if (currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
+                } else {
+                    setSelectedPoint(null)
+                }
             }
             else if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
             else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
@@ -81,7 +97,33 @@ export default function MapCanvas({
         }
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
-    }, [zoomStep, resetView, mode, mapSize, mmPerPixel, setCurrentLinePoints])
+    }, [zoomStep, resetView, mode, mapSize, mmPerPixel, currentLinePoints, closedAsPolygon, selectedPoint])
+
+    // Mouse only (touch keeps the crosshair + button): a click that did not pan the map picks the
+    // point under the cursor, or adds a new point there. Pointer events tell mouse and touch apart.
+    const clickStartRef = useRef<{ x: number, y: number } | null>(null)
+    const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        clickStartRef.current = e.pointerType === 'mouse' && e.button === 0 ? { x: e.clientX, y: e.clientY } : null
+    }
+    const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const start = clickStartRef.current
+        clickStartRef.current = null
+        if (!start || mode !== 'boundary-edit' || !mapSize) return
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) >= DRAWING.MIN_MOVEMENT) return // panned
+
+        const rect = e.currentTarget.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+        const hit = currentLinePoints.findIndex(([px, py]) =>
+            Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * 2.5)
+        if (hit !== -1) {
+            setSelectedPoint(hit)
+            return
+        }
+        if (closedAsPolygon) return
+        setSelectedPoint(null)
+        setCurrentLinePoints(prev => [...prev, getWorldCoords(x, y, offset, zoom, mapSize)])
+    }
 
     const addPointAtCrosshair = () => {
         const coords = getCrosshairWorldCoords(canvasRef, offset, zoom, mapSize)
@@ -127,7 +169,9 @@ export default function MapCanvas({
                 onMouseMove={canvasHandlers.onMouseMove}
                 onMouseUp={canvasHandlers.onMouseUp}
                 onMouseLeave={canvasHandlers.onMouseLeave}
-                onDoubleClick={canvasHandlers.onDoubleClick}
+                onDoubleClick={mode === 'boundary-edit' ? undefined : canvasHandlers.onDoubleClick}
+                onPointerDown={onPointerDown}
+                onPointerUp={onPointerUp}
                 onTouchStart={canvasHandlers.onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}

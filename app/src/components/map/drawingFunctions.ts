@@ -318,6 +318,7 @@ export function drawInProgressPolyline(
     zoom: number,
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
+    selected: number = pts.length - 1,
 ) {
     if (!pts.length) return
 
@@ -355,8 +356,8 @@ export function drawInProgressPolyline(
         ctx.fill()
     }
 
-    // ring around the last point: the one the arrow keys move
-    const last = pts[pts.length - 1]
+    // ring around the selected point: the one the arrow keys move
+    const last = pts[selected]
     if (last) {
         ctx.strokeStyle = COLORS.IN_PROGRESS
         ctx.lineWidth = DRAWING.MIN_LINE_WIDTH

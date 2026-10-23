@@ -44,10 +44,13 @@ export default () => {
     })
 
     const [currentLinePoints, setCurrentLinePoints] = useState<Point[]>([])
+    // point picked with the mouse for arrow keys / delete; null = the last point
+    const [selectedPoint, setSelectedPoint] = useState<number | null>(null)
     const [closedAsPolygon, setClosedAsPolygon] = useState(false)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
+    useEffect(() => setSelectedPoint(null), [mode])
     const [returnFromEditMode, SetReturnFromEditMode] = useState<'boundaries' | 'boundary-info'>('boundaries')
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
@@ -94,11 +97,10 @@ export default () => {
             drawCrosshair(ctx, canvas)
             if (closedAsPolygon) {
                 drawZones(ctx, [{ vertices: currentLinePoints, name: '', color: editForm.color, type: 'polygon', id: '', enabled: true }], currentZoom, currentOffset, mapSize)
-            } else {
-                drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize)
             }
+            drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, editForm.color, persistentMaps, persistentMap, dockReady])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, persistentMaps, persistentMap, dockReady])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -277,6 +279,8 @@ export default () => {
                         closedAsPolygon={closedAsPolygon}
                         setClosedAsPolygon={setClosedAsPolygon}
                         setDrawerOpen={setDrawerOpen}
+                        selectedPoint={selectedPoint}
+                        setSelectedPoint={setSelectedPoint}
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
                     />
                 ) : (
