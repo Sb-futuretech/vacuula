@@ -471,3 +471,10 @@
     min-width: 8rem;
     @include pressable;
 }
+
+@media (min-width: $desktop) {
+    .home {
+        max-width: 80rem;
+        margin: 0 auto;
+    }
+}

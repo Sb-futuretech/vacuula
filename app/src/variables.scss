@@ -5,6 +5,9 @@
 // Note: Sass colour functions (rgba($x, a), darken, ...) cannot operate on a
 // var(); use the ready-made tints ($accent-soft, $accent-ring, ...) instead.
 
+// from this window width on the app uses a desktop layout (side navigation, wider pages)
+$desktop: 900px;
+
 // surfaces
 $bg: var(--bg);
 $surface: var(--surface);

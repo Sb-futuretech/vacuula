@@ -66,3 +66,15 @@
     border-radius: 50%;
     @include pressable;
 }
+
+@media (min-width: $desktop) {
+    .drawer {
+        left: 50%;
+        right: auto;
+        width: min(64rem, 100%);
+        transform: translateX(-50%);
+        border-left: 1px solid $border-strong;
+        border-right: 1px solid $border-strong;
+        border-radius: 2rem 2rem 0 0;
+    }
+}
