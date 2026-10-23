@@ -196,6 +196,30 @@
 }
 
 
+// + / - / fit, top right so neither the drawer nor the drawing buttons cover them
+.zoomButtons {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 4rem;
+        height: 4rem;
+        border-radius: 1.2rem;
+        border: 1px solid $border;
+        background: $surface;
+        color: $text-primary;
+        box-shadow: $shadow-md;
+        @include pressable($hover-border: true);
+    }
+}
+
 .selectMap {
     position: absolute;
     height: 100%;

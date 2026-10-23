@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import styles from './map.module.scss'
-import { FaPlus, FaUndo } from 'react-icons/fa'
+import { FaMinus, FaPlus, FaUndo } from 'react-icons/fa'
+import { MdOutlineFitScreen } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { DRAWING } from '../../components/map/constants'
 import type { Point, UseState } from '../../components/map/types'
@@ -42,13 +43,26 @@ export default function MapCanvas({
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
 
-    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers } = useMap({
+    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep } = useMap({
         mapId,
         runId,
         extraDraw,
         redrawKey,
         backgroundToken: '--map-editor-bg'
     })
+
+    // + / - zoom, 0 fits the map; ignored while typing in a form field
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement
+            if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+            if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
+            else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
+            else if (e.key === '0') resetView()
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    }, [zoomStep, resetView])
 
     const addPointAtCrosshair = () => {
         const coords = getCrosshairWorldCoords(canvasRef, offset, zoom, mapSize)
@@ -94,7 +108,7 @@ export default function MapCanvas({
                 onMouseMove={canvasHandlers.onMouseMove}
                 onMouseUp={canvasHandlers.onMouseUp}
                 onMouseLeave={canvasHandlers.onMouseLeave}
-                onWheel={canvasHandlers.onWheel}
+                onDoubleClick={canvasHandlers.onDoubleClick}
                 onTouchStart={canvasHandlers.onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
@@ -103,6 +117,12 @@ export default function MapCanvas({
                     touchAction: 'none'
                 }}
             />
+
+            <div className={styles.zoomButtons}>
+                <button onClick={() => zoomStep(DRAWING.ZOOM_STEP)} aria-label="Zoom in"><FaPlus size={16} /></button>
+                <button onClick={() => zoomStep(1 / DRAWING.ZOOM_STEP)} aria-label="Zoom out"><FaMinus size={16} /></button>
+                <button onClick={resetView} aria-label="Fit map"><MdOutlineFitScreen size={18} /></button>
+            </div>
 
             {mode === 'boundary-edit' && (
                 <div className={styles.actionButtons}>

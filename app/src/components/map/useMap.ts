@@ -55,9 +55,9 @@ export function useMap({
 
     const {
         zoom, offset, isDragging, hasMoved,
-        handleMouseDown, handleMouseMove, handleMouseUp, handleWheel,
+        handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleGesture, handleDoubleClick,
         handleTouchStart, handleTouchMove, handleTouchEnd,
-        centerView, setZoom, setOffset
+        centerView, zoomBy, setZoom, setOffset
     } = useCanvasViewport({ initialZoom: 4, initialOffset: { x: 0, y: 0 } })
 
     const draw = useCallback((currentZoom: number = zoom, currentOffset: Offset = offset) => {
@@ -84,10 +84,40 @@ export function useMap({
         userInteractedRef.current = true
         handleTouchStart(e)
     }, [handleTouchStart])
-    const onWheel = useCallback((e: React.WheelEvent) => {
+    // wheel + Safari pinch need non-passive native listeners to keep the page itself from zooming
+    useEffect(() => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const onWheel = (e: WheelEvent) => {
+            userInteractedRef.current = true
+            handleWheel(e)
+        }
+        const onGesture = (e: Event) => {
+            userInteractedRef.current = true
+            handleGesture(e)
+        }
+        canvas.addEventListener('wheel', onWheel, { passive: false })
+        canvas.addEventListener('gesturestart', onGesture)
+        canvas.addEventListener('gesturechange', onGesture)
+        return () => {
+            canvas.removeEventListener('wheel', onWheel)
+            canvas.removeEventListener('gesturestart', onGesture)
+            canvas.removeEventListener('gesturechange', onGesture)
+        }
+    }, [mapSize])
+
+    const onDoubleClick = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
-        handleWheel(e)
-    }, [handleWheel])
+        handleDoubleClick(e)
+    }, [handleDoubleClick])
+
+    // zoom around the middle of the canvas (buttons, keyboard)
+    const zoomStep = useCallback((factor: number) => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        userInteractedRef.current = true
+        zoomBy(factor, canvas.width / 2, canvas.height / 2)
+    }, [zoomBy])
 
     const { data: persistantMapData, refresh: updatePersistantMapData } = usePersistentMap(mapId);
     const { data: cleaningData, refresh: updateCleaningData } = useCleaning(runId ?? '');
@@ -184,12 +214,13 @@ export function useMap({
             onMouseMove: handleMouseMove,
             onMouseUp: handleMouseUp,
             onMouseLeave: handleMouseUp,
-            onWheel,
+            onDoubleClick,
             onTouchStart,
             onTouchMove: handleTouchMove,
             onTouchEnd: handleTouchEnd
         },
         draw,
-        resetView
+        resetView,
+        zoomStep
     }
 }

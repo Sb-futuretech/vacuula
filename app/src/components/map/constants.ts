@@ -60,7 +60,9 @@ export const DRAWING = {
     CLOSE_THRESHOLD: 0.02, // Normalized distance threshold for polygon closing
     MIN_ZOOM: 1,
     MAX_ZOOM: 60,
-    ZOOM_FACTOR: 1.1,
+    ZOOM_STEP: 1.5, // zoom buttons, + / - keys and double-click
+    WHEEL_ZOOM_SPEED: 0.0015, // per pixel of wheel deltaY (a mouse notch is ~100)
+    PINCH_WHEEL_ZOOM_SPEED: 0.01, // trackpad pinch arrives as ctrl+wheel with small deltas
     PINCH_ZOOM_POWER: 0.5,
     MIN_MOVEMENT: 5, // Pixels before considering it a drag vs click
     RUN_OVERLAY_OPACITY: 0.55, // fallback only; the live value is --map-run-opacity (theme.css)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Offset, TouchState } from './types'
 import { DRAWING } from './constants'
 import { getTouchDistance, getTouchAngle } from './utils'
@@ -46,6 +46,18 @@ export const useCanvasViewport = ({
         })
     }
 
+    // Same as zoomAt, but relative to the current zoom and clamped to the allowed range
+    const zoomBy = (factor: number, centerX: number, centerY: number) => {
+        setZoom(prevZoom => {
+            const newZoom = Math.max(DRAWING.MIN_ZOOM, Math.min(DRAWING.MAX_ZOOM, prevZoom * factor))
+            setOffset(prevOffset => ({
+                x: centerX - (centerX - prevOffset.x) / prevZoom * newZoom,
+                y: centerY - (centerY - prevOffset.y) / prevZoom * newZoom
+            }))
+            return newZoom
+        })
+    }
+
     // ─────────────────────────────
     // Mouse
     // ─────────────────────────────
@@ -81,22 +93,34 @@ export const useCanvasViewport = ({
         setHasMoved(false)
     }
 
-    const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    // Native listener (see useMap): React's onWheel is passive, so it cannot stop the browser
+    // from zooming the whole page on a trackpad pinch. A trackpad sends many small deltas and a
+    // mouse a few big ones, so the zoom follows deltaY instead of a fixed step per event.
+    const handleWheel = (e: WheelEvent) => {
         e.preventDefault()
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        const delta = Math.max(-100, Math.min(100, e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY * 16 : e.deltaY))
+        const speed = e.ctrlKey ? DRAWING.PINCH_WHEEL_ZOOM_SPEED : DRAWING.WHEEL_ZOOM_SPEED
+        zoomBy(Math.exp(-delta * speed), e.clientX - rect.left, e.clientY - rect.top)
+    }
 
+    // Safari reports trackpad pinches as its own gesture events instead of ctrl+wheel
+    const gestureScaleRef = useRef(1)
+    const handleGesture = (e: Event) => {
+        e.preventDefault()
+        const g = e as Event & { scale: number, clientX: number, clientY: number }
+        if (e.type === 'gesturestart') {
+            gestureScaleRef.current = 1
+            return
+        }
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        zoomBy(g.scale / gestureScaleRef.current, g.clientX - rect.left, g.clientY - rect.top)
+        gestureScaleRef.current = g.scale
+    }
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
         const rect = e.currentTarget.getBoundingClientRect()
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
-
-        const worldX = (mouseX - offset.x) / zoom
-        const worldY = (mouseY - offset.y) / zoom
-        const factor = e.deltaY < 0 ? DRAWING.ZOOM_FACTOR : 1 / DRAWING.ZOOM_FACTOR
-        const newZoom = Math.max(DRAWING.MIN_ZOOM, Math.min(DRAWING.MAX_ZOOM, zoom * factor))
-        const newOffsetX = mouseX - worldX * newZoom
-        const newOffsetY = mouseY - worldY * newZoom
-
-        setZoom(newZoom)
-        setOffset({ x: newOffsetX, y: newOffsetY })
+        zoomBy(DRAWING.ZOOM_STEP, e.clientX - rect.left, e.clientY - rect.top)
     }
 
     // ─────────────────────────────
@@ -220,11 +244,14 @@ export const useCanvasViewport = ({
         handleMouseMove,
         handleMouseUp,
         handleWheel,
+        handleGesture,
+        handleDoubleClick,
         handleTouchStart,
         handleTouchMove,
         handleTouchEnd,
 
         centerView,
+        zoomBy,
         setZoom,
         setOffset
     }
