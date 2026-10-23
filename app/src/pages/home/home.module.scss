@@ -9,6 +9,7 @@
     overflow-y: auto;
     width: 100%;
     position: relative;
+    @include desktop-page;
 }
 
 // ── Alerts ───────────────────────────────────────────────────────────────────
@@ -470,11 +471,4 @@
     align-self: center;
     min-width: 8rem;
     @include pressable;
-}
-
-@media (min-width: $desktop) {
-    .home {
-        max-width: 80rem;
-        margin: 0 auto;
-    }
 }

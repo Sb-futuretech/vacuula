@@ -65,40 +65,6 @@ export default function MapCanvas({
         backgroundToken: '--map-editor-bg'
     })
 
-    // + / - zoom, 0 fits the map; while drawing: arrows nudge the selected point, Backspace/Delete
-    // removes it, Enter closes the zone, Escape drops the selection. Ignored while typing in a form field.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            const target = e.target as HTMLElement
-            if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
-            const arrow = ARROW_DIRECTIONS[e.key]
-            const active = selectedPoint ?? currentLinePoints.length - 1
-            if (mode === 'boundary-edit' && (arrow || ['Backspace', 'Delete', 'Enter', 'Escape'].includes(e.key))) {
-                e.preventDefault()
-                if (arrow && mapSize) {
-                    const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
-                    setCurrentLinePoints(prev => prev.map((p, i) => i === active
-                        ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
-                        : p))
-                } else if (e.key === 'Backspace' || e.key === 'Delete') {
-                    if (active < 0) return
-                    if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
-                    setCurrentLinePoints(prev => prev.filter((_, i) => i !== active))
-                    setSelectedPoint(null)
-                } else if (e.key === 'Enter') {
-                    if (currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
-                } else {
-                    setSelectedPoint(null)
-                }
-            }
-            else if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
-            else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
-            else if (e.key === '0') resetView()
-        }
-        window.addEventListener('keydown', onKeyDown)
-        return () => window.removeEventListener('keydown', onKeyDown)
-    }, [zoomStep, resetView, mode, mapSize, mmPerPixel, currentLinePoints, closedAsPolygon, selectedPoint])
-
     // Mouse only (touch keeps the crosshair + button): a click that did not pan the map picks the
     // point under the cursor, or adds a new point there. Pointer events tell mouse and touch apart.
     const clickStartRef = useRef<{ x: number, y: number } | null>(null)
@@ -144,6 +110,51 @@ export default function MapCanvas({
         setClosedAsPolygon(true)
         setDrawerOpen(true)
     }
+
+    // While drawing: arrows nudge the selected point (shift: 5x), Backspace/Delete removes it,
+    // Enter closes the zone, Escape drops the selection. Returns false for any other key.
+    const handleDrawingKey = (e: KeyboardEvent) => {
+        const active = selectedPoint ?? currentLinePoints.length - 1
+        const arrow = ARROW_DIRECTIONS[e.key]
+        if (arrow) {
+            if (!mapSize) return true
+            const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
+            setCurrentLinePoints(prev => prev.map((p, i) => i === active
+                ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
+                : p))
+        } else if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (active < 0) return true
+            if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
+            setCurrentLinePoints(prev => prev.filter((_, i) => i !== active))
+            setSelectedPoint(null)
+        } else if (e.key === 'Enter') {
+            if (currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
+        } else if (e.key === 'Escape') {
+            setSelectedPoint(null)
+        } else return false
+        return true
+    }
+
+    // + / - zoom, 0 fits the map. Returns false for any other key.
+    const handleZoomKey = (e: KeyboardEvent) => {
+        if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
+        else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
+        else if (e.key === '0') resetView()
+        else return false
+        return true
+    }
+
+    // re-subscribed every render so the handlers always see the current points
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement
+            // typing in a form field (e.g. the zone name) must not move points or zoom
+            if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+            if ((mode === 'boundary-edit' && handleDrawingKey(e)) || handleZoomKey(e)) e.preventDefault()
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    })
 
     const onTouchMove = (e: React.TouchEvent) => {
         canvasHandlers.onTouchMove(e)

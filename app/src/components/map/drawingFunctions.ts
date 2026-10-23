@@ -357,12 +357,12 @@ export function drawInProgressPolyline(
     }
 
     // ring around the selected point: the one the arrow keys move
-    const last = pts[selected]
-    if (last) {
+    const ring = pts[selected]
+    if (ring) {
         ctx.strokeStyle = COLORS.IN_PROGRESS
         ctx.lineWidth = DRAWING.MIN_LINE_WIDTH
         ctx.beginPath()
-        ctx.arc(offset.x + last[0] * sx, offset.y + last[1] * sy, DRAWING.POINT_RADIUS * 2.2, 0, Math.PI * 2)
+        ctx.arc(offset.x + ring[0] * sx, offset.y + ring[1] * sy, DRAWING.POINT_RADIUS * 2.2, 0, Math.PI * 2)
         ctx.stroke()
     }
 }

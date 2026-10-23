@@ -27,26 +27,11 @@ export const useCanvasViewport = ({
         }))
     }
 
-    // Nests the offset update inside the zoom update's functional form so both always read
-    // the truly-latest committed state, rather than the `zoom`/`offset` closed over when
-    // this render's handleTouchMove was created — matters during fast pinches, where several
-    // touchmove events can fire before React re-renders in between.
-    const zoomAt = (newZoom: number, centerX: number, centerY: number) => {
-        setZoom(prevZoom => {
-            setOffset(prevOffset => {
-                const worldX = (centerX - prevOffset.x) / prevZoom
-                const worldY = (centerY - prevOffset.y) / prevZoom
-
-                return {
-                    x: centerX - worldX * newZoom,
-                    y: centerY - worldY * newZoom
-                }
-            })
-            return newZoom
-        })
-    }
-
-    // Same as zoomAt, but relative to the current zoom and clamped to the allowed range
+    // Multiplies the zoom by `factor` (clamped) around a point on the canvas. Nests the offset
+    // update inside the zoom update's functional form so both always read the truly-latest
+    // committed state, rather than the `zoom`/`offset` closed over when this render's handlers
+    // were created — matters during fast pinches/wheels, where several events can fire before
+    // React re-renders in between.
     const zoomBy = (factor: number, centerX: number, centerY: number) => {
         setZoom(prevZoom => {
             const newZoom = Math.max(DRAWING.MIN_ZOOM, Math.min(DRAWING.MAX_ZOOM, prevZoom * factor))
@@ -176,16 +161,10 @@ export const useCanvasViewport = ({
             // shouldn't divide by near-zero either.
             if (distance > DRAWING.MIN_PINCH_DISTANCE) {
                 const ratio = distance / touchStart.distance
-
-                const newZoom = Math.max(
-                    DRAWING.MIN_ZOOM,
-                    Math.min(DRAWING.MAX_ZOOM, zoom * Math.pow(ratio, DRAWING.PINCH_ZOOM_POWER))
-                )
-
                 const centerX = (t[0].clientX + t[1].clientX) / 2 - rect.left
                 const centerY = (t[0].clientY + t[1].clientY) / 2 - rect.top
 
-                zoomAt(newZoom, centerX, centerY)
+                zoomBy(Math.pow(ratio, DRAWING.PINCH_ZOOM_POWER), centerX, centerY)
 
                 setTouchStart({ distance, angle: getTouchAngle(t[0], t[1]) })
             }
