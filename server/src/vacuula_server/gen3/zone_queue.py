@@ -4,6 +4,10 @@ The D7 answers `ok` to a startCleaning with `boundaryIds`, but ignores the list 
 cleans the whole map. Only a single `boundaryId` per run works, so the server keeps
 the remaining zones here and starts the next one once the robot reports it is back
 idle on its dock.
+
+A zone the robot cannot do (e.g. `nav_floorplan_zone_unreachable`) is not an error:
+the robot sets `alert`, drives home and goes idle. That zone is recorded as failed and
+the queue moves on.
 """
 from __future__ import annotations
 import json
@@ -47,6 +51,9 @@ class ZoneQueue:
     seen_busy: bool = False  # robot reported busy since the current zone was started
     starting: bool = False   # a start for the next zone is pending
     started_at: float = field(default_factory=time.time)
+    alert: str | None = None        # alert raised while the current zone was running
+    stale_alert: str | None = None  # alert already set when the current zone started
+    results: list[dict] = field(default_factory=list)  # finished zones: name + alert
 
     def status(self) -> dict:
         return {
@@ -56,6 +63,7 @@ class ZoneQueue:
             "mode": self.mode,
             "navigationMode": self.navigation_mode,
             "startedAt": self.started_at,
+            "results": self.results,
         }
 
 
@@ -99,6 +107,10 @@ def on_state(serial: str, data: dict) -> None:
         if q is None or q.starting:
             return
 
+        alert = data.get("alert")
+        if alert and alert != q.stale_alert and (q.seen_busy or robot_state == STATE_BUSY):
+            q.alert = alert
+
         if robot_state == STATE_ERROR or data.get("error"):
             reason = f"robot error {data.get('error')}"
         elif robot_state == STATE_BUSY:
@@ -108,13 +120,16 @@ def on_state(serial: str, data: dict) -> None:
             return  # paused, or the start has not taken effect yet
         elif not (data.get("details") or {}).get("isDocked"):
             reason = "robot stopped away from the dock"
-        elif q.index + 1 >= len(q.zones):
-            _queues.pop(serial, None)
-            logger.info("Zone queue for %s finished all %d zones", serial, len(q.zones))
-            return
         else:
+            _finish_zone(serial, q)
+            if q.index + 1 >= len(q.zones):
+                _queues.pop(serial, None)
+                failed = sum(1 for r in q.results if r["alert"])
+                logger.info("Zone queue for %s finished all %d zones (%d with alerts)", serial, len(q.zones), failed)
+                return
             q.index += 1
             q.seen_busy = False
+            q.alert = None
             q.starting = True
             logger.info("Zone queue for %s: zone done, next zone %d/%d in %ds", serial, q.index + 1, len(q.zones), NEXT_ZONE_DELAY_S)
             # not on this thread: it is the robot's reader, which has to deliver the reply
@@ -122,6 +137,13 @@ def on_state(serial: str, data: dict) -> None:
             return
 
     cancel(serial, reason)
+
+
+def _finish_zone(serial: str, q: ZoneQueue) -> None:
+    zone = q.zones[q.index]
+    q.results.append({"boundaryId": zone.boundary_id, "name": zone.name, "alert": q.alert})
+    if q.alert:
+        logger.warning("Zone queue for %s: zone %d/%d %r ended with alert %s", serial, q.index + 1, len(q.zones), zone.name or zone.boundary_id, q.alert)
 
 
 def _start_next(serial: str, q: ZoneQueue) -> None:
@@ -163,10 +185,15 @@ def _start_zone(serial: str, q: ZoneQueue) -> tuple[bool, str]:
     pending_requests.pop(key, None)
     if not slot.event.is_set():
         return False, "robot did not answer startCleaning"
+    try:
+        reply = json.loads(slot.content)
+    except Exception:
+        reply = {}
     if slot.status != 200:
-        try:
-            result = json.loads(slot.content).get("result")
-        except Exception:
-            result = slot.content
-        return False, f"robot refused startCleaning: {result}"
+        return False, f"robot refused startCleaning: {reply.get('result', slot.content)}"
+    # a leftover alert from an earlier run stays in every state until cleared; do not blame this zone for it
+    with _lock:
+        q.stale_alert = reply.get("alert")
+        if q.alert == q.stale_alert:
+            q.alert = None  # on_state already saw the reply
     return True, "ok"
