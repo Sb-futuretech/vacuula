@@ -40,6 +40,8 @@ export default function Battery({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* next to the battery, so the percentage stays readable while charging */}
+      {isCharging && <TbBolt size={14} color="var(--success)" strokeWidth={2.5} />}
       <svg width="48" height="24" viewBox="0 0 48 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           {/* Clip to the filled part: the text drawn through it uses the on-fill colour */}
@@ -51,20 +53,10 @@ export default function Battery({
         {/* Battery fill */}
         <rect x={FILL_X} y={FILL_Y} width={fillWidth} height={FILL_HEIGHT} rx="1" fill={fillColor} />
 
-        {isCharging ? (
-          <foreignObject x={CX - 6} y={CY - 6} width="12" height="12" pointerEvents="none">
-            <div style={{ width: '12px', height: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TbBolt size={12} color="var(--text)" strokeWidth={2} />
-            </div>
-          </foreignObject>
-        ) : (
-          <>
-            {/* Percentage over the empty part: normal text colour */}
-            <text {...textProps} fill="var(--text)">{pct}%</text>
-            {/* Same text clipped to the fill: dark on the coloured bar */}
-            <text {...textProps} fill="var(--battery-text-on-fill)" clipPath={`url(#${clipId})`}>{pct}%</text>
-          </>
-        )}
+        {/* Percentage over the empty part: normal text colour */}
+        <text {...textProps} fill="var(--text)">{pct}%</text>
+        {/* Same text clipped to the fill: dark on the coloured bar */}
+        <text {...textProps} fill="var(--battery-text-on-fill)" clipPath={`url(#${clipId})`}>{pct}%</text>
 
         {/* Battery outline - rendered last so everything stays inside */}
         <rect x="2" y="4" width="38" height="16" rx="2" stroke="var(--border-strong)" strokeWidth="1.5" fill="none" />
