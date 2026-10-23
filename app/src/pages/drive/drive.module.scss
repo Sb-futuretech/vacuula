@@ -1,0 +1,98 @@
+@use '../../variables.scss' as *;
+
+.drive {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem;
+    width: 100%;
+    padding: 2rem 1.6rem;
+    user-select: none;
+    @include desktop-page;
+}
+
+.status {
+    padding: 0.8rem 1.6rem;
+    border-radius: 2rem;
+    background: $surface;
+    color: $text-muted;
+    font-size: 1.4rem;
+    text-align: center;
+
+    &.ready {
+        color: $accent;
+    }
+
+    &.error {
+        background: $err-bg;
+        color: $err-text;
+    }
+}
+
+// ↑ / ← ■ → / ↓
+.pad {
+    display: grid;
+    grid-template-areas:
+        ".    up   ."
+        "left stop right"
+        ".    down .";
+    gap: 1.2rem;
+}
+
+.arrow {
+    width: 8rem;
+    height: 8rem;
+    border-radius: 2rem;
+    border: 1px solid $border;
+    background: $surface;
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none; // holding must not scroll or zoom the page
+    @include pressable($hover-border: true);
+
+    &.active {
+        background: $surface-2;
+        border-color: $accent;
+        color: $accent;
+    }
+
+    &.up { grid-area: up; }
+    &.down { grid-area: down; }
+    &.left { grid-area: left; }
+    &.right { grid-area: right; }
+    &.stop {
+        grid-area: stop;
+        color: $err-text;
+    }
+}
+
+.motors {
+    display: flex;
+    gap: 1rem;
+
+    button {
+        padding: 1rem 1.8rem;
+        border-radius: 1.4rem;
+        border: 1px solid $border;
+        background: $surface;
+        color: $text-muted;
+        font-size: 1.4rem;
+        @include pressable($hover-border: true);
+
+        &.on {
+            background: $surface-2;
+            border-color: $accent;
+            color: $accent;
+        }
+    }
+}
+
+.hint {
+    max-width: 36rem;
+    color: $text-dim;
+    font-size: 1.3rem;
+    text-align: center;
+}

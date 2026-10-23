@@ -82,6 +82,9 @@ export interface ZoneQueueStatus {
   done: boolean // last status of a finished queue
 }
 
+export type DriveCombo = 'forward' | 'back' | 'stop' | 'arc-left' | 'arc-right' | 'pivot-left' | 'pivot-right'
+export type DriveCommand = `${'vacuum' | 'brush' | 'eco' | 'turbo'}-${'on' | 'off'}`
+
 export class Http {
   static sendCmd<T>(robotSerial: string, cmd: object) {
     return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
@@ -94,6 +97,19 @@ export class Http {
   // the zone being cleaned finishes, the remaining ones are dropped
   static cancelZoneQueue(serial: string) {
     return instance.delete(`/robot/${serial}/zone-queue`)
+  }
+
+  // Gen3 manual drive: the server holds the connection to the robot (gen3/manual_drive.py)
+  static driveStart(serial: string) {
+    return instance.post(`/robot/${serial}/drive/start`)
+  }
+
+  static drive(serial: string, message: { combo: DriveCombo } | { command: DriveCommand }) {
+    return instance.post(`/robot/${serial}/drive`, message)
+  }
+
+  static driveStop(serial: string) {
+    return instance.post(`/robot/${serial}/drive/stop`)
   }
 
   // Gen3: the server cleans the zones one after another (the D7 ignores `boundaryIds`)

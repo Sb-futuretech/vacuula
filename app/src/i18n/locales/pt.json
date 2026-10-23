@@ -69,6 +69,7 @@
         "serverHint": "Visite o github do Vacuula para saber como configurar o seu robot! Se continuar a não conseguir ligar, execute novamente o Instalador Vacuula ou peça ajuda através do github ou do servidor discord!"
     },
     "home": {
+        "drive": "Conduzir",
         "zoneQueue": {
             "running": "Zona {{index}}/{{total}}: {{name}}",
             "next": "Próxima zona {{index}}/{{total}} em breve: {{name}}",
@@ -101,6 +102,15 @@
         "mapModeHint": "O modo de limpeza Mapa está disponível quando o robot está na base.",
         "height": "Altura",
         "width": "Largura"
+    },
+    "drive": {
+        "connecting": "A ligar ao robot…",
+        "ready": "Pronto: mantenha uma seta premida para conduzir",
+        "error": "Condução manual indisponível: {{message}}",
+        "vacuum": "Aspiração",
+        "brush": "Escova",
+        "turbo": "Turbo",
+        "hint": "Mantenha ↑ para avançar, ← → para rodar no lugar (com ↑: curva), ↓ recua em passos curtos. No teclado: setas, espaço para parar."
     },
     "runs": {
         "entryTitle": "Limpeza {{startedBy}} | {{date}}",

@@ -6,7 +6,7 @@ import re
 from typing import Callable, Optional, Tuple, List
 
 # general
-from .app import get_robots, get_maps, get_map, get_run, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue
+from .app import get_robots, get_maps, get_map, get_run, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue, post_drive_start, post_drive, post_drive_stop
 from .events import get_events
 from vacuula_server.handlers.setup import get_cert, get_log, get_log_full
 
@@ -59,6 +59,9 @@ APP_ROUTES: List[Tuple[str, str, Handler]] = [
     ("GET", r"/api/robot/(.+)/zone-queue", get_zone_queue),
     ("POST", r"/api/robot/(.+)/zone-queue", post_zone_queue),
     ("DELETE", r"/api/robot/(.+)/zone-queue", delete_zone_queue),
+    ("POST", r"/api/robot/(.+)/drive/start", post_drive_start),
+    ("POST", r"/api/robot/(.+)/drive/stop", post_drive_stop),
+    ("POST", r"/api/robot/(.+)/drive", post_drive),
     ("POST", r"/api/robot/(.+)/command", post_robot_command),
     ("POST", r"/api/robot/(.+)", post_robot),
     ("DELETE", r"/api/robot/(.+)/maps/(.+)", gen4.delete_demote_floorplan),
