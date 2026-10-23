@@ -254,6 +254,35 @@
     grid-row: 4;
 }
 
+.ctrlBtn {
+    width: 8rem;
+    height: 7rem;
+    border-radius: 1.4rem;
+    background: $surface;
+    border: 1px solid $border;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    cursor: pointer;
+    color: $text-primary;
+    @include pressable($hover-border: true);
+}
+
+.ctrlLabel {
+    font-size: 0.8rem;
+    color: $text-primary;
+    opacity: 0.5;
+}
+
+.ctrlSelection {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.03rem;
+    color: $text-primary;
+}
+
 .start {
     width: 10rem;
     height: 10rem;

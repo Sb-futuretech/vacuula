@@ -18,6 +18,7 @@ import { VscFeedback } from 'react-icons/vsc'
 import { FaFileLines } from 'react-icons/fa6'
 import type { UseState } from '../../components/map/types'
 import { formatHHMM, formatUtcOffset } from '../../utils/clockTime'
+import { loadSelectedMapShape, saveSelectedMapShape, MAPSHAPES } from './mapshapes'
 
 export default () => {
     const { t, i18n } = useTranslation()
@@ -28,6 +29,7 @@ export default () => {
     const { robot, updateRobotName, serverInfo } = useRobot()
 
     const [robotName, setRobotName] = useState(robot.name)
+    const [selectedMapShape, setSelectedMapShape] = useState(loadSelectedMapShape())
 
     // ticks the server clock below; the browser clock is UTC-correct, the server only adds its offset
     const [now, setNow] = useState(Date.now())
@@ -52,6 +54,9 @@ export default () => {
         return () => clearTimeout(timer)
     }, [robotName])
 
+    useEffect(() => {
+        saveSelectedMapShape(selectedMapShape)
+    }, [selectedMapShape])
 
 
     return (
@@ -67,12 +72,7 @@ export default () => {
                     extraInfo={(
                         <>
                             <span>{t('settings.serial', { serial: 'label_serial' in robot ? robot.label_serial : robot.serial })}</span>
-                            {robot.type === RobotType.NeatoGen3 && (
-                                <>
-                                    <br />
-                                    <span>{t('settings.birthday', { date: manufacturingCodeToDate(robot.serial.split('-')[0])?.toLocaleDateString(i18n.language) ?? '' })}</span>
-                                </>
-                            )}
+                            {robot.type === RobotType.NeatoGen3 && <Gen3RobotDetails />}
                         </>
                     )}
                 />
@@ -104,6 +104,13 @@ export default () => {
                     options={THEME_MODES.map(mode => ({ value: mode, label: t(`settings.theme_${mode}`) }))}
                     value={theme}
                     onChange={(mode) => setTheme(mode as ThemeMode)}
+                />
+                <Input
+                    type="dropdown"
+                    label={t('settings.mapShapeSelect')}
+                    options={MAPSHAPES.map(shape => ({ value: shape.value, label: t(shape.label) }))}
+                    value={selectedMapShape}
+                    onChange={setSelectedMapShape}
                 />
                 <Input
                     type="dropdown"
@@ -144,10 +151,10 @@ export default () => {
                         <Button icon={<SiKofi size={20} />} text='Ko-fi' style='secondary' onClick={() => window.open('https://ko-fi.com/V7V61PBIY6')} />
                         <Button icon={<SiBuymeacoffee size={20} />} text='Buy Me a Coffee' style='secondary' onClick={() => window.open('https://www.buymeacoffee.com/philip2809')} />
 
-                        <Button icon={<GrCertificate size={20} />} text={t('settings.downloadCert')} style='secondary' onClick={() => window.open("/api/cert")}/>
-                        <Button icon={<VscFeedback size={20} />} text={t('settings.giveFeedback')} style='secondary' onClick={() => window.open("https://feedback.vacuula.phma.dev/")}/>
-                        
-                        <Button icon={<FaFileLines size={20} />} text={t('settings.downloadLogs')} style='secondary' onClick={() => window.open("/api/log/full?download=true")}/>
+                        <Button icon={<GrCertificate size={20} />} text={t('settings.downloadCert')} style='secondary' onClick={() => window.open("/api/cert")} />
+                        <Button icon={<VscFeedback size={20} />} text={t('settings.giveFeedback')} style='secondary' onClick={() => window.open("https://feedback.vacuula.phma.dev/")} />
+
+                        <Button icon={<FaFileLines size={20} />} text={t('settings.downloadLogs')} style='secondary' onClick={() => window.open("/api/log/full?download=true")} />
                     </div>
                 </Input>
 
@@ -224,6 +231,35 @@ const Gen4RobotSettings = () => {
     )
 }
 
+const Gen3RobotDetails = () => {
+    const { t } = useTranslation()
+    const { robot } = useRobot()
+
+    const [robotGeneralInfo, setRobotGeneralInfo] = useState<Neato.Gen3.GetGeneralInfo>()
+
+    useEffect(() => {
+        GEN3_COMMANDS.getGeneralInfo(robot.serial).then(res => {
+            setRobotGeneralInfo(res.data.data)
+        })
+    }, []);
+
+    return (
+        <>
+            <br />
+            <span>{t('settings.birthday', { date: manufacturingCodeToDate(robot.serial.split('-')[0])?.toLocaleDateString() ?? '' })}</span>
+            { robotGeneralInfo && (
+                <>
+                <br />
+                <span>{t('settings.batteryCycles', { cycles: robotGeneralInfo.battery.totalCharges })}</span>
+                <br />
+                <span>{t('settings.robotModel', { model: robotGeneralInfo.model })}</span>
+                </>
+            )}
+        </>
+    )
+
+
+}
 
 const Gen3RobotSettings = () => {
     const { t } = useTranslation()
