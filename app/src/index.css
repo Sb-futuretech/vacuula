@@ -12,6 +12,13 @@ html {
     font-size: 62.5%;
 }
 
+/* Desktop (same width as $desktop in variables.scss): everything sized in rem gets 20% bigger */
+@media (min-width: 900px) {
+    html {
+        font-size: 75%;
+    }
+}
+
 body {
     font-size: 1.6rem;
 }
