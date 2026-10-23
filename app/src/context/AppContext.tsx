@@ -1,6 +1,6 @@
 import { createContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BASE_PATH, Http, type LoadingState, type ServerInfo } from '../http'
+import { BASE_PATH, Http, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
 import { GEN3_COMMANDS } from '../http/gen3'
 import type { UseState } from '../pages/map/types'
 import { Neato, RobotType, type QuickRobotInfo, type Robot } from '../types'
@@ -38,6 +38,10 @@ interface AppContextType {
     message: string | null
     setMessage: (msg: string | null) => void
 
+    // gen3 multi-zone clean run by the server; kept after the end until dismissed
+    zoneQueue: ZoneQueueStatus | null
+    setZoneQueue: (queue: ZoneQueueStatus | null) => void
+
 
     // TEMP, todo this better
     getGen3State: (serial: string, name: string) => void
@@ -58,6 +62,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(false)
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: false })
     const [message, setMessage] = useState<string | null>(null)
+    const [zoneQueue, setZoneQueue] = useState<ZoneQueueStatus | null>(null)
     const [hasOutdatedRobot, setHasOutdatedRobot] = useState(false)
     const [serverInfo, setServerInfo] = useState<ServerInfo>()
     const [serverInfoError, setServerInfoError] = useState(false)
@@ -195,6 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const events = new EventSource(
             `${BASE_PATH}/api/robot/${robot.serial}/connect`,
         );
+        setZoneQueue(null)
 
         const refreshState = () => {
             if (robot.type === RobotType.NeatoGen3) {
@@ -229,6 +235,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         events.onopen = () => {
             if (!robots) return;
             refreshState()
+            if (robot.type === RobotType.NeatoGen3) Http.getZoneQueue(robot.serial).then(res => setZoneQueue(res.data.queue))
         }
 
         // Gen3 only pushes state when state/action changes, never for battery level
@@ -252,7 +259,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         events.onmessage = (event) => {
             setLastHeartbeat(Date.now());
-            const wrapper: VacuulaRobotEvent = JSON.parse(event.data);
+            const parsed = JSON.parse(event.data);
+            // zone queue progress comes from the server itself, not from the robot
+            if (parsed.event === 'zoneQueue') {
+                setZoneQueue(parsed.data)
+                return
+            }
+            const wrapper: VacuulaRobotEvent = parsed;
 
             if (wrapper.type === RobotType.NeatoGen4) {
                 type EventByService = {
@@ -325,6 +338,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoadingState,
         message,
         setMessage,
+        zoneQueue,
+        setZoneQueue,
         robot,
         robots,
         selectRobot,

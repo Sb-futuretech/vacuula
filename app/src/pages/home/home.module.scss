@@ -63,7 +63,7 @@
         }
     }
 
-     &.invalid {
+     &.invalid, &.info {
         background: $info-bg;
 
         .alertTitle {

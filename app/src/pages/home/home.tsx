@@ -31,7 +31,7 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 
 
 interface AlertCardProps {
-    type?: ('error' | 'warning') | Neato.Gen4.ErrorSeverity
+    type?: ('error' | 'warning' | 'info') | Neato.Gen4.ErrorSeverity
     icon: React.ReactNode
     title: string
     sub?: string
@@ -54,6 +54,34 @@ function AlertCard({ type = 'error', icon, title, sub, action, onClick, visible 
             </div>
             {action && <button className={styles.alertAction} onClick={onClick}>{action}</button>}
         </div>
+    )
+}
+
+// Progress of a multi-zone clean (server zone queue). Stays after the end until closed,
+// so a zone the robot could not reach is not missed.
+function ZoneQueueCard() {
+    const { t } = useTranslation()
+    const { robot } = useRobot()
+    const { zoneQueue: q, setZoneQueue } = useApp()
+    if (!q) return null
+
+    const failed = q.results.filter(r => r.alert)
+    const progress = q.zones.map((_, i) =>
+        q.results[i] ? (q.results[i].alert ? '✕' : '✓') : i === q.index && !q.done ? '●' : '○').join(' ')
+    const title = q.done
+        ? (failed.length ? t('home.zoneQueue.notCleaned', { names: failed.map(r => r.name).join(', ') }) : t('home.zoneQueue.done', { total: q.total }))
+        : t(q.waiting ? 'home.zoneQueue.next' : 'home.zoneQueue.running', { index: q.index + 1, total: q.total, name: q.zones[q.index]?.name })
+
+    return (
+        <AlertCard
+            type={failed.length ? 'warning' : 'info'}
+            icon={failed.length ? <MdWarning size={17} /> : <MdCleaningServices size={17} />}
+            title={`${progress}   ${title}`}
+            sub={failed.at(-1)?.alert ?? undefined}
+            robotType={RobotType.NeatoGen3}
+            action={q.done ? t('common.ok') : t('home.zoneQueue.skip')}
+            onClick={() => q.done ? setZoneQueue(null) : Http.cancelZoneQueue(robot.serial)}
+        />
     )
 }
 
@@ -162,6 +190,7 @@ export default function Home() {
 
                 {robot.type === RobotType.NeatoGen3 && (
                     <>
+                        <ZoneQueueCard />
                         <AlertCard
                             visible={!!robot.error}
                             type="error"

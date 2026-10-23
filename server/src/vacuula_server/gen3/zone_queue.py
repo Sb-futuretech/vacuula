@@ -8,6 +8,8 @@ idle on its dock.
 A zone the robot cannot do (e.g. `nav_floorplan_zone_unreachable`) is not an error:
 the robot sets `alert`, drives home and goes idle. That zone is recorded as failed and
 the queue moves on.
+
+Every change of the queue is pushed to the app as a `zoneQueue` event (see _broadcast).
 """
 from __future__ import annotations
 import json
@@ -18,7 +20,7 @@ from dataclasses import dataclass, field
 
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.state import robot_connections, pending_requests, PendingRequest
+from vacuula_server.state import robot_connections, pending_requests, PendingRequest, client_connections, put_drop_oldest
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class ZoneQueue:
     stale_alert: str | None = None  # alert already set when the current zone started
     results: list[dict] = field(default_factory=list)  # finished zones: name + alert
 
-    def status(self) -> dict:
+    def status(self, done: bool = False) -> dict:
         return {
             "index": self.index,
             "total": len(self.zones),
@@ -64,6 +66,8 @@ class ZoneQueue:
             "navigationMode": self.navigation_mode,
             "startedAt": self.started_at,
             "results": self.results,
+            "waiting": self.starting,  # between two zones, next one starts shortly
+            "done": done,              # last status of a finished queue
         }
 
 
@@ -78,10 +82,22 @@ def get_status(serial: str) -> dict | None:
         return q.status() if q else None
 
 
+def _broadcast(serial: str, status: dict | None) -> None:
+    """Push the queue status to the app's event stream; None = the queue was cancelled."""
+    clients = [c for c in client_connections if c["serial"] == serial]
+    if not clients:
+        return
+    msg = json.dumps({"serial": serial, "event": "zoneQueue", "data": status, "ts": time.time()})
+    frame = f"data: {msg}\n\n".encode()
+    for client in clients:
+        put_drop_oldest(client["queue"], frame)
+
+
 def cancel(serial: str, reason: str) -> None:
     with _lock:
         q = _queues.pop(serial, None)
     if q:
+        _broadcast(serial, None)
         logger.info("Zone queue for %s cancelled at zone %d/%d: %s", serial, q.index + 1, len(q.zones), reason)
 
 
@@ -91,7 +107,9 @@ def start(serial: str, zones: list[Zone], mode: int, navigation_mode: int) -> tu
     with _lock:
         _queues[serial] = q
     ok, msg = _start_zone(serial, q)
-    if not ok:
+    if ok:
+        _broadcast(serial, get_status(serial))
+    else:
         cancel(serial, msg)
     return ok, msg
 
@@ -124,6 +142,7 @@ def on_state(serial: str, data: dict) -> None:
             _finish_zone(serial, q)
             if q.index + 1 >= len(q.zones):
                 _queues.pop(serial, None)
+                _broadcast(serial, q.status(done=True))
                 failed = sum(1 for r in q.results if r["alert"])
                 logger.info("Zone queue for %s finished all %d zones (%d with alerts)", serial, len(q.zones), failed)
                 return
@@ -131,6 +150,7 @@ def on_state(serial: str, data: dict) -> None:
             q.seen_busy = False
             q.alert = None
             q.starting = True
+            _broadcast(serial, q.status())
             logger.info("Zone queue for %s: zone done, next zone %d/%d in %ds", serial, q.index + 1, len(q.zones), NEXT_ZONE_DELAY_S)
             # not on this thread: it is the robot's reader, which has to deliver the reply
             threading.Thread(target=_start_next, args=(serial, q), daemon=True).start()
@@ -154,7 +174,9 @@ def _start_next(serial: str, q: ZoneQueue) -> None:
     ok, msg = _start_zone(serial, q)
     with _lock:
         q.starting = False
-    if not ok:
+    if ok:
+        _broadcast(serial, get_status(serial))
+    else:
         cancel(serial, msg)
 
 

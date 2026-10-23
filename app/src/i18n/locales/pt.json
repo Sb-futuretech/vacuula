@@ -69,6 +69,13 @@
         "serverHint": "Visite o github do Vacuula para saber como configurar o seu robot! Se continuar a não conseguir ligar, execute novamente o Instalador Vacuula ou peça ajuda através do github ou do servidor discord!"
     },
     "home": {
+        "zoneQueue": {
+            "running": "Zona {{index}}/{{total}}: {{name}}",
+            "next": "Próxima zona {{index}}/{{total}} em breve: {{name}}",
+            "done": "Todas as {{total}} zonas limpas",
+            "notCleaned": "Não limpas: {{names}}",
+            "skip": "Saltar resto"
+        },
         "errorTitle": "Erro",
         "error": {
             "invalid": "Info",

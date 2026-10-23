@@ -94,6 +94,13 @@
         "mapModeHint": "Map cleaning mode is available when robot is docked.",
         "height": "Height",
         "width": "Width",
+        "zoneQueue": {
+            "running": "Zone {{index}}/{{total}}: {{name}}",
+            "next": "Next zone {{index}}/{{total}} in a moment: {{name}}",
+            "done": "All {{total}} zones cleaned",
+            "notCleaned": "Not cleaned: {{names}}",
+            "skip": "Skip rest"
+        },
         "btnExplain": {
             "locate": "Lost robot?",
             "mode": "Mode",

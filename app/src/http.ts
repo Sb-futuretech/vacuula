@@ -72,9 +72,28 @@ instance.interceptors.response.use(
   }
 );
 
+// Gen3 zone queue as the server reports it (GET /zone-queue and `zoneQueue` events)
+export interface ZoneQueueStatus {
+  index: number // zone being cleaned (or next, while waiting)
+  total: number
+  zones: { mapId: string, boundaryId: string, name: string }[]
+  results: { boundaryId: string, name: string, alert: string | null }[] // finished zones
+  waiting: boolean // between two zones
+  done: boolean // last status of a finished queue
+}
+
 export class Http {
   static sendCmd<T>(robotSerial: string, cmd: object) {
     return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+  }
+
+  static getZoneQueue(serial: string) {
+    return instance.get<{ queue: ZoneQueueStatus | null }>(`/robot/${serial}/zone-queue`)
+  }
+
+  // the zone being cleaned finishes, the remaining ones are dropped
+  static cancelZoneQueue(serial: string) {
+    return instance.delete(`/robot/${serial}/zone-queue`)
   }
 
   // Gen3: the server cleans the zones one after another (the D7 ignores `boundaryIds`)
