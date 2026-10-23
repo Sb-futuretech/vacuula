@@ -44,10 +44,13 @@ export default () => {
     })
 
     const [currentLinePoints, setCurrentLinePoints] = useState<Point[]>([])
+    // point picked with the mouse for arrow keys / delete; null = the last point
+    const [selectedPoint, setSelectedPoint] = useState<number | null>(null)
     const [closedAsPolygon, setClosedAsPolygon] = useState(false)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
+    useEffect(() => setSelectedPoint(null), [mode])
     const [returnFromEditMode, SetReturnFromEditMode] = useState<'boundaries' | 'boundary-info'>('boundaries')
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
@@ -94,11 +97,10 @@ export default () => {
             drawCrosshair(ctx, canvas)
             if (closedAsPolygon) {
                 drawZones(ctx, [{ vertices: currentLinePoints, name: '', color: editForm.color, type: 'polygon', id: '', enabled: true }], currentZoom, currentOffset, mapSize)
-            } else {
-                drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize)
             }
+            drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, editForm.color, persistentMaps, persistentMap, dockReady])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, persistentMaps, persistentMap, dockReady])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -265,31 +267,37 @@ export default () => {
 
     return (
         <div className={styles.container}>
-            {persistentMap ? (
-                <MapCanvas
-                    mapId={persistentMap}
-                    mode={mode}
-                    extraDraw={extraDraw}
-                    redrawKey={extraDraw}
-                    currentLinePoints={currentLinePoints}
-                    setCurrentLinePoints={setCurrentLinePoints}
-                    closedAsPolygon={closedAsPolygon}
-                    setClosedAsPolygon={setClosedAsPolygon}
-                    setDrawerOpen={setDrawerOpen}
-                    // Gen3 firmware silently keeps only the first 10 vertices of a boundary
-                    maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
-                />
-            ) : (
-                <canvas className={styles.canvas} />
-            )}
+            <div className={styles.mapArea}>
+                {persistentMap ? (
+                    <MapCanvas
+                        mapId={persistentMap}
+                        mode={mode}
+                        extraDraw={extraDraw}
+                        redrawKey={extraDraw}
+                        currentLinePoints={currentLinePoints}
+                        setCurrentLinePoints={setCurrentLinePoints}
+                        closedAsPolygon={closedAsPolygon}
+                        setClosedAsPolygon={setClosedAsPolygon}
+                        setDrawerOpen={setDrawerOpen}
+                        // Gen3 firmware silently keeps only the first 10 vertices of a boundary
+                        maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
+                        selectedPoint={selectedPoint}
+                        setSelectedPoint={setSelectedPoint}
+                        mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
+                    />
+                ) : (
+                    <canvas className={styles.canvas} />
+                )}
 
-            {mode === 'maps' && (
-                <div className={styles.selectMap}>
-                    <span>{t('map.selectMap')}</span>
-                </div>
-            )}
+                {mode === 'maps' && (
+                    <div className={styles.selectMap}>
+                        <span>{t('map.selectMap')}</span>
+                    </div>
+                )}
+            </div>
 
             <Drawer
+                sidePanel
                 open={drawerOpen}
                 handle={true}
                 showBackButton={['map-edit', 'boundaries', 'boundary-info'].includes(mode)}

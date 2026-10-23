@@ -9,6 +9,7 @@
     overflow-y: auto;
     width: 100%;
     position: relative;
+    @include desktop-page;
 }
 
 // ── Alerts ───────────────────────────────────────────────────────────────────

@@ -5,6 +5,17 @@
 // Note: Sass colour functions (rgba($x, a), darken, ...) cannot operate on a
 // var(); use the ready-made tints ($accent-soft, $accent-ring, ...) instead.
 
+// from this window width on the app uses a desktop layout (side navigation, wider pages)
+$desktop: 900px;
+
+// desktop: text pages get a readable width instead of spanning the whole window
+@mixin desktop-page {
+    @media (min-width: $desktop) {
+        max-width: 80rem;
+        margin: 0 auto;
+    }
+}
+
 // surfaces
 $bg: var(--bg);
 $surface: var(--surface);
