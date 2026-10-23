@@ -7,6 +7,8 @@ import { FaBell, FaFan, FaStop } from 'react-icons/fa'
 import { HiMap } from "react-icons/hi2";
 import { CleaningCategory, CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { TbSteeringWheel } from 'react-icons/tb'
 import Drawer from '../../components/drawer/drawer'
 import { FaGaugeHigh, FaHouse } from 'react-icons/fa6'
 import { BiTargetLock } from "react-icons/bi";
@@ -100,6 +102,7 @@ export default function Home() {
     const { lastHeartbeat, getGen3State } = useApp()
     const { robot } = useRobot();
     const { t } = useTranslation()
+    const navigate = useNavigate()
     const timeAgoFormatter = useTimeAgoFormatter()
     const { formatLength } = useUnits()
     const { mascot } = useMascot()
@@ -238,6 +241,16 @@ export default function Home() {
                             setTimeout(() => setBellAnimating(false), BELL_MS)
                         }}
                     />
+
+                    {robot.type === RobotType.NeatoGen3 && (
+                        <CtrlBtn
+                            icon={<TbSteeringWheel size={22} />}
+                            selection={t('home.drive')}
+                            label={t('home.btnExplain.drive')}
+                            disabled={!robot.availableCommands?.start}
+                            onClick={() => navigate('/drive')}
+                        />
+                    )}
 
                     <CtrlBtn icon={
                         gen3__cleaningCategory === CleaningCategory.HOUSE ? <FaHouse size={22} /> :

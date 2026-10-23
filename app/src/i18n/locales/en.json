@@ -69,6 +69,7 @@
         "serverHint": "Take a look at the vacuula github on how to configure your robot! If an issue persists where the robot won't connect, try rerunning the Vacuula Installer, or ask for help on github or in the discord!"
     },
     "home": {
+        "drive": "Drive",
         "errorTitle": "Error",
         "error": {
             "invalid": "Info",
@@ -96,10 +97,20 @@
         "width": "Width",
         "btnExplain": {
             "locate": "Lost robot?",
+            "drive": "Manual",
             "mode": "Mode",
             "navigation": "Navigation",
             "cleaning": "Cleaning"
         }
+    },
+    "drive": {
+        "connecting": "Connecting to the robot…",
+        "ready": "Ready: hold an arrow to drive",
+        "error": "Manual drive not available: {{message}}",
+        "vacuum": "Vacuum",
+        "brush": "Brush",
+        "turbo": "Turbo",
+        "hint": "Hold ↑ to drive forward, ← → to turn on the spot (with ↑: curve), ↓ backs up in short steps. On a keyboard: arrow keys, space stops."
     },
     "runs": {
         "entryTitle": "{{startedBy}} cleaning | {{date}}",
