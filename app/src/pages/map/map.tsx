@@ -265,29 +265,32 @@ export default () => {
 
     return (
         <div className={styles.container}>
-            {persistentMap ? (
-                <MapCanvas
-                    mapId={persistentMap}
-                    mode={mode}
-                    extraDraw={extraDraw}
-                    redrawKey={extraDraw}
-                    currentLinePoints={currentLinePoints}
-                    setCurrentLinePoints={setCurrentLinePoints}
-                    closedAsPolygon={closedAsPolygon}
-                    setClosedAsPolygon={setClosedAsPolygon}
-                    setDrawerOpen={setDrawerOpen}
-                />
-            ) : (
-                <canvas className={styles.canvas} />
-            )}
+            <div className={styles.mapArea}>
+                {persistentMap ? (
+                    <MapCanvas
+                        mapId={persistentMap}
+                        mode={mode}
+                        extraDraw={extraDraw}
+                        redrawKey={extraDraw}
+                        currentLinePoints={currentLinePoints}
+                        setCurrentLinePoints={setCurrentLinePoints}
+                        closedAsPolygon={closedAsPolygon}
+                        setClosedAsPolygon={setClosedAsPolygon}
+                        setDrawerOpen={setDrawerOpen}
+                    />
+                ) : (
+                    <canvas className={styles.canvas} />
+                )}
 
-            {mode === 'maps' && (
-                <div className={styles.selectMap}>
-                    <span>{t('map.selectMap')}</span>
-                </div>
-            )}
+                {mode === 'maps' && (
+                    <div className={styles.selectMap}>
+                        <span>{t('map.selectMap')}</span>
+                    </div>
+                )}
+            </div>
 
             <Drawer
+                sidePanel
                 open={drawerOpen}
                 handle={true}
                 showBackButton={['map-edit', 'boundaries', 'boundary-info'].includes(mode)}

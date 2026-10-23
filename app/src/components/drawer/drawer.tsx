@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import styles from './drawer.module.scss'
 import { FaArrowLeft } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 
 
 
@@ -15,12 +16,16 @@ interface DrawerProps {
 
     showBackButton?: boolean
     onBackButtonClick?: () => void
+
+    // desktop: show as a fixed column next to the page instead of a bottom sheet
+    sidePanel?: boolean
 }
 
 const HANDLE_HEIGHT = 60
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
+    const isPanel = useIsDesktop() && !!props.sidePanel
     const [drawerHeight, setDrawerHeight] = useState(props.handle ? HANDLE_HEIGHT : 0)
     const [isDraggingDrawer, setIsDraggingDrawer] = useState(false)
 
@@ -99,6 +104,28 @@ export default function Drawer(props: DrawerProps) {
 
     // if (!props.handle && !props.open) return null
 
+    const backButton = props.showBackButton && (props.open || isPanel) && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
+        e.stopPropagation()
+        props.onBackButtonClick?.()
+    }} />
+    const title = (
+        <div className={styles.drawerTitle}>
+            {props.title || t('common.options')}
+        </div>
+    )
+
+    if (isPanel) return (
+        <div className={styles.panel}>
+            <div className={styles.panelHeader}>
+                {backButton}
+                {title}
+            </div>
+            <div className={styles.drawerContent}>
+                {props.children}
+            </div>
+        </div>
+    )
+
     return (
         <div
             className={styles.drawer}
@@ -116,13 +143,8 @@ export default function Drawer(props: DrawerProps) {
                     onPointerUp={handlePointerUp}
                     onPointerCancel={handlePointerUp}
                     onClick={handleClick}>
-                    {props.showBackButton && props.open && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
-                        e.stopPropagation()
-                        props.onBackButtonClick?.()
-                    }} />}
-                    <div className={styles.drawerTitle}>
-                        {props.title || t('common.options')}
-                    </div>
+                    {backButton}
+                    {title}
                 </div>
             )}
 
