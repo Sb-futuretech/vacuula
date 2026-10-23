@@ -238,10 +238,14 @@ const Gen3RobotDetails = () => {
     const [robotGeneralInfo, setRobotGeneralInfo] = useState<Neato.Gen3.GetGeneralInfo>()
 
     useEffect(() => {
-        GEN3_COMMANDS.getGeneralInfo(robot.serial).then(res => {
-            setRobotGeneralInfo(res.data.data)
-        })
-    }, []);
+        // the robot may not be connected yet (e.g. right after a server restart), so keep asking until it answers
+        let retry: ReturnType<typeof setTimeout> | undefined
+        const load = () => GEN3_COMMANDS.getGeneralInfo(robot.serial)
+            .then(res => setRobotGeneralInfo(res.data.data))
+            .catch(() => { retry = setTimeout(load, 10_000) })
+        load()
+        return () => clearTimeout(retry)
+    }, [robot.serial]);
 
     return (
         <>
