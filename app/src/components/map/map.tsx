@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
 import { decodeRLE } from './utils'
-import { GEN3_RUN_NOT_PATH, type ExtraDrawFn } from './useMap'
+import type { ExtraDrawFn } from './useMap'
+import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, sameFloorDistance } from './gen3Run'
 import type { VacuulaMapData, Zone } from './types'
 
 interface MapProps {
@@ -34,9 +35,9 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     const NO_BASE = 2147483647
     if (!Array.isArray(base) || base[0] === NO_BASE || base[1] === NO_BASE) return
     // gen3 stores the dock already normalised to the map image (0..1), without heading
-    if (gen3) return { pose: { x: base[0], y: base[1], dir: 0 }, resolution: 40 }
+    if (gen3) return { pose: { x: base[0], y: base[1], dir: 0 }, resolution: GEN3_MM_PER_CELL }
     if (!md || !Array.isArray(img)) return
-    const resolution = md.resolution || 40
+    const resolution = md.resolution || GEN3_MM_PER_CELL
     return {
         pose: {
             x: ((base[0] - md.origin_x) / resolution) / img[0],
@@ -63,55 +64,57 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         img.src = marker
     }, [marker])
 
+    // the run's own cells (gen3): its dock block and the zones its path went through
+    const { data: cleaningData } = useCleaning(runId ?? '')
+    const runCells = useMemo(() => cleaningData ? decodeRLE(cleaningData.rle) : undefined, [cleaningData])
+
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
-    // its grid, so its zones (normalised vertices) fit the run: take the enabled map with the same
-    // grid size, the one whose dock is closest if there are several. No match, no zones.
+    // its grid, so its zones (normalised vertices) fit the run: take the enabled stored map on the same
+    // floor, the one whose dock is closest if there are several. No match, no zones.
     const { data: storedMaps } = usePersistentMaps()
     const [runZones, setRunZones] = useState<Zone[]>([])
     useEffect(() => {
         setRunZones([])
-        if (!zones || !runId || robot.type !== RobotType.NeatoGen3 || !persistantMapData || !storedMaps) return
+        if (!zones || !runId || robot.type !== RobotType.NeatoGen3 || !persistantMapData || !storedMaps || !runCells || !cleaningData) return
         let cancelled = false
-        const xy = (base: unknown) => Array.isArray(base) ? base : [(base as any)?.x, (base as any)?.y]
-        const runBase = xy(persistantMapData.base)
+        const run = {
+            width: persistantMapData.width,
+            height: persistantMapData.height,
+            dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
+        }
         ;(async () => {
             let best: { id: string, distance: number } | undefined
             for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
                 if (!m.enabled || m.id === mapId) continue
                 const data = await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
-                if (!data || data.width !== persistantMapData.width || data.height !== persistantMapData.height) continue
-                const b = xy(data.base)
-                const distance = Math.hypot((b[0] - runBase[0]) * data.width, (b[1] - runBase[1]) * data.height) || 0
-                if (!best || distance < best.distance) best = { id: m.id, distance }
+                const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
+                if (distance != null && (!best || distance < best.distance)) best = { id: m.id, distance }
             }
             if (!best) return
             const boundaries = await fetchGen3MapBoundaries(robot.serial, best.id).catch(() => [])
             if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon'))
         })()
         return () => { cancelled = true }
-    }, [zones, runId, mapId, persistantMapData, storedMaps])
+    }, [zones, runId, mapId, persistantMapData, storedMaps, runCells, cleaningData])
 
-    // zones the run's path went through
-    const { data: cleaningData } = useCleaning(runId ?? '')
     const visitedZones = useMemo(() => {
         const visited = new Set<string>()
-        if (!runZones.length || !cleaningData) return visited
-        const cells = decodeRLE(cleaningData.rle)
+        if (!runZones.length || !runCells || !cleaningData) return visited
         const { width, height } = cleaningData
-        for (let i = 0; i < cells.length; i++) {
-            if (cells[i] === 0 || GEN3_RUN_NOT_PATH.has(cells[i])) continue
+        for (let i = 0; i < runCells.length; i++) {
+            if (runCells[i] === 0 || GEN3_RUN_NOT_PATH.has(runCells[i])) continue
             const p: [number, number] = [(i % width + 0.5) / width, (Math.floor(i / width) + 0.5) / height]
             for (const zone of runZones) if (!visited.has(zone.id) && pointInZone(p, zone)) visited.add(zone.id)
         }
         return visited
-    }, [runZones, cleaningData])
+    }, [runZones, runCells, cleaningData])
 
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runMarkers) => {
         if (!persistantMapData) return
         if (runZones.length) drawZoneOverlay(ctx, runZones, visitedZones, zoom, offset, mapSize)
         // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
         // from the dock and start markers together). The mascot goes where the robot ended.
-        const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: 40 })
+        const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: GEN3_MM_PER_CELL })
         const gen3Run = robot.type === RobotType.NeatoGen3 && !!runId
         // a gen3 run without its dock block (canceled) would get the start position as stored base
         const stored = gen3Run ? undefined : basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)

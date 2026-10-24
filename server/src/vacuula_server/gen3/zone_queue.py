@@ -52,7 +52,6 @@ class ZoneQueue:
     index: int = 0          # zone currently being cleaned
     seen_busy: bool = False  # robot reported busy since the current zone was started
     starting: bool = False   # a start for the next zone is pending
-    started_at: float = field(default_factory=time.time)
     alert: str | None = None        # alert raised while the current zone was running
     stale_alert: str | None = None  # alert already set when the current zone started
     results: list[dict] = field(default_factory=list)  # finished zones: name + alert
@@ -62,9 +61,6 @@ class ZoneQueue:
             "index": self.index,
             "total": len(self.zones),
             "zones": [{"mapId": z.map_id, "boundaryId": z.boundary_id, "name": z.name} for z in self.zones],
-            "mode": self.mode,
-            "navigationMode": self.navigation_mode,
-            "startedAt": self.started_at,
             "results": self.results,
             "waiting": self.starting,  # between two zones, next one starts shortly
             "done": done,              # last status of a finished queue

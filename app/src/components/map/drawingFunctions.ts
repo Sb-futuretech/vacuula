@@ -1,6 +1,7 @@
 import { COLORS, DRAWING, readMapToken } from './constants'
 import type { Zone, NoGoLine, Point } from './types'
 import { normalizeHex, withAlpha } from './color'
+import { GEN3_MM_PER_CELL, ROBOT_RADIUS_MM } from './gen3Run'
 import dockUrl from '../../assets/dock.svg'
 
 /* ---------------- SHAPE TYPES ---------------- */
@@ -399,7 +400,6 @@ export function drawCrosshair(
 
 const DOCK_VIEWBOX = { x: -10, y: -18, w: 20, h: 36 }
 const DOCK_UNIT_R = 16
-const ROBOT_RADIUS_MM = 165
 
 let dockImage: HTMLImageElement | null = null
 let dockReady = false
@@ -447,7 +447,7 @@ export function drawBase(
     const cy = offset.y + base.y * mapSize.height * zoom
 
     // Robot radius in screen px: (mm / mm-per-cell) cells * px-per-cell.
-    const rPx = (ROBOT_RADIUS_MM / (resolution || 40)) * zoom
+    const rPx = (ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)) * zoom
     const s = rPx / DOCK_UNIT_R
 
     ctx.save()
@@ -470,7 +470,7 @@ export function drawMarker(
     const cx = offset.x + base.x * mapSize.width * zoom
     const cy = offset.y + base.y * mapSize.height * zoom
     // twice the robot's size on the map, but never too small to recognise
-    const size = Math.max(32, 4 * (ROBOT_RADIUS_MM / (resolution || 40)) * zoom)
+    const size = Math.max(32, 4 * (ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)) * zoom)
     ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
 }
 
@@ -487,7 +487,7 @@ export function drawCoverage(
     mapSize: { height: number, width: number },
     resolution: number,
 ) {
-    const rCells = ROBOT_RADIUS_MM / (resolution || 40)
+    const rCells = ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)
     const r = rCells * zoom
     const { width, height } = mapSize
     let pathValue: number | undefined

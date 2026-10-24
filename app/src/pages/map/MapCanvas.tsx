@@ -4,6 +4,7 @@ import { FaMinus, FaPlus, FaUndo } from 'react-icons/fa'
 import { MdOutlineFitScreen } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { DRAWING } from '../../components/map/constants'
+import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
 import type { Point, UseState } from '../../components/map/types'
 import { getCrosshairWorldCoords, getWorldCoords } from '../../components/map/utils'
 import { useMap, type ExtraDrawFn } from '../../components/map/useMap'
@@ -34,7 +35,7 @@ interface MapCanvasProps {
     maxPoints?: number // robot-side vertex limit, undefined = unlimited
     selectedPoint: number | null // null = the last point
     setSelectedPoint: (index: number | null) => void
-    mmPerPixel?: number // map resolution; gen3 maps have none, the app assumes 40 mm
+    mmPerPixel?: number // map resolution; gen3 maps have none (GEN3_MM_PER_CELL)
 }
 
 // Owns everything that genuinely can't exist without a selected map: the hook, the
@@ -54,7 +55,7 @@ export default function MapCanvas({
     maxPoints,
     selectedPoint,
     setSelectedPoint,
-    mmPerPixel = 40
+    mmPerPixel = GEN3_MM_PER_CELL
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)

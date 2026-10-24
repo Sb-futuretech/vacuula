@@ -4,33 +4,13 @@ import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
 import { drawMap, drawCoverage, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
+import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_NOT_PATH, GEN3_RUN_START, cellsCentre } from './gen3Run'
 import { useCleaning, usePersistentMap } from '../../loaders/resources'
 import { useRobot } from '../../context/useRobot'
 import { RobotType } from '../../types'
 import { loadSelectedMapShape } from '../../pages/settings/mapshapes'
 
 export interface MapSize { width: number; height: number }
-
-// Gen3 RunMap values (checked on a D7): 128 is untouched background; 4x4 marker blocks are
-// 100 = dock (only in runs that completed), 200 and 150 = most likely start and end position.
-// Everything else is the robot's path.
-const GEN3_RUN_BACKGROUND = 128
-const GEN3_RUN_DOCK = 100
-const GEN3_RUN_END = 150
-const GEN3_RUN_START = 200
-export const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_START])
-
-// centre of all cells with `value`, normalised to the grid; undefined if there are none
-function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {
-    let sumX = 0, sumY = 0, n = 0
-    for (let i = 0; i < cells.length; i++) {
-        if (cells[i] !== value) continue
-        sumX += i % width
-        sumY += Math.floor(i / width)
-        n++
-    }
-    return n ? [(sumX / n + 0.5) / width, (sumY / n + 0.5) / height] : undefined
-}
 
 export type ExtraDrawFn = (
     ctx: CanvasRenderingContext2D,
@@ -112,7 +92,7 @@ export function useMap({
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
-        if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
+        if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, GEN3_MM_PER_CELL)
         // walls on top, so they stay sharp over the covered area
         if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
