@@ -276,6 +276,16 @@
     }
 }
 
+// stop / start / base
+.actionRow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    width: 100%;
+    padding-bottom: 2rem;
+}
+
 .ctrlBtn {
     flex: 0 1 8rem;
     min-width: 0;
@@ -320,6 +330,7 @@
 }
 
 .start {
+    flex-shrink: 0; // a circle, never squeezed by its row
     width: 10rem;
     height: 10rem;
     border-radius: 50%;

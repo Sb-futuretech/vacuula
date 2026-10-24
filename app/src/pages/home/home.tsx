@@ -360,7 +360,7 @@ export default function Home() {
 
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'row', gap: '2rem', paddingBottom: '2rem', alignItems: 'center' }}>
+                <div className={styles.actionRow}>
                     <CtrlBtn disabled={
                         robot.type === RobotType.NeatoGen3 ? !robot.availableCommands.stop :
                             robot.type === RobotType.NeatoGen4 ? !robot.availableCommands.cancel : true
