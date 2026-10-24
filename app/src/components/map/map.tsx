@@ -21,6 +21,7 @@ interface MapProps {
     coverage?: boolean // show the area the robot covered instead of its thin path
     plan?: boolean // continuous floor and wall lines instead of the cell shapes
     zones?: boolean // show the zones of the stored map the run was on (gen3)
+    startFlag?: boolean // a flag where the run started, if that was away from the dock
 }
 
 // a run starting closer than this to the dock (in map cells, ~40 cm) started from the dock: no flag
@@ -46,7 +47,7 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     }
 }
 
-export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones }: MapProps) {
+export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones, startFlag }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -122,11 +123,11 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         const start = runMarkers?.start
         const ref = dock ? [dock.pose.x, dock.pose.y] : runMarkers?.end
         const far = start && ref && Math.hypot((start[0] - ref[0]) * mapSize.width, (start[1] - ref[1]) * mapSize.height) > START_FLAG_MIN_CELLS
-        if (start && far) drawStartFlag(ctx, { x: start[0], y: start[1] }, zoom, offset, mapSize)
+        if (startFlag && start && far) drawStartFlag(ctx, { x: start[0], y: start[1] }, zoom, offset, mapSize)
 
         const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
         if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
-    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones])
+    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones, startFlag])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 
