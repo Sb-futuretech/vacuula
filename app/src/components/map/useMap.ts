@@ -107,7 +107,7 @@ export function useMap({
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
-        if (covered) drawCoverage(ctx, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
+        if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
     }, [mapSize, shape, backgroundToken, runMarkers, coverage])

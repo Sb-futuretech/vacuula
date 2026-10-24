@@ -465,9 +465,10 @@ export function drawMarker(
 
 // Area the robot cleaned: the run's path is a thin track, so every path cell becomes a disc of the
 // robot's size. All discs are filled as one path, so overlaps merge into one smooth band instead of
-// stacking their opacity.
+// stacking their opacity. The band is clipped to free floor, so it never spills over walls.
 export function drawCoverage(
     ctx: CanvasRenderingContext2D,
+    floorCells: number[],
     runCells: number[],
     ignore: Set<number>,
     zoom: number,
@@ -475,22 +476,45 @@ export function drawCoverage(
     mapSize: { height: number, width: number },
     resolution: number,
 ) {
-    const r = (ROBOT_RADIUS_MM / (resolution || 40)) * zoom
+    const rCells = ROBOT_RADIUS_MM / (resolution || 40)
+    const r = rCells * zoom
+    const { width, height } = mapSize
     let pathValue: number | undefined
-    ctx.beginPath()
+    let minX = width, minY = height, maxX = -1, maxY = -1
+    const discs = new Path2D()
     for (let i = 0; i < runCells.length; i++) {
         const v = runCells[i]
         if (v === 0 || ignore.has(v)) continue
         pathValue ??= v
-        const cx = offset.x + (i % mapSize.width + 0.5) * zoom
-        const cy = offset.y + (Math.floor(i / mapSize.width) + 0.5) * zoom
-        ctx.moveTo(cx + r, cy)
-        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        const x = i % width, y = Math.floor(i / width)
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+        const cx = offset.x + (x + 0.5) * zoom
+        const cy = offset.y + (y + 0.5) * zoom
+        discs.moveTo(cx + r, cy)
+        discs.arc(cx, cy, r, 0, Math.PI * 2)
     }
     if (pathValue === undefined) return
+
+    // free floor around the path, one rectangle per horizontal run of free cells
+    const pad = Math.ceil(rCells)
+    const floor = new Path2D()
+    for (let y = Math.max(0, minY - pad); y <= Math.min(height - 1, maxY + pad); y++) {
+        let runStart = -1
+        for (let x = Math.max(0, minX - pad); x <= Math.min(width - 1, maxX + pad) + 1; x++) {
+            const free = x <= Math.min(width - 1, maxX + pad) && floorCells[y * width + x] === 1
+            if (free && runStart < 0) runStart = x
+            if (!free && runStart >= 0) {
+                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+                runStart = -1
+            }
+        }
+    }
+
     ctx.save()
+    ctx.clip(floor)
     ctx.globalAlpha = parseFloat(COLORS.RUN_OPACITY) || DRAWING.RUN_OVERLAY_OPACITY
     ctx.fillStyle = colorForPathValue(pathValue)
-    ctx.fill()
+    ctx.fill(discs)
     ctx.restore()
 }
