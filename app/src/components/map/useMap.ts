@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { DRAWING } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
-import { decodeRLE, calcFitZoomAndOffset } from './utils'
+import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
 import { drawMap, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { useCleaning, usePersistentMap } from '../../loaders/resources'
@@ -30,6 +30,10 @@ interface UseMapOptions {
     redrawKey?: unknown
     // CSS token used for the canvas background (default: --map-bg, the Runs panel)
     backgroundToken?: string
+    // fit the view to the cells the run cleaned instead of the whole floor
+    fitToRun?: boolean
+    // normalised point that has to stay in view when fitting to the run (e.g. the dock)
+    fitInclude?: [number, number]
 }
 
 export function useMap({
@@ -39,7 +43,9 @@ export function useMap({
     fitOnLoad = true,
     extraDraw,
     redrawKey,
-    backgroundToken
+    backgroundToken,
+    fitToRun,
+    fitInclude
 }: UseMapOptions) {
     const canvasRef = useRef<HTMLCanvasElement | undefined>(undefined)
     const cellsRef = useRef<number[] | null>(null)
@@ -124,6 +130,28 @@ export function useMap({
         return () => cancelAnimationFrame(id)
     }, [zoom, offset, draw, redrawKey])
 
+    // what the view fits to: the whole floor, or with fitToRun the cleaned part plus fitInclude
+    const calcFit = useCallback((width: number, height: number) => {
+        if (!cellsRef.current || !mapSize) return null
+        const runBounds = fitToRun && runCellsRef.current
+            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize, fitInclude)
+            : null
+        return runBounds
+            ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
+            : calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
+    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1]])
+
+    // the run and the dock arrive after the floor: fit again unless the user moved the map
+    useEffect(() => {
+        const canvas = canvasRef.current
+        if (!fitToRun || !canvas || userInteractedRef.current) return
+        const fit = calcFit(canvas.width, canvas.height)
+        if (fit) {
+            setZoom(fit.zoom)
+            setOffset(fit.offset)
+        }
+    }, [calcFit, cleaningData])
+
     // Resize-to-container + fit-to-content
     useEffect(() => {
         const canvas = canvasRef.current
@@ -137,10 +165,7 @@ export function useMap({
             canvas.height = height
 
             if (fitOnLoad && cellsRef.current && mapSize && !userInteractedRef.current) {
-                const fit = calcFitZoomAndOffset(
-                    cellsRef.current, mapSize, width, height,
-                    DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM
-                )
+                const fit = calcFit(width, height)
                 if (fit) {
                     setZoom(fit.zoom)
                     setOffset(fit.offset)
@@ -169,12 +194,12 @@ export function useMap({
         const parent = canvas?.parentElement
         if (!canvas || !parent || !cellsRef.current || !mapSize) return
         const { width, height } = parent.getBoundingClientRect()
-        const fit = calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
+        const fit = calcFit(width, height)
         if (fit) {
             setZoom(fit.zoom)
             setOffset(fit.offset)
         }
-    }, [mapSize])
+    }, [mapSize, calcFit])
 
     return {
         canvasRef, cellsRef, mapSize,

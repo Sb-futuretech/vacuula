@@ -15,15 +15,18 @@ interface MapProps {
     mapId: string
     runId?: string
     marker?: string // image drawn where the robot docks, instead of the dock symbol
+    focusRun?: boolean // zoom to the cleaned part of the run, keeping the dock in view
 }
 
-function basePoseFromMapData(data: VacuulaMapData) {
+function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     const base = data.base
     const md = data.metadata
     const img = data.img_size
-    if (!Array.isArray(base) || !md || !Array.isArray(img)) return
     const NO_BASE = 2147483647
-    if (base[0] === NO_BASE || base[1] === NO_BASE) return
+    if (!Array.isArray(base) || base[0] === NO_BASE || base[1] === NO_BASE) return
+    // gen3 stores the dock already normalised to the map image (0..1), without heading
+    if (gen3) return { pose: { x: base[0], y: base[1], dir: 0 }, resolution: 40 }
+    if (!md || !Array.isArray(img)) return
     const resolution = md.resolution || 40
     return {
         pose: {
@@ -35,7 +38,7 @@ function basePoseFromMapData(data: VacuulaMapData) {
     }
 }
 
-export default function Map({ mapId, runId, marker }: MapProps) {
+export default function Map({ mapId, runId, marker, focusRun }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -53,17 +56,21 @@ export default function Map({ mapId, runId, marker }: MapProps) {
 
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize) => {
         if (!persistantMapData) return
-        const b = basePoseFromMapData(persistantMapData)
+        const b = basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
         if (!b) return
         if (markerImage) drawMarker(ctx, markerImage, b.pose, zoom, offset, mapSize, b.resolution)
         else drawBase(ctx, b.pose, zoom, offset, mapSize, b.resolution)
     }, [persistantMapData, dockReady, markerImage])
+
+    const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 
     const { canvasRef, isDragging, canvasHandlers } = useMap({
         mapId,
         runId,
         extraDraw,
         redrawKey: extraDraw,
+        fitToRun: focusRun,
+        fitInclude: dock ? [dock.x, dock.y] : undefined,
     })
 
     return (
