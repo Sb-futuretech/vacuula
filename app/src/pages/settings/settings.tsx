@@ -18,6 +18,7 @@ import { VscFeedback } from 'react-icons/vsc'
 import { FaFileLines } from 'react-icons/fa6'
 import type { UseState } from '../../components/map/types'
 import { loadSelectedMapShape, saveSelectedMapShape, MAPSHAPES } from './mapshapes'
+import { loadHomeView, saveHomeView, HOME_VIEWS } from './homeview'
 
 export default () => {
     const { t, i18n } = useTranslation()
@@ -29,6 +30,7 @@ export default () => {
 
     const [robotName, setRobotName] = useState(robot.name)
     const [selectedMapShape, setSelectedMapShape] = useState(loadSelectedMapShape())
+    const [homeView, setHomeView] = useState(loadHomeView())
 
     useEffect(() => {
         setRobotName(robot.name)
@@ -48,6 +50,9 @@ export default () => {
     useEffect(() => {
         saveSelectedMapShape(selectedMapShape)
     }, [selectedMapShape])
+    useEffect(() => {
+        saveHomeView(homeView)
+    }, [homeView])
 
 
     return (
@@ -102,6 +107,13 @@ export default () => {
                     options={MAPSHAPES.map(shape => ({ value: shape.value, label: t(shape.label) }))}
                     value={selectedMapShape}
                     onChange={setSelectedMapShape}
+                />
+                <Input
+                    type="dropdown"
+                    label={t('settings.homeView')}
+                    options={HOME_VIEWS.map(view => ({ value: view.value, label: t(view.label) }))}
+                    value={homeView}
+                    onChange={setHomeView}
                 />
                 <Input
                     type="dropdown"

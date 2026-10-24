@@ -1,5 +1,7 @@
 import styles from './home.module.scss'
 import { useMascot } from '../../mascot'
+import LastRun from './lastRun'
+import { loadHomeView } from '../settings/homeview'
 import { MdAutoAwesome, MdCleaningServices, MdError, MdMotionPhotosAuto, MdOutlineHealthAndSafety, MdWarning } from 'react-icons/md'
 import { IoMdPause, IoMdPlay } from 'react-icons/io'
 import { TbAdjustments, TbLeaf, TbHome } from 'react-icons/tb'
@@ -103,6 +105,18 @@ export default function Home() {
     const timeAgoFormatter = useTimeAgoFormatter()
     const { formatLength } = useUnits()
     const { mascot } = useMascot()
+
+    // settings: the last cleaning's map instead of the mascot (gen3); reloaded when the robot's state changes
+    const showLastRun = loadHomeView() === 'lastRun' && robot.type === RobotType.NeatoGen3
+    const [lastCleaning, setLastCleaning] = useState<Neato.Gen3.CleaningRun>()
+    useEffect(() => {
+        if (!showLastRun) return
+        Http.getCleanings(robot.serial).then(res => {
+            const runs = res.data as Neato.Gen3.CleaningRun[]
+            setLastCleaning(runs.reduce<Neato.Gen3.CleaningRun | undefined>((latest, c) =>
+                !latest || c.run.start_at > latest.run.start_at ? c : latest, undefined))
+        })
+    }, [showLastRun, robot.serial, robot.state])
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
 
     // TODO: make functions of this to fetch easily etc
@@ -191,10 +205,14 @@ export default function Home() {
 
             {/* ── Mascot + ring ── */}
             <div className={styles.mascotZone}>
-                <div className={styles.statusRing}>
-                    {/* <RingProgress pct={75} /> */}
-                    <img src={mascot.src} alt={t('home.logoAlt')} className={styles.robotImage} />
-                </div>
+                {showLastRun && lastCleaning ? (
+                    <LastRun cleaning={lastCleaning} marker={mascot.src} />
+                ) : (
+                    <div className={styles.statusRing}>
+                        {/* <RingProgress pct={75} /> */}
+                        <img src={mascot.src} alt={t('home.logoAlt')} className={styles.robotImage} />
+                    </div>
+                )}
                 <div className={styles.statusBadge}>
                     {/* <span className={styles.pulseDot} /> */}
                     <span className={styles.statusLabel}>

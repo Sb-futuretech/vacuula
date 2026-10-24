@@ -445,3 +445,20 @@ export function drawBase(
     ctx.drawImage(img, DOCK_VIEWBOX.x * s, DOCK_VIEWBOX.y * s, DOCK_VIEWBOX.w * s, DOCK_VIEWBOX.h * s)
     ctx.restore()
 }
+
+// An image (e.g. the mascot) where the robot docks, drawn instead of the dock symbol.
+export function drawMarker(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    base: BasePose,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    resolution: number,
+) {
+    const cx = offset.x + base.x * mapSize.width * zoom
+    const cy = offset.y + base.y * mapSize.height * zoom
+    // twice the robot's size on the map, but never too small to recognise
+    const size = Math.max(32, 4 * (ROBOT_RADIUS_MM / (resolution || 40)) * zoom)
+    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
+}

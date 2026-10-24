@@ -69,6 +69,11 @@
         "serverHint": "Take a look at the vacuula github on how to configure your robot! If an issue persists where the robot won't connect, try rerunning the Vacuula Installer, or ask for help on github or in the discord!"
     },
     "home": {
+        "lastRun": {
+            "today": "Today {{time}}",
+            "yesterday": "Yesterday {{time}}",
+            "battery": "Battery {{start}} → {{end}} %"
+        },
         "errorTitle": "Error",
         "error": {
             "invalid": "Info",
@@ -169,6 +174,9 @@
         "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround"
     },
     "settings": {
+        "homeView": "Home page",
+        "homeView_mascot": "Mascot",
+        "homeView_lastRun": "Map of the last cleaning",
         "serial": "Serial nr: {{serial}}",
         "birthday": "Birthday: {{date}}",
         "batteryCycles": "Battery cycles: {{cycles}}",

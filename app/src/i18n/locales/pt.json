@@ -69,6 +69,11 @@
         "serverHint": "Visite o github do Vacuula para saber como configurar o seu robot! Se continuar a não conseguir ligar, execute novamente o Instalador Vacuula ou peça ajuda através do github ou do servidor discord!"
     },
     "home": {
+        "lastRun": {
+            "today": "Hoje {{time}}",
+            "yesterday": "Ontem {{time}}",
+            "battery": "Bateria {{start}} → {{end}} %"
+        },
         "errorTitle": "Erro",
         "error": {
             "invalid": "Info",
@@ -163,6 +168,9 @@
         "gen4UpdateBugHint": "NOTA: a modificação de mapas, zonas ou linhas pode desativar os agendamentos. Isto ocorre no firmware do robot, mas já estamos à procura de uma solução"
     },
     "settings": {
+        "homeView": "Página inicial",
+        "homeView_mascot": "Mascote",
+        "homeView_lastRun": "Mapa da última limpeza",
         "serial": "N.º de série: {{serial}}",
         "birthday": "Data de fabrico: {{date}}",
         "robotSettings": "Definições do robot",

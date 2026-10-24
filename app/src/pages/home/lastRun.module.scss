@@ -1,0 +1,56 @@
+@use '../../variables.scss' as *;
+
+.lastRun {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 60rem;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 2rem;
+    border: 1px solid $border;
+    background: $surface;
+    color: $text-primary;
+    font-family: inherit;
+    text-align: left;
+    @include pressable($hover-border: true);
+}
+
+// a preview: the map itself does not pan or zoom here, the whole card opens the run
+.map {
+    height: 26rem;
+    pointer-events: none;
+
+    & > div {
+        height: 100%;
+    }
+}
+
+.info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1.2rem 1.6rem;
+    font-size: 1.4rem;
+}
+
+.ok {
+    color: $accent;
+    font-weight: 600;
+}
+
+.warn {
+    color: $warn-text;
+    font-weight: 600;
+}
+
+.stats {
+    color: $text-muted;
+}
+
+// wide windows have room for a bigger map (same width as the desktop layout)
+@media (min-width: 900px) {
+    .map {
+        height: 40rem;
+    }
+}

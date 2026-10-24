@@ -7,13 +7,14 @@ import { Http } from '../../http'
 import { usePersistentMap } from '../../loaders/resources'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
-import { drawBase, onDockImageReady } from './drawingFunctions'
+import { drawBase, drawMarker, onDockImageReady } from './drawingFunctions'
 import type { ExtraDrawFn } from './useMap'
 import type { VacuulaMapData } from './types'
 
 interface MapProps {
     mapId: string
     runId?: string
+    marker?: string // image drawn where the robot docks, instead of the dock symbol
 }
 
 function basePoseFromMapData(data: VacuulaMapData) {
@@ -34,7 +35,7 @@ function basePoseFromMapData(data: VacuulaMapData) {
     }
 }
 
-export default function Map({ mapId, runId }: MapProps) {
+export default function Map({ mapId, runId, marker }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -42,11 +43,21 @@ export default function Map({ mapId, runId }: MapProps) {
     const [dockReady, setDockReady] = useState(false)
     useEffect(() => { onDockImageReady(() => setDockReady(true)) }, [])
 
+    const [markerImage, setMarkerImage] = useState<HTMLImageElement>()
+    useEffect(() => {
+        if (!marker) return setMarkerImage(undefined)
+        const img = new Image()
+        img.onload = () => setMarkerImage(img)
+        img.src = marker
+    }, [marker])
+
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize) => {
         if (!persistantMapData) return
         const b = basePoseFromMapData(persistantMapData)
-        if (b) drawBase(ctx, b.pose, zoom, offset, mapSize, b.resolution)
-    }, [persistantMapData, dockReady])
+        if (!b) return
+        if (markerImage) drawMarker(ctx, markerImage, b.pose, zoom, offset, mapSize, b.resolution)
+        else drawBase(ctx, b.pose, zoom, offset, mapSize, b.resolution)
+    }, [persistantMapData, dockReady, markerImage])
 
     const { canvasRef, isDragging, canvasHandlers } = useMap({
         mapId,
