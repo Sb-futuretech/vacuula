@@ -666,3 +666,37 @@ export function pointInZone([x, y]: Point, zone: Zone): boolean {
     }
     return inside
 }
+
+// Coverage over several runs: free floor shaded by how many of the runs cleaned it (four steps,
+// in the accent colour), free floor no run reached in red.
+export function drawHeatmap(
+    ctx: CanvasRenderingContext2D,
+    heatmap: { counts: Uint16Array, floor: number[], runs: number, width: number },
+    zoom: number,
+    offset: { x: number; y: number },
+) {
+    if (!heatmap.runs) return
+    const steps = [new Path2D(), new Path2D(), new Path2D(), new Path2D()]
+    const never = new Path2D()
+    const { counts, floor, runs, width } = heatmap
+    for (let i = 0; i < counts.length; i++) {
+        if (floor[i] !== 1) continue
+        const x = offset.x + (i % width) * zoom
+        const y = offset.y + Math.floor(i / width) * zoom
+        if (counts[i] === 0) never.rect(x, y, zoom, zoom)
+        else steps[Math.min(3, Math.floor(counts[i] / runs * 4 - 1e-9))].rect(x, y, zoom, zoom)
+    }
+    ctx.save()
+    ctx.fillStyle = readMapToken('--accent') || COLORS.LINE_COLOR
+    steps.forEach((path, i) => {
+        ctx.globalAlpha = HEATMAP_ALPHAS[i]
+        ctx.fill(path)
+    })
+    ctx.globalAlpha = 0.28
+    ctx.fillStyle = '#ff5a5a'
+    ctx.fill(never)
+    ctx.restore()
+}
+
+// opacity of the four coverage steps, rarely → often
+export const HEATMAP_ALPHAS = [0.18, 0.34, 0.52, 0.75]

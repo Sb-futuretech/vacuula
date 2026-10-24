@@ -165,6 +165,13 @@
         "selectZonesHelp": "Optional, select one or more zones to clean, if none selected, it will clean entire map."
     },
     "map": {
+        "heatmap": "Coverage",
+        "heatmapRuns": "Runs",
+        "heatmapLastRuns": "Last {{count}} runs",
+        "heatmapRarely": "rarely",
+        "heatmapOften": "often",
+        "heatmapNever": "never",
+        "heatmapCount": "{{runs}} runs on this map",
         "maps": "Maps",
         "mapTitle": "Map: {{name}}",
         "dragUpToFinish": "Drag up to finish",

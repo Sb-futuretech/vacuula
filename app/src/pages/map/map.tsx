@@ -18,7 +18,8 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, HEATMAP_ALPHAS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
@@ -68,7 +69,15 @@ export default () => {
     }, [])
 
 
+    const [showHeatmap, setShowHeatmap] = useState(false)
+    const [heatmapRuns, setHeatmapRuns] = useState(10)
+    const { heatmap, loading: heatmapLoading } = useCoverageHeatmap(
+        robot.serial, persistentMap, showHeatmap && robot.type === RobotType.NeatoGen3, heatmapRuns)
+
     const extraDraw = useCallback((ctx, canvas, currentZoom, currentOffset, mapSize) => {
+        // coverage of the recent runs under the zones (gen3, switched on in the panel)
+        if (heatmap && heatmap.width === mapSize.width) drawHeatmap(ctx, heatmap, currentZoom, currentOffset)
+
         const showBoundaries = mode === 'boundary-edit'
             ? boundaries.filter(b => b.id !== activeBoundaryId)
             : boundaries
@@ -100,7 +109,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, persistentMaps, persistentMap, dockReady])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, persistentMaps, persistentMap, dockReady, heatmap])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -414,6 +423,32 @@ export default () => {
 
                             <Button text={t('map.editMapDetails')} style='primary' onClick={() => setMode('map-edit')} />
                         </div>
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div className={styles.heatmap}>
+                                <Input type="switch" label={t('map.heatmap')} value={showHeatmap} onChange={setShowHeatmap} />
+                                {showHeatmap && (
+                                    <>
+                                        <Input
+                                            type="dropdown"
+                                            label={t('map.heatmapRuns')}
+                                            options={[10, 30].map(n => ({ value: n, label: t('map.heatmapLastRuns', { count: n }) }))}
+                                            value={heatmapRuns}
+                                            onChange={setHeatmapRuns}
+                                        />
+                                        <div className={styles.heatmapLegend}>
+                                            <span>{t('map.heatmapRarely')}</span>
+                                            {HEATMAP_ALPHAS.map(alpha => <i key={alpha} style={{ opacity: alpha }} />)}
+                                            <span>{t('map.heatmapOften')}</span>
+                                            <i className={styles.never} />
+                                            <span>{t('map.heatmapNever')}</span>
+                                        </div>
+                                        <span className={styles.heatmapInfo}>
+                                            {heatmapLoading ? t('common.loading') : t('map.heatmapCount', { runs: heatmap?.runs ?? 0 })}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
                         <hr />
                         <div className={styles.buttonContainer}>
                             <Button text={t('map.addFeature')} style='primary' onClick={() => openEdit(uuidv4())} />
