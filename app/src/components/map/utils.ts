@@ -171,12 +171,12 @@ export async function getAllGen3MapsWithZones(
 }
 
 // Bounds of the cells a run actually cleaned (values in `ignore` are background/markers),
-// widened to keep `include` (a normalised point, e.g. the dock) in view.
+// widened to keep the `include` points (normalised, e.g. the dock) in view.
 export function getRunBounds(
     runCells: number[],
     ignore: Set<number>,
     mapSize: { width: number; height: number },
-    include?: [number, number]
+    include: [number, number][] = []
 ): CellBounds | null {
     let minX = mapSize.width, minY = mapSize.height, maxX = -1, maxY = -1
     for (let i = 0; i < runCells.length; i++) {
@@ -189,8 +189,8 @@ export function getRunBounds(
         if (y > maxY) maxY = y
     }
     if (maxX < 0) return null
-    if (include) {
-        const ix = include[0] * mapSize.width, iy = include[1] * mapSize.height
+    for (const [px, py] of include) {
+        const ix = px * mapSize.width, iy = py * mapSize.height
         minX = Math.min(minX, ix); maxX = Math.max(maxX, ix)
         minY = Math.min(minY, iy); maxY = Math.max(maxY, iy)
     }

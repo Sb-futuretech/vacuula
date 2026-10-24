@@ -16,7 +16,8 @@ export interface MapSize { width: number; height: number }
 // Everything else is the robot's path.
 const GEN3_RUN_BACKGROUND = 128
 const GEN3_RUN_DOCK = 100
-const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, 150, 200])
+const GEN3_RUN_END = 150
+const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, 200])
 
 // centre of all cells with `value`, normalised to the grid; undefined if there are none
 function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {
@@ -36,8 +37,11 @@ export type ExtraDrawFn = (
     zoom: number,
     offset: Offset,
     mapSize: MapSize,
-    runDock?: [number, number] // dock read from the run (gen3), normalised
+    runMarkers?: RunMarkers // dock / end position read from the run (gen3)
 ) => void
+
+// normalised positions of the gen3 run's marker blocks, if present
+export interface RunMarkers { dock?: [number, number], end?: [number, number] }
 
 interface UseMapOptions {
     mapId: string
@@ -76,8 +80,7 @@ export function useMap({
     extraDrawRef.current = extraDraw
 
     const [mapSize, setMapSize] = useState<MapSize>()
-    // dock position read from the run itself (gen3), normalised
-    const [runDock, setRunDock] = useState<[number, number]>()
+    const [runMarkers, setRunMarkers] = useState<RunMarkers>({})
 
     const { robot } = useRobot(); // TODO: in the future, the map should not know about the robot but meh for now
 
@@ -101,8 +104,8 @@ export function useMap({
             backgroundToken
         )
 
-        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runDock)
-    }, [mapSize, shape, backgroundToken, runDock])
+        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
+    }, [mapSize, shape, backgroundToken, runMarkers])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
@@ -144,7 +147,10 @@ export function useMap({
         runCellsRef.current = runCells;
         if (robot.type === RobotType.NeatoGen3) {
             runIgnoreSetRef.current = GEN3_RUN_NOT_PATH
-            setRunDock(cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK))
+            setRunMarkers({
+                dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
+                end: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_END),
+            })
         } else {
             runIgnoreSetRef.current = computeIgnoredRunValues(runCellsRef.current, 1);
         }
@@ -161,12 +167,13 @@ export function useMap({
     const calcFit = useCallback((width: number, height: number) => {
         if (!cellsRef.current || !mapSize) return null
         const runBounds = fitToRun && runCellsRef.current
-            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize, runDock ?? fitInclude)
+            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize,
+                [runMarkers.dock ?? fitInclude, runMarkers.end].filter(p => !!p))
             : null
         return runBounds
             ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
             : calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
-    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runDock])
+    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runMarkers])
 
     // the run and the dock arrive after the floor: fit again unless the user moved the map
     useEffect(() => {
@@ -242,7 +249,6 @@ export function useMap({
             onTouchEnd: handleTouchEnd
         },
         draw,
-        resetView,
-        runDock
+        resetView
     }
 }

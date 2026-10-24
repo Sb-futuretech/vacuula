@@ -40,12 +40,13 @@ interface AlertCardProps {
     action?: string
     onClick?: () => void
     visible?: boolean
+    collapse?: boolean // when not visible, take no room instead of keeping it
     robotType: RobotType
 }
-function AlertCard({ type = 'error', icon, title, sub, action, onClick, visible = true, robotType }: AlertCardProps) {
+function AlertCard({ type = 'error', icon, title, sub, action, onClick, visible = true, collapse, robotType }: AlertCardProps) {
     const { t } = useTranslation()
     return (
-        <div className={`${styles.alertCard} ${styles[type]}`} style={{ visibility: visible ? 'visible' : 'hidden' }}>
+        <div className={`${styles.alertCard} ${styles[type]}`} style={{ visibility: visible ? 'visible' : 'hidden', display: !visible && collapse ? 'none' : undefined }}>
             <div className={styles.alertIconWrap}>
                 {icon}
             </div>
@@ -178,6 +179,7 @@ export default function Home() {
                     <>
                         <AlertCard
                             visible={!!robot.error}
+                            collapse={showLastRun}
                             type="error"
                             icon={<MdError size={17} />}
                             title="error"
@@ -186,6 +188,7 @@ export default function Home() {
                         />
                         <AlertCard
                             visible={!!robot.alert}
+                            collapse={showLastRun}
                             type="warning"
                             icon={<MdWarning size={17} />}
                             title="alert"
@@ -204,7 +207,7 @@ export default function Home() {
             </div>
 
             {/* ── Mascot + ring ── */}
-            <div className={styles.mascotZone}>
+            <div className={`${styles.mascotZone} ${showLastRun && lastCleaning ? styles.withMap : ''}`}>
                 {showLastRun && lastCleaning ? (
                     <LastRun cleaning={lastCleaning} marker={mascot.src} />
                 ) : (

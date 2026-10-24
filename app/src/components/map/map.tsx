@@ -54,16 +54,16 @@ export default function Map({ mapId, runId, marker, focusRun }: MapProps) {
         img.src = marker
     }, [marker])
 
-    const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runDock) => {
+    const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runMarkers) => {
         if (!persistantMapData) return
-        // the run's own dock marker is exact; the stored base is only a fallback (gen3 derives it
-        // from the dock and start markers together)
-        const b = runDock
-            ? { pose: { x: runDock[0], y: runDock[1], dir: 0 }, resolution: 40 }
-            : basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
-        if (!b) return
-        if (markerImage) drawMarker(ctx, markerImage, b.pose, zoom, offset, mapSize, b.resolution)
-        else drawBase(ctx, b.pose, zoom, offset, mapSize, b.resolution)
+        // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
+        // from the dock and start markers together). The mascot goes where the robot ended.
+        const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: 40 })
+        const stored = basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
+        const dock = runMarkers?.dock ? at(runMarkers.dock) : stored
+        const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
+        if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
+        else if (dock) drawBase(ctx, dock.pose, zoom, offset, mapSize, dock.resolution)
     }, [persistantMapData, dockReady, markerImage])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose

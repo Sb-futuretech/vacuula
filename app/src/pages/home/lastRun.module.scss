@@ -1,10 +1,12 @@
 @use '../../variables.scss' as *;
 
 .lastRun {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 60rem;
+    max-width: 80rem;
     padding: 0;
     overflow: hidden;
     border-radius: 2rem;
@@ -18,7 +20,8 @@
 
 // a preview: the map itself does not pan or zoom here, the whole card opens the run
 .map {
-    height: 26rem;
+    flex: 1;
+    min-height: 14rem;
     pointer-events: none;
 
     & > div {
@@ -46,11 +49,4 @@
 
 .stats {
     color: $text-muted;
-}
-
-// wide windows have room for a bigger map (same width as the desktop layout)
-@media (min-width: 900px) {
-    .map {
-        height: 40rem;
-    }
 }
