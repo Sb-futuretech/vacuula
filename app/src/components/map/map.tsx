@@ -54,9 +54,13 @@ export default function Map({ mapId, runId, marker, focusRun }: MapProps) {
         img.src = marker
     }, [marker])
 
-    const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize) => {
+    const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runDock) => {
         if (!persistantMapData) return
-        const b = basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
+        // the run's own dock marker is exact; the stored base is only a fallback (gen3 derives it
+        // from the dock and start markers together)
+        const b = runDock
+            ? { pose: { x: runDock[0], y: runDock[1], dir: 0 }, resolution: 40 }
+            : basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
         if (!b) return
         if (markerImage) drawMarker(ctx, markerImage, b.pose, zoom, offset, mapSize, b.resolution)
         else drawBase(ctx, b.pose, zoom, offset, mapSize, b.resolution)

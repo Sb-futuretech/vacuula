@@ -11,12 +11,32 @@ import { loadSelectedMapShape } from '../../pages/settings/mapshapes'
 
 export interface MapSize { width: number; height: number }
 
+// Gen3 RunMap values (checked on a D7): 128 is untouched background; 4x4 marker blocks are
+// 100 = dock (only in runs that completed), 200 and 150 = most likely start and end position.
+// Everything else is the robot's path.
+const GEN3_RUN_BACKGROUND = 128
+const GEN3_RUN_DOCK = 100
+const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, 150, 200])
+
+// centre of all cells with `value`, normalised to the grid; undefined if there are none
+function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {
+    let sumX = 0, sumY = 0, n = 0
+    for (let i = 0; i < cells.length; i++) {
+        if (cells[i] !== value) continue
+        sumX += i % width
+        sumY += Math.floor(i / width)
+        n++
+    }
+    return n ? [(sumX / n + 0.5) / width, (sumY / n + 0.5) / height] : undefined
+}
+
 export type ExtraDrawFn = (
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     zoom: number,
     offset: Offset,
-    mapSize: MapSize
+    mapSize: MapSize,
+    runDock?: [number, number] // dock read from the run (gen3), normalised
 ) => void
 
 interface UseMapOptions {
@@ -32,7 +52,7 @@ interface UseMapOptions {
     backgroundToken?: string
     // fit the view to the cells the run cleaned instead of the whole floor
     fitToRun?: boolean
-    // normalised point that has to stay in view when fitting to the run (e.g. the dock)
+    // normalised point that has to stay in view when fitting to the run, if the run has no dock marker
     fitInclude?: [number, number]
 }
 
@@ -56,6 +76,8 @@ export function useMap({
     extraDrawRef.current = extraDraw
 
     const [mapSize, setMapSize] = useState<MapSize>()
+    // dock position read from the run itself (gen3), normalised
+    const [runDock, setRunDock] = useState<[number, number]>()
 
     const { robot } = useRobot(); // TODO: in the future, the map should not know about the robot but meh for now
 
@@ -79,8 +101,8 @@ export function useMap({
             backgroundToken
         )
 
-        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize)
-    }, [mapSize, shape, backgroundToken])
+        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runDock)
+    }, [mapSize, shape, backgroundToken, runDock])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
@@ -120,7 +142,12 @@ export function useMap({
         if (!cleaningData) return;
         const runCells = decodeRLE(cleaningData.rle);
         runCellsRef.current = runCells;
-        runIgnoreSetRef.current = computeIgnoredRunValues(runCellsRef.current, robot.type === RobotType.NeatoGen4 ? 1 : 2);
+        if (robot.type === RobotType.NeatoGen3) {
+            runIgnoreSetRef.current = GEN3_RUN_NOT_PATH
+            setRunDock(cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK))
+        } else {
+            runIgnoreSetRef.current = computeIgnoredRunValues(runCellsRef.current, 1);
+        }
         draw()
     }, [cleaningData])
 
@@ -134,12 +161,12 @@ export function useMap({
     const calcFit = useCallback((width: number, height: number) => {
         if (!cellsRef.current || !mapSize) return null
         const runBounds = fitToRun && runCellsRef.current
-            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize, fitInclude)
+            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize, runDock ?? fitInclude)
             : null
         return runBounds
             ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
             : calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
-    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1]])
+    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runDock])
 
     // the run and the dock arrive after the floor: fit again unless the user moved the map
     useEffect(() => {
@@ -215,6 +242,7 @@ export function useMap({
             onTouchEnd: handleTouchEnd
         },
         draw,
-        resetView
+        resetView,
+        runDock
     }
 }
