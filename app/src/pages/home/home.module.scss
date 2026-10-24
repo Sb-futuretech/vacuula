@@ -262,8 +262,24 @@
     grid-row: 4;
 }
 
+// the row of mode buttons; on narrow phones the buttons shrink instead of running off the edges
+.ctrlRow {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 420px) {
+    .ctrlRow {
+        gap: 0.6rem;
+    }
+}
+
 .ctrlBtn {
-    width: 8rem;
+    flex: 0 1 8rem;
+    min-width: 0;
+    padding: 0 0.4rem;
     height: 7rem;
     border-radius: 1.4rem;
     background: $surface;
@@ -276,6 +292,18 @@
     cursor: pointer;
     color: $text-primary;
     @include pressable($hover-border: true);
+}
+
+.ctrlText {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+
+    span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 .ctrlLabel {

@@ -114,7 +114,7 @@ function CtrlBtn({ icon, label, selection, disabled, onClick }: { icon: React.Re
     return (
         <button className={`${styles.ctrlBtn} ${disabled ? styles.disabled : ''}`} onClick={onClick} aria-label={selection} disabled={disabled}>
             {icon}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className={styles.ctrlText}>
                 <span className={styles.ctrlLabel}>{label}</span>
                 <span className={styles.ctrlSelection}>{selection}</span>
             </div>
@@ -291,7 +291,7 @@ export default function Home() {
 
             {/* ── Controls ── */}
             <div className={styles.buttons}>
-                <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem' }}>
+                <div className={styles.ctrlRow}>
                     <CtrlBtn
                         icon={<FaBell size={22} className={bellAnimating ? styles.bellIcon : ''} />}
                         selection={t('home.locate')}
