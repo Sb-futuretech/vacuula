@@ -109,15 +109,22 @@ export default function Home() {
 
     // settings: the last cleaning's map instead of the mascot (gen3); reloaded when the robot's state changes
     const showLastRun = loadHomeView() === 'lastRun' && robot.type === RobotType.NeatoGen3
-    const [lastCleaning, setLastCleaning] = useState<Neato.Gen3.CleaningRun>()
+    const [recentCleanings, setRecentCleanings] = useState<Neato.Gen3.CleaningRun[]>([])
+    const [runIndex, setRunIndex] = useState(0) // 0 = the newest
     useEffect(() => {
         if (!showLastRun) return
         Http.getCleanings(robot.serial).then(res => {
-            const runs = res.data as Neato.Gen3.CleaningRun[]
-            setLastCleaning(runs.reduce<Neato.Gen3.CleaningRun | undefined>((latest, c) =>
-                !latest || c.run.start_at > latest.run.start_at ? c : latest, undefined))
+            const runs = [...res.data as Neato.Gen3.CleaningRun[]]
+                .sort((a, b) => b.run.start_at.localeCompare(a.run.start_at))
+                .slice(0, 20)
+            // a new run jumps back to the newest; otherwise keep the one being looked at
+            setRecentCleanings(prev => {
+                if (prev[0]?.id !== runs[0]?.id) setRunIndex(0)
+                return runs
+            })
         })
     }, [showLastRun, robot.serial, robot.state])
+    const lastCleaning = recentCleanings[Math.min(runIndex, recentCleanings.length - 1)]
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
 
     // TODO: make functions of this to fetch easily etc
@@ -209,7 +216,12 @@ export default function Home() {
             {/* ── Mascot + ring ── */}
             <div className={`${styles.mascotZone} ${showLastRun && lastCleaning ? styles.withMap : ''}`}>
                 {showLastRun && lastCleaning ? (
-                    <LastRun cleaning={lastCleaning} marker={mascot.src} />
+                    <LastRun
+                        cleaning={lastCleaning}
+                        marker={mascot.src}
+                        onOlder={runIndex < recentCleanings.length - 1 ? () => setRunIndex(i => i + 1) : undefined}
+                        onNewer={runIndex > 0 ? () => setRunIndex(i => i - 1) : undefined}
+                    />
                 ) : (
                     <div className={styles.statusRing}>
                         {/* <RingProgress pct={75} /> */}

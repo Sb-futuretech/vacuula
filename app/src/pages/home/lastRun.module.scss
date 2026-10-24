@@ -20,13 +20,40 @@
 
 // a preview: the map itself does not pan or zoom here, the whole card opens the run
 .map {
+    position: relative;
     flex: 1;
     min-height: 14rem;
-    pointer-events: none;
 
     & > div {
         height: 100%;
+        pointer-events: none;
     }
+}
+
+// subtle arrows at the middle of the left / right edge to flip through recent runs
+.arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.55;
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:hover {
+        opacity: 1;
+    }
+
+    &.left { left: 0.8rem; }
+    &.right { right: 0.8rem; }
 }
 
 .info {
