@@ -462,3 +462,35 @@ export function drawMarker(
     const size = Math.max(32, 4 * (ROBOT_RADIUS_MM / (resolution || 40)) * zoom)
     ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
 }
+
+// Area the robot cleaned: the run's path is a thin track, so every path cell becomes a disc of the
+// robot's size. All discs are filled as one path, so overlaps merge into one smooth band instead of
+// stacking their opacity.
+export function drawCoverage(
+    ctx: CanvasRenderingContext2D,
+    runCells: number[],
+    ignore: Set<number>,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    resolution: number,
+) {
+    const r = (ROBOT_RADIUS_MM / (resolution || 40)) * zoom
+    let pathValue: number | undefined
+    ctx.beginPath()
+    for (let i = 0; i < runCells.length; i++) {
+        const v = runCells[i]
+        if (v === 0 || ignore.has(v)) continue
+        pathValue ??= v
+        const cx = offset.x + (i % mapSize.width + 0.5) * zoom
+        const cy = offset.y + (Math.floor(i / mapSize.width) + 0.5) * zoom
+        ctx.moveTo(cx + r, cy)
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    }
+    if (pathValue === undefined) return
+    ctx.save()
+    ctx.globalAlpha = parseFloat(COLORS.RUN_OPACITY) || DRAWING.RUN_OVERLAY_OPACITY
+    ctx.fillStyle = colorForPathValue(pathValue)
+    ctx.fill()
+    ctx.restore()
+}

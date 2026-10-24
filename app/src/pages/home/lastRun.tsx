@@ -26,7 +26,7 @@ export default function LastRun({ cleaning, marker }: { cleaning: Neato.Gen3.Cle
     return (
         <button className={styles.lastRun} onClick={() => navigate('/runs', { state: { runId: cleaning.id } })}>
             <div className={styles.map}>
-                <RunMap mapId={cleaning.id} runId={cleaning.id} marker={marker} focusRun />
+                <RunMap mapId={cleaning.id} runId={cleaning.id} marker={marker} focusRun coverage />
             </div>
             <div className={styles.info}>
                 <span className={run.error ? styles.warn : styles.ok}>{run.error ? '⚠' : '✓'} {when}</span>

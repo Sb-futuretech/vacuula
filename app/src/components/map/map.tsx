@@ -16,6 +16,7 @@ interface MapProps {
     runId?: string
     marker?: string // image drawn where the robot docks, instead of the dock symbol
     focusRun?: boolean // zoom to the cleaned part of the run, keeping the dock in view
+    coverage?: boolean // show the area the robot covered instead of its thin path
 }
 
 function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
@@ -38,7 +39,7 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     }
 }
 
-export default function Map({ mapId, runId, marker, focusRun }: MapProps) {
+export default function Map({ mapId, runId, marker, focusRun, coverage }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -74,6 +75,7 @@ export default function Map({ mapId, runId, marker, focusRun }: MapProps) {
         extraDraw,
         redrawKey: extraDraw,
         fitToRun: focusRun,
+        coverage,
         fitInclude: dock ? [dock.x, dock.y] : undefined,
     })
 

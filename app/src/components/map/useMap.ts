@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { DRAWING } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
-import { drawMap, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
+import { drawMap, drawCoverage, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { useCleaning, usePersistentMap } from '../../loaders/resources'
 import { useRobot } from '../../context/useRobot'
@@ -58,6 +58,8 @@ interface UseMapOptions {
     fitToRun?: boolean
     // normalised point that has to stay in view when fitting to the run, if the run has no dock marker
     fitInclude?: [number, number]
+    // draw the run as the area the robot covered instead of its thin path
+    coverage?: boolean
 }
 
 export function useMap({
@@ -69,7 +71,8 @@ export function useMap({
     redrawKey,
     backgroundToken,
     fitToRun,
-    fitInclude
+    fitInclude,
+    coverage
 }: UseMapOptions) {
     const canvasRef = useRef<HTMLCanvasElement | undefined>(undefined)
     const cellsRef = useRef<number[] | null>(null)
@@ -97,15 +100,17 @@ export function useMap({
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
+        const covered = coverage && runCellsRef.current?.length === cellsRef.current.length
         drawMap(
             ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize,
-            shape, runCellsRef.current,
+            shape, covered ? null : runCellsRef.current,
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
+        if (covered) drawCoverage(ctx, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
-    }, [mapSize, shape, backgroundToken, runMarkers])
+    }, [mapSize, shape, backgroundToken, runMarkers, coverage])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
