@@ -583,3 +583,32 @@ export function drawPlanWalls(
     ctx.fillStyle = COLORS.WALL
     ctx.fill(walls)
 }
+
+// Small flag where a run started (used when that was away from the dock).
+export function drawStartFlag(
+    ctx: CanvasRenderingContext2D,
+    at: { x: number; y: number },
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    const x = offset.x + at.x * mapSize.width * zoom
+    const y = offset.y + at.y * mapSize.height * zoom
+    const h = Math.max(18, zoom * 5) // pole height
+    ctx.save()
+    ctx.strokeStyle = COLORS.LINE_COLOR
+    ctx.fillStyle = COLORS.LINE_COLOR
+    ctx.lineWidth = Math.max(1.5, h / 10)
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    ctx.lineTo(x, y - h)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x, y - h)
+    ctx.lineTo(x + h * 0.6, y - h * 0.78)
+    ctx.lineTo(x, y - h * 0.56)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+}

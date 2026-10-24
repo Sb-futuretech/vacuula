@@ -7,7 +7,7 @@ import { Http } from '../../http'
 import { usePersistentMap } from '../../loaders/resources'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
-import { drawBase, drawMarker, onDockImageReady } from './drawingFunctions'
+import { drawBase, drawMarker, drawStartFlag, onDockImageReady } from './drawingFunctions'
 import type { ExtraDrawFn } from './useMap'
 import type { VacuulaMapData } from './types'
 
@@ -19,6 +19,9 @@ interface MapProps {
     coverage?: boolean // show the area the robot covered instead of its thin path
     plan?: boolean // continuous floor and wall lines instead of the cell shapes
 }
+
+// a run starting closer than this to the dock (in map cells, ~40 cm) started from the dock: no flag
+const START_FLAG_MIN_CELLS = 10
 
 function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     const base = data.base
@@ -61,12 +64,22 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan }: 
         // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
         // from the dock and start markers together). The mascot goes where the robot ended.
         const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: 40 })
-        const stored = basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
+        const gen3Run = robot.type === RobotType.NeatoGen3 && !!runId
+        // a gen3 run without its dock block (canceled) would get the start position as stored base
+        const stored = gen3Run ? undefined : basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)
         const dock = runMarkers?.dock ? at(runMarkers.dock) : stored
+        if (dock) drawBase(ctx, dock.pose, zoom, offset, mapSize, dock.resolution)
+
+        // a flag where the run started, if that was clearly away from the dock (or, without a dock
+        // block, from where it ended - runs usually end back on the dock)
+        const start = runMarkers?.start
+        const ref = dock ? [dock.pose.x, dock.pose.y] : runMarkers?.end
+        const far = start && ref && Math.hypot((start[0] - ref[0]) * mapSize.width, (start[1] - ref[1]) * mapSize.height) > START_FLAG_MIN_CELLS
+        if (start && far) drawStartFlag(ctx, { x: start[0], y: start[1] }, zoom, offset, mapSize)
+
         const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
         if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
-        else if (dock) drawBase(ctx, dock.pose, zoom, offset, mapSize, dock.resolution)
-    }, [persistantMapData, dockReady, markerImage])
+    }, [persistantMapData, dockReady, markerImage, runId])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 

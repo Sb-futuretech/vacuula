@@ -17,7 +17,8 @@ export interface MapSize { width: number; height: number }
 const GEN3_RUN_BACKGROUND = 128
 const GEN3_RUN_DOCK = 100
 const GEN3_RUN_END = 150
-const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, 200])
+const GEN3_RUN_START = 200
+const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_START])
 
 // centre of all cells with `value`, normalised to the grid; undefined if there are none
 function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {
@@ -41,7 +42,7 @@ export type ExtraDrawFn = (
 ) => void
 
 // normalised positions of the gen3 run's marker blocks, if present
-export interface RunMarkers { dock?: [number, number], end?: [number, number] }
+export interface RunMarkers { dock?: [number, number], start?: [number, number], end?: [number, number] }
 
 interface UseMapOptions {
     mapId: string
@@ -160,6 +161,7 @@ export function useMap({
             runIgnoreSetRef.current = GEN3_RUN_NOT_PATH
             setRunMarkers({
                 dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
+                start: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_START),
                 end: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_END),
             })
         } else {
@@ -179,7 +181,7 @@ export function useMap({
         if (!cellsRef.current || !mapSize) return null
         const runBounds = fitToRun && runCellsRef.current
             ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize,
-                [runMarkers.dock ?? fitInclude, runMarkers.end].filter(p => !!p))
+                [runMarkers.dock ?? fitInclude, runMarkers.start, runMarkers.end].filter(p => !!p))
             : null
         return runBounds
             ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
