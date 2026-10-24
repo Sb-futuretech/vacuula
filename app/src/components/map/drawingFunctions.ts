@@ -612,3 +612,46 @@ export function drawStartFlag(
     ctx.fill()
     ctx.restore()
 }
+
+// Zones over a run: the ones the robot cleaned in that run at full strength, the others faded,
+// each with its name in the middle.
+export function drawZoneOverlay(
+    ctx: CanvasRenderingContext2D,
+    zones: Zone[],
+    visited: Set<string>,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    ctx.save()
+    ctx.lineWidth = Math.max(DRAWING.MIN_LINE_WIDTH, zoom * DRAWING.POLYGON_LINE_WIDTH_SCALE)
+    for (const zone of zones) {
+        ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.35
+        drawZone(ctx, zone, zoom, offset, mapSize)
+    }
+
+    ctx.font = `600 ${Math.max(11, Math.min(16, zoom * 3))}px Arial, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'
+    ctx.shadowBlur = 3
+    for (const zone of zones) {
+        if (!zone.name || zone.vertices.length < 3) continue
+        const cx = zone.vertices.reduce((sum, v) => sum + v[0], 0) / zone.vertices.length
+        const cy = zone.vertices.reduce((sum, v) => sum + v[1], 0) / zone.vertices.length
+        ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.6
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(zone.name, offset.x + cx * mapSize.width * zoom, offset.y + cy * mapSize.height * zoom)
+    }
+    ctx.restore()
+}
+
+// is the normalised point inside the polygon (ray casting)
+export function pointInZone([x, y]: Point, zone: Zone): boolean {
+    let inside = false
+    const v = zone.vertices
+    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+        if ((v[i][1] > y) !== (v[j][1] > y) && x < (v[j][0] - v[i][0]) * (y - v[i][1]) / (v[j][1] - v[i][1]) + v[i][0]) inside = !inside
+    }
+    return inside
+}

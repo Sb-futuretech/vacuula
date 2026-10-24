@@ -18,7 +18,7 @@ const GEN3_RUN_BACKGROUND = 128
 const GEN3_RUN_DOCK = 100
 const GEN3_RUN_END = 150
 const GEN3_RUN_START = 200
-const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_START])
+export const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_START])
 
 // centre of all cells with `value`, normalised to the grid; undefined if there are none
 function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {

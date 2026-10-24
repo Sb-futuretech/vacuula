@@ -1,15 +1,17 @@
 import styles from './map.module.scss'
 import { useMap } from './useMap'
 import { useRobot } from '../../context/useRobot'
-import { RobotType } from '../../types'
+import { Neato, RobotType } from '../../types'
 import Button from '../button/button'
 import { Http } from '../../http'
-import { usePersistentMap } from '../../loaders/resources'
+import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
+import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useEffect, useState } from 'react'
-import { drawBase, drawMarker, drawStartFlag, onDockImageReady } from './drawingFunctions'
-import type { ExtraDrawFn } from './useMap'
-import type { VacuulaMapData } from './types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
+import { decodeRLE } from './utils'
+import { GEN3_RUN_NOT_PATH, type ExtraDrawFn } from './useMap'
+import type { VacuulaMapData, Zone } from './types'
 
 interface MapProps {
     mapId: string
@@ -18,6 +20,7 @@ interface MapProps {
     focusRun?: boolean // zoom to the cleaned part of the run, keeping the dock in view
     coverage?: boolean // show the area the robot covered instead of its thin path
     plan?: boolean // continuous floor and wall lines instead of the cell shapes
+    zones?: boolean // show the zones of the stored map the run was on (gen3)
 }
 
 // a run starting closer than this to the dock (in map cells, ~40 cm) started from the dock: no flag
@@ -43,7 +46,7 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     }
 }
 
-export default function Map({ mapId, runId, marker, focusRun, coverage, plan }: MapProps) {
+export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -59,8 +62,52 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan }: 
         img.src = marker
     }, [marker])
 
+    // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
+    // its grid, so its zones (normalised vertices) fit the run: take the enabled map with the same
+    // grid size, the one whose dock is closest if there are several. No match, no zones.
+    const { data: storedMaps } = usePersistentMaps()
+    const [runZones, setRunZones] = useState<Zone[]>([])
+    useEffect(() => {
+        setRunZones([])
+        if (!zones || !runId || robot.type !== RobotType.NeatoGen3 || !persistantMapData || !storedMaps) return
+        let cancelled = false
+        const xy = (base: unknown) => Array.isArray(base) ? base : [(base as any)?.x, (base as any)?.y]
+        const runBase = xy(persistantMapData.base)
+        ;(async () => {
+            let best: { id: string, distance: number } | undefined
+            for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
+                if (!m.enabled || m.id === mapId) continue
+                const data = await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
+                if (!data || data.width !== persistantMapData.width || data.height !== persistantMapData.height) continue
+                const b = xy(data.base)
+                const distance = Math.hypot((b[0] - runBase[0]) * data.width, (b[1] - runBase[1]) * data.height) || 0
+                if (!best || distance < best.distance) best = { id: m.id, distance }
+            }
+            if (!best) return
+            const boundaries = await fetchGen3MapBoundaries(robot.serial, best.id).catch(() => [])
+            if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon'))
+        })()
+        return () => { cancelled = true }
+    }, [zones, runId, mapId, persistantMapData, storedMaps])
+
+    // zones the run's path went through
+    const { data: cleaningData } = useCleaning(runId ?? '')
+    const visitedZones = useMemo(() => {
+        const visited = new Set<string>()
+        if (!runZones.length || !cleaningData) return visited
+        const cells = decodeRLE(cleaningData.rle)
+        const { width, height } = cleaningData
+        for (let i = 0; i < cells.length; i++) {
+            if (cells[i] === 0 || GEN3_RUN_NOT_PATH.has(cells[i])) continue
+            const p: [number, number] = [(i % width + 0.5) / width, (Math.floor(i / width) + 0.5) / height]
+            for (const zone of runZones) if (!visited.has(zone.id) && pointInZone(p, zone)) visited.add(zone.id)
+        }
+        return visited
+    }, [runZones, cleaningData])
+
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runMarkers) => {
         if (!persistantMapData) return
+        if (runZones.length) drawZoneOverlay(ctx, runZones, visitedZones, zoom, offset, mapSize)
         // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
         // from the dock and start markers together). The mascot goes where the robot ended.
         const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: 40 })
@@ -79,7 +126,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan }: 
 
         const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
         if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
-    }, [persistantMapData, dockReady, markerImage, runId])
+    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 
