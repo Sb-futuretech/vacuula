@@ -1,6 +1,11 @@
 [buymeacoffee]: https://www.buymeacoffee.com/philip2809
 [buymeacoffee-shield]: https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png
 
+> [!NOTE]
+> **This is a fork** with extra features and fixes, mostly for Gen3 robots (multi-zone cleaning,
+> manual drive, desktop layout, map improvements, coverage heatmap). See [FORK.md](FORK.md) for what
+> it adds and how to run it. The original project is [vacuula/vacuula](https://github.com/vacuula/vacuula).
+
 <div align="center">
   <img alt="Vacuula Logo" src="./pics/logo.svg" width="250">
   <h1>Vacuula</h1>
