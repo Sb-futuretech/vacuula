@@ -551,8 +551,13 @@ export function drawPlanFloor(
     ctx.fill(floor)
 }
 
-// Walls as continuous lines: the D7's wall pixels are dashed, so every wall cell becomes a disc a bit
-// larger than half a cell; filled as one path the discs close the gaps into one rounded line.
+// Walls as continuous thin lines: the D7's wall pixels are dashed, so each wall cell is joined to the
+// wall cells around it, gaps of one cell included, with a stroke half a cell wide.
+const WALL_NEIGHBOURS: [number, number][] = [
+    [1, 0], [0, 1], [1, 1], [-1, 1],                                 // touching
+    [2, 0], [0, 2], [2, 2], [-2, 2], [2, 1], [1, 2], [-1, 2], [-2, 1], // across a one-cell gap
+]
+
 export function drawPlanWalls(
     ctx: CanvasRenderingContext2D,
     cells: number[],
@@ -560,15 +565,27 @@ export function drawPlanWalls(
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
 ) {
-    const r = Math.max(1, zoom * 0.85)
+    const { width, height } = mapSize
+    const isWall = (x: number, y: number) => x >= 0 && x < width && y < height && cells[y * width + x] === 2
     const walls = new Path2D()
     for (let i = 0; i < cells.length; i++) {
         if (cells[i] !== 2) continue
-        const cx = offset.x + (i % mapSize.width + 0.5) * zoom
-        const cy = offset.y + (Math.floor(i / mapSize.width) + 0.5) * zoom
-        walls.moveTo(cx + r, cy)
-        walls.arc(cx, cy, r, 0, Math.PI * 2)
+        const x = i % width, y = Math.floor(i / width)
+        const cx = offset.x + (x + 0.5) * zoom
+        const cy = offset.y + (y + 0.5) * zoom
+        walls.moveTo(cx, cy)
+        walls.lineTo(cx, cy) // a lone wall cell still shows as a dot
+        for (const [dx, dy] of WALL_NEIGHBOURS) {
+            if (!isWall(x + dx, y + dy)) continue
+            walls.moveTo(cx, cy)
+            walls.lineTo(cx + dx * zoom, cy + dy * zoom)
+        }
     }
-    ctx.fillStyle = COLORS.WALL
-    ctx.fill(walls)
+    ctx.save()
+    ctx.strokeStyle = COLORS.WALL
+    ctx.lineWidth = Math.max(1, zoom * 0.5)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke(walls)
+    ctx.restore()
 }
