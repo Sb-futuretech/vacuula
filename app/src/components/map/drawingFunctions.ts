@@ -456,3 +456,213 @@ export function drawBase(
     ctx.drawImage(img, DOCK_VIEWBOX.x * s, DOCK_VIEWBOX.y * s, DOCK_VIEWBOX.w * s, DOCK_VIEWBOX.h * s)
     ctx.restore()
 }
+
+// An image (e.g. the mascot) where the robot docks, drawn instead of the dock symbol.
+export function drawMarker(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    base: BasePose,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    resolution: number,
+) {
+    const cx = offset.x + base.x * mapSize.width * zoom
+    const cy = offset.y + base.y * mapSize.height * zoom
+    // twice the robot's size on the map, but never too small to recognise
+    const size = Math.max(32, 4 * (ROBOT_RADIUS_MM / (resolution || 40)) * zoom)
+    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
+}
+
+// Area the robot cleaned: the run's path is a thin track, so every path cell becomes a disc of the
+// robot's size. All discs are filled as one path, so overlaps merge into one smooth band instead of
+// stacking their opacity. The band is clipped to free floor, so it never spills over walls.
+export function drawCoverage(
+    ctx: CanvasRenderingContext2D,
+    floorCells: number[],
+    runCells: number[],
+    ignore: Set<number>,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    resolution: number,
+) {
+    const rCells = ROBOT_RADIUS_MM / (resolution || 40)
+    const r = rCells * zoom
+    const { width, height } = mapSize
+    let pathValue: number | undefined
+    let minX = width, minY = height, maxX = -1, maxY = -1
+    const discs = new Path2D()
+    for (let i = 0; i < runCells.length; i++) {
+        const v = runCells[i]
+        if (v === 0 || ignore.has(v)) continue
+        pathValue ??= v
+        const x = i % width, y = Math.floor(i / width)
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+        const cx = offset.x + (x + 0.5) * zoom
+        const cy = offset.y + (y + 0.5) * zoom
+        discs.moveTo(cx + r, cy)
+        discs.arc(cx, cy, r, 0, Math.PI * 2)
+    }
+    if (pathValue === undefined) return
+
+    // free floor around the path, one rectangle per horizontal run of free cells
+    const pad = Math.ceil(rCells)
+    const floor = new Path2D()
+    for (let y = Math.max(0, minY - pad); y <= Math.min(height - 1, maxY + pad); y++) {
+        let runStart = -1
+        for (let x = Math.max(0, minX - pad); x <= Math.min(width - 1, maxX + pad) + 1; x++) {
+            const free = x <= Math.min(width - 1, maxX + pad) && floorCells[y * width + x] === 1
+            if (free && runStart < 0) runStart = x
+            if (!free && runStart >= 0) {
+                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+                runStart = -1
+            }
+        }
+    }
+
+    ctx.save()
+    ctx.clip(floor)
+    ctx.globalAlpha = parseFloat(COLORS.RUN_OPACITY) || DRAWING.RUN_OVERLAY_OPACITY
+    ctx.fillStyle = colorForPathValue(pathValue)
+    ctx.fill(discs)
+    ctx.restore()
+}
+
+// "Plan" look: the floor as one continuous area instead of a dot per cell. Unexplored cells stay
+// background. Walls are drawn separately (drawPlanWalls) so they can go on top of an overlay.
+export function drawPlanFloor(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    cells: number[],
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    backgroundToken?: string,
+) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = backgroundToken ? readMapToken(backgroundToken) : COLORS.BACKGROUND
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // one rectangle per horizontal run of non-unknown cells: walls are part of the floor area too
+    const floor = new Path2D()
+    for (let y = 0; y < mapSize.height; y++) {
+        let runStart = -1
+        for (let x = 0; x <= mapSize.width; x++) {
+            const known = x < mapSize.width && cells[y * mapSize.width + x] !== 0
+            if (known && runStart < 0) runStart = x
+            if (!known && runStart >= 0) {
+                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+                runStart = -1
+            }
+        }
+    }
+    ctx.fillStyle = COLORS.EMPTY
+    ctx.fill(floor)
+}
+
+// Walls as solid lines: the D7's wall pixels are dashed, so a cell between two wall cells (left/right,
+// up/down or diagonally opposite) counts as wall too. That closes the gaps without making walls
+// thicker; the wall cells are then filled as one area, one rectangle per horizontal run.
+const OPPOSITE_PAIRS: [number, number][] = [[1, 0], [0, 1], [1, 1], [1, -1]]
+
+export function drawPlanWalls(
+    ctx: CanvasRenderingContext2D,
+    cells: number[],
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    const { width, height } = mapSize
+    const isWall = (x: number, y: number) => x >= 0 && x < width && y >= 0 && y < height && cells[y * width + x] === 2
+    const wall = (x: number, y: number) => isWall(x, y)
+        || OPPOSITE_PAIRS.some(([dx, dy]) => isWall(x - dx, y - dy) && isWall(x + dx, y + dy))
+
+    const walls = new Path2D()
+    for (let y = 0; y < height; y++) {
+        let runStart = -1
+        for (let x = 0; x <= width; x++) {
+            const w = x < width && wall(x, y)
+            if (w && runStart < 0) runStart = x
+            if (!w && runStart >= 0) {
+                walls.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+                runStart = -1
+            }
+        }
+    }
+    ctx.fillStyle = COLORS.WALL
+    ctx.fill(walls)
+}
+
+// Small flag where a run started (used when that was away from the dock).
+export function drawStartFlag(
+    ctx: CanvasRenderingContext2D,
+    at: { x: number; y: number },
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    const x = offset.x + at.x * mapSize.width * zoom
+    const y = offset.y + at.y * mapSize.height * zoom
+    const h = Math.max(18, zoom * 5) // pole height
+    ctx.save()
+    ctx.strokeStyle = COLORS.LINE_COLOR
+    ctx.fillStyle = COLORS.LINE_COLOR
+    ctx.lineWidth = Math.max(1.5, h / 10)
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    ctx.lineTo(x, y - h)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x, y - h)
+    ctx.lineTo(x + h * 0.6, y - h * 0.78)
+    ctx.lineTo(x, y - h * 0.56)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+}
+
+// Zones over a run: the ones the robot cleaned in that run at full strength, the others faded,
+// each with its name in the middle.
+export function drawZoneOverlay(
+    ctx: CanvasRenderingContext2D,
+    zones: Zone[],
+    visited: Set<string>,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    ctx.save()
+    ctx.lineWidth = Math.max(DRAWING.MIN_LINE_WIDTH, zoom * DRAWING.POLYGON_LINE_WIDTH_SCALE)
+    for (const zone of zones) {
+        ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.35
+        drawZone(ctx, zone, zoom, offset, mapSize)
+    }
+
+    ctx.font = `600 ${Math.max(11, Math.min(16, zoom * 3))}px Arial, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'
+    ctx.shadowBlur = 3
+    for (const zone of zones) {
+        if (!zone.name || zone.vertices.length < 3) continue
+        const cx = zone.vertices.reduce((sum, v) => sum + v[0], 0) / zone.vertices.length
+        const cy = zone.vertices.reduce((sum, v) => sum + v[1], 0) / zone.vertices.length
+        ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.6
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(zone.name, offset.x + cx * mapSize.width * zoom, offset.y + cy * mapSize.height * zoom)
+    }
+    ctx.restore()
+}
+
+// is the normalised point inside the polygon (ray casting)
+export function pointInZone([x, y]: Point, zone: Zone): boolean {
+    let inside = false
+    const v = zone.vertices
+    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+        if ((v[i][1] > y) !== (v[j][1] > y) && x < (v[j][0] - v[i][0]) * (y - v[i][1]) / (v[j][1] - v[i][1]) + v[i][0]) inside = !inside
+    }
+    return inside
+}

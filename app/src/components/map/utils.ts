@@ -107,7 +107,20 @@ export function calcFitZoomAndOffset(
 ): { zoom: number; offset: { x: number; y: number } } | null {
     const bounds = getMapContentBounds(cells, mapSize)
     if (!bounds) return null
+    return calcFitToBounds(bounds, canvasWidth, canvasHeight, minZoom, maxZoom, padding)
+}
 
+export type CellBounds = { minX: number; minY: number; maxX: number; maxY: number }
+
+// zoom + offset that show `bounds` (in map cells) centred on the canvas
+export function calcFitToBounds(
+    bounds: CellBounds,
+    canvasWidth: number,
+    canvasHeight: number,
+    minZoom: number,
+    maxZoom: number,
+    padding = 0.9 // fraction of canvas the content should occupy
+): { zoom: number; offset: { x: number; y: number } } {
     const contentWidth = bounds.maxX - bounds.minX + 1
     const contentHeight = bounds.maxY - bounds.minY + 1
 
@@ -155,4 +168,31 @@ export async function getAllGen3MapsWithZones(
             }
         }),
     )
+}
+
+// Bounds of the cells a run actually cleaned (values in `ignore` are background/markers),
+// widened to keep the `include` points (normalised, e.g. the dock) in view.
+export function getRunBounds(
+    runCells: number[],
+    ignore: Set<number>,
+    mapSize: { width: number; height: number },
+    include: [number, number][] = []
+): CellBounds | null {
+    let minX = mapSize.width, minY = mapSize.height, maxX = -1, maxY = -1
+    for (let i = 0; i < runCells.length; i++) {
+        const v = runCells[i]
+        if (v === 0 || ignore.has(v)) continue
+        const x = i % mapSize.width, y = Math.floor(i / mapSize.width)
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+    }
+    if (maxX < 0) return null
+    for (const [px, py] of include) {
+        const ix = px * mapSize.width, iy = py * mapSize.height
+        minX = Math.min(minX, ix); maxX = Math.max(maxX, ix)
+        minY = Math.min(minY, iy); maxY = Math.max(maxY, iy)
+    }
+    return { minX, minY, maxX, maxY }
 }

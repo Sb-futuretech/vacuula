@@ -1,8 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { DRAWING } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
-import { decodeRLE, calcFitZoomAndOffset } from './utils'
-import { drawMap, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
+import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
+import { drawMap, drawCoverage, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { useCleaning, usePersistentMap } from '../../loaders/resources'
 import { useRobot } from '../../context/useRobot'
@@ -11,13 +11,38 @@ import { loadSelectedMapShape } from '../../pages/settings/mapshapes'
 
 export interface MapSize { width: number; height: number }
 
+// Gen3 RunMap values (checked on a D7): 128 is untouched background; 4x4 marker blocks are
+// 100 = dock (only in runs that completed), 200 and 150 = most likely start and end position.
+// Everything else is the robot's path.
+const GEN3_RUN_BACKGROUND = 128
+const GEN3_RUN_DOCK = 100
+const GEN3_RUN_END = 150
+const GEN3_RUN_START = 200
+export const GEN3_RUN_NOT_PATH = new Set([GEN3_RUN_BACKGROUND, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_START])
+
+// centre of all cells with `value`, normalised to the grid; undefined if there are none
+function cellsCentre(cells: number[], width: number, height: number, value: number): [number, number] | undefined {
+    let sumX = 0, sumY = 0, n = 0
+    for (let i = 0; i < cells.length; i++) {
+        if (cells[i] !== value) continue
+        sumX += i % width
+        sumY += Math.floor(i / width)
+        n++
+    }
+    return n ? [(sumX / n + 0.5) / width, (sumY / n + 0.5) / height] : undefined
+}
+
 export type ExtraDrawFn = (
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     zoom: number,
     offset: Offset,
-    mapSize: MapSize
+    mapSize: MapSize,
+    runMarkers?: RunMarkers // dock / end position read from the run (gen3)
 ) => void
+
+// normalised positions of the gen3 run's marker blocks, if present
+export interface RunMarkers { dock?: [number, number], start?: [number, number], end?: [number, number] }
 
 interface UseMapOptions {
     mapId: string
@@ -30,6 +55,14 @@ interface UseMapOptions {
     redrawKey?: unknown
     // CSS token used for the canvas background (default: --map-bg, the Runs panel)
     backgroundToken?: string
+    // fit the view to the cells the run cleaned instead of the whole floor
+    fitToRun?: boolean
+    // normalised point that has to stay in view when fitting to the run, if the run has no dock marker
+    fitInclude?: [number, number]
+    // draw the run as the area the robot covered instead of its thin path
+    coverage?: boolean
+    // "plan" look: continuous floor and wall lines instead of the cell shapes
+    plan?: boolean
 }
 
 export function useMap({
@@ -39,7 +72,11 @@ export function useMap({
     fitOnLoad = true,
     extraDraw,
     redrawKey,
-    backgroundToken
+    backgroundToken,
+    fitToRun,
+    fitInclude,
+    coverage,
+    plan
 }: UseMapOptions) {
     const canvasRef = useRef<HTMLCanvasElement | undefined>(undefined)
     const cellsRef = useRef<number[] | null>(null)
@@ -50,6 +87,7 @@ export function useMap({
     extraDrawRef.current = extraDraw
 
     const [mapSize, setMapSize] = useState<MapSize>()
+    const [runMarkers, setRunMarkers] = useState<RunMarkers>({})
 
     const { robot } = useRobot(); // TODO: in the future, the map should not know about the robot but meh for now
 
@@ -66,15 +104,20 @@ export function useMap({
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        drawMap(
+        const covered = coverage && runCellsRef.current?.length === cellsRef.current.length
+        if (plan) drawPlanFloor(ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize, backgroundToken)
+        else drawMap(
             ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize,
-            shape, runCellsRef.current,
+            shape, covered ? null : runCellsRef.current,
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
+        if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
+        // walls on top, so they stay sharp over the covered area
+        if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
-        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize)
-    }, [mapSize, shape, backgroundToken])
+        extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
+    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
@@ -144,7 +187,16 @@ export function useMap({
         if (!cleaningData) return;
         const runCells = decodeRLE(cleaningData.rle);
         runCellsRef.current = runCells;
-        runIgnoreSetRef.current = computeIgnoredRunValues(runCellsRef.current, robot.type === RobotType.NeatoGen4 ? 1 : 2);
+        if (robot.type === RobotType.NeatoGen3) {
+            runIgnoreSetRef.current = GEN3_RUN_NOT_PATH
+            setRunMarkers({
+                dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
+                start: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_START),
+                end: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_END),
+            })
+        } else {
+            runIgnoreSetRef.current = computeIgnoredRunValues(runCellsRef.current, 1);
+        }
         draw()
     }, [cleaningData])
 
@@ -153,6 +205,29 @@ export function useMap({
         const id = requestAnimationFrame(() => draw(zoom, offset))
         return () => cancelAnimationFrame(id)
     }, [zoom, offset, draw, redrawKey])
+
+    // what the view fits to: the whole floor, or with fitToRun the cleaned part plus fitInclude
+    const calcFit = useCallback((width: number, height: number) => {
+        if (!cellsRef.current || !mapSize) return null
+        const runBounds = fitToRun && runCellsRef.current
+            ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize,
+                [runMarkers.dock ?? fitInclude, runMarkers.start, runMarkers.end].filter(p => !!p))
+            : null
+        return runBounds
+            ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
+            : calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
+    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runMarkers])
+
+    // the run and the dock arrive after the floor: fit again unless the user moved the map
+    useEffect(() => {
+        const canvas = canvasRef.current
+        if (!fitToRun || !canvas || userInteractedRef.current) return
+        const fit = calcFit(canvas.width, canvas.height)
+        if (fit) {
+            setZoom(fit.zoom)
+            setOffset(fit.offset)
+        }
+    }, [calcFit, cleaningData])
 
     // Resize-to-container + fit-to-content
     useEffect(() => {
@@ -167,10 +242,7 @@ export function useMap({
             canvas.height = height
 
             if (fitOnLoad && cellsRef.current && mapSize && !userInteractedRef.current) {
-                const fit = calcFitZoomAndOffset(
-                    cellsRef.current, mapSize, width, height,
-                    DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM
-                )
+                const fit = calcFit(width, height)
                 if (fit) {
                     setZoom(fit.zoom)
                     setOffset(fit.offset)
@@ -199,12 +271,12 @@ export function useMap({
         const parent = canvas?.parentElement
         if (!canvas || !parent || !cellsRef.current || !mapSize) return
         const { width, height } = parent.getBoundingClientRect()
-        const fit = calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
+        const fit = calcFit(width, height)
         if (fit) {
             setZoom(fit.zoom)
             setOffset(fit.offset)
         }
-    }, [mapSize])
+    }, [mapSize, calcFit])
 
     return {
         canvasRef, cellsRef, mapSize,

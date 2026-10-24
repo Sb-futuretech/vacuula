@@ -77,6 +77,13 @@
             "notCleaned": "Não limpas: {{names}}",
             "skip": "Saltar resto"
         },
+        "lastRun": {
+            "older": "Limpeza anterior",
+            "newer": "Limpeza seguinte",
+            "today": "Hoje {{time}}",
+            "yesterday": "Ontem {{time}}",
+            "battery": "Bateria {{start}} → {{end}} %"
+        },
         "errorTitle": "Erro",
         "error": {
             "invalid": "Info",
@@ -185,6 +192,9 @@
     },
     "settings": {
         "serverTime": "Hora do servidor: {{time}} ({{timezone}}, {{offset}})",
+        "homeView": "Página inicial",
+        "homeView_mascot": "Mascote",
+        "homeView_lastRun": "Mapa da última limpeza",
         "serial": "N.º de série: {{serial}}",
         "birthday": "Data de fabrico: {{date}}",
         "robotSettings": "Definições do robot",

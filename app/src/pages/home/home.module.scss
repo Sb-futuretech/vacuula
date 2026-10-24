@@ -124,6 +124,13 @@
     grid-row: 2;
 }
 
+// the last cleaning's map fills the room between top bar and buttons
+.mascotZone.withMap {
+    flex: 1;
+    min-height: 0;
+    padding-top: 8px;
+}
+
 .statusRing {
     width: 200px;
     height: 200px;

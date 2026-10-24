@@ -70,6 +70,13 @@
     },
     "home": {
         "drive": "Drive",
+        "lastRun": {
+            "older": "Older cleaning",
+            "newer": "Newer cleaning",
+            "today": "Today {{time}}",
+            "yesterday": "Yesterday {{time}}",
+            "battery": "Battery {{start}} → {{end}} %"
+        },
         "errorTitle": "Error",
         "error": {
             "invalid": "Info",
@@ -192,6 +199,9 @@
     },
     "settings": {
         "serverTime": "Server time: {{time}} ({{timezone}}, {{offset}})",
+        "homeView": "Home page",
+        "homeView_mascot": "Mascot",
+        "homeView_lastRun": "Map of the last cleaning",
         "serial": "Serial nr: {{serial}}",
         "birthday": "Birthday: {{date}}",
         "batteryCycles": "Battery cycles: {{cycles}}",

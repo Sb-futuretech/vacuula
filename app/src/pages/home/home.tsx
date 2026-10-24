@@ -1,5 +1,7 @@
 import styles from './home.module.scss'
 import { useMascot } from '../../mascot'
+import LastRun from './lastRun'
+import { loadHomeView } from '../settings/homeview'
 import { MdAutoAwesome, MdCleaningServices, MdError, MdMotionPhotosAuto, MdOutlineHealthAndSafety, MdWarning } from 'react-icons/md'
 import { IoMdPause, IoMdPlay } from 'react-icons/io'
 import { TbAdjustments, TbLeaf, TbHome } from 'react-icons/tb'
@@ -40,12 +42,13 @@ interface AlertCardProps {
     action?: string
     onClick?: () => void
     visible?: boolean
+    collapse?: boolean // when not visible, take no room instead of keeping it
     robotType: RobotType
 }
-function AlertCard({ type = 'error', icon, title, sub, action, onClick, visible = true, robotType }: AlertCardProps) {
+function AlertCard({ type = 'error', icon, title, sub, action, onClick, visible = true, collapse, robotType }: AlertCardProps) {
     const { t } = useTranslation()
     return (
-        <div className={`${styles.alertCard} ${styles[type]}`} style={{ visibility: visible ? 'visible' : 'hidden' }}>
+        <div className={`${styles.alertCard} ${styles[type]}`} style={{ visibility: visible ? 'visible' : 'hidden', display: !visible && collapse ? 'none' : undefined }}>
             <div className={styles.alertIconWrap}>
                 {icon}
             </div>
@@ -134,6 +137,25 @@ export default function Home() {
     const timeAgoFormatter = useTimeAgoFormatter()
     const { formatLength } = useUnits()
     const { mascot } = useMascot()
+
+    // settings: the last cleaning's map instead of the mascot (gen3); reloaded when the robot's state changes
+    const showLastRun = loadHomeView() === 'lastRun' && robot.type === RobotType.NeatoGen3
+    const [recentCleanings, setRecentCleanings] = useState<Neato.Gen3.CleaningRun[]>([])
+    const [runIndex, setRunIndex] = useState(0) // 0 = the newest
+    useEffect(() => {
+        if (!showLastRun) return
+        Http.getCleanings(robot.serial).then(res => {
+            const runs = [...res.data as Neato.Gen3.CleaningRun[]]
+                .sort((a, b) => b.run.start_at.localeCompare(a.run.start_at))
+                .slice(0, 20)
+            // a new run jumps back to the newest; otherwise keep the one being looked at
+            setRecentCleanings(prev => {
+                if (prev[0]?.id !== runs[0]?.id) setRunIndex(0)
+                return runs
+            })
+        })
+    }, [showLastRun, robot.serial, robot.state])
+    const lastCleaning = recentCleanings[Math.min(runIndex, recentCleanings.length - 1)]
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
 
     // TODO: make functions of this to fetch easily etc
@@ -196,6 +218,7 @@ export default function Home() {
                         <ZoneQueueCard />
                         <AlertCard
                             visible={!!robot.error}
+                            collapse={showLastRun}
                             type="error"
                             icon={<MdError size={17} />}
                             title="error"
@@ -204,6 +227,7 @@ export default function Home() {
                         />
                         <AlertCard
                             visible={!!robot.alert}
+                            collapse={showLastRun}
                             type="warning"
                             icon={<MdWarning size={17} />}
                             title="alert"
@@ -222,11 +246,20 @@ export default function Home() {
             </div>
 
             {/* ── Mascot + ring ── */}
-            <div className={styles.mascotZone}>
-                <div className={styles.statusRing}>
-                    {/* <RingProgress pct={75} /> */}
-                    <img src={mascot.src} alt={t('home.logoAlt')} className={styles.robotImage} />
-                </div>
+            <div className={`${styles.mascotZone} ${showLastRun && lastCleaning ? styles.withMap : ''}`}>
+                {showLastRun && lastCleaning ? (
+                    <LastRun
+                        cleaning={lastCleaning}
+                        marker={mascot.src}
+                        onOlder={runIndex < recentCleanings.length - 1 ? () => setRunIndex(i => i + 1) : undefined}
+                        onNewer={runIndex > 0 ? () => setRunIndex(i => i - 1) : undefined}
+                    />
+                ) : (
+                    <div className={styles.statusRing}>
+                        {/* <RingProgress pct={75} /> */}
+                        <img src={mascot.src} alt={t('home.logoAlt')} className={styles.robotImage} />
+                    </div>
+                )}
                 <div className={styles.statusBadge}>
                     {/* <span className={styles.pulseDot} /> */}
                     <span className={styles.statusLabel}>

@@ -19,7 +19,8 @@ import Map from '../../components/map/map'
 import { useRobot } from '../../context/useRobot'
 import { usePersistentMap } from '../../loaders/resources'
 import { useTranslation } from 'react-i18next'
-import i18n from '../../i18n'
+import { formatDuration } from '../../utils/duration'
+import { useLocation } from 'react-router'
 import { useUnits } from '../../units'
 
 export default () => {
@@ -47,6 +48,14 @@ export default () => {
     useEffect(() => {
         setDrawerOpen(!!selectedCleaning);
     }, [selectedCleaning])
+
+    // opened from the home page's last cleaning: show that run right away
+    const location = useLocation()
+    useEffect(() => {
+        const runId = location.state?.runId
+        const cleaning = runId && cleanings?.find(c => c.id === runId)
+        if (cleaning) setSelectedCleaning(cleaning)
+    }, [cleanings, location.state])
 
     if (!cleanings) return
 
@@ -160,24 +169,6 @@ export default () => {
         </div>
 
     )
-}
-
-
-function formatDuration(startDate: string, endDate: string) {
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
-
-    const totalSeconds = Math.floor((end - start) / 1000);
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-        return i18n.t('runs.durationLong', { hours, minutes, seconds });
-    }
-
-    return i18n.t('runs.durationShort', { minutes, seconds });
 }
 
 
