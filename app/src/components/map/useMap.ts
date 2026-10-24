@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { DRAWING } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
-import { drawMap, drawCoverage, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
+import { drawMap, drawCoverage, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { useCleaning, usePersistentMap } from '../../loaders/resources'
 import { useRobot } from '../../context/useRobot'
@@ -60,6 +60,8 @@ interface UseMapOptions {
     fitInclude?: [number, number]
     // draw the run as the area the robot covered instead of its thin path
     coverage?: boolean
+    // "plan" look: continuous floor and wall lines instead of the cell shapes
+    plan?: boolean
 }
 
 export function useMap({
@@ -72,7 +74,8 @@ export function useMap({
     backgroundToken,
     fitToRun,
     fitInclude,
-    coverage
+    coverage,
+    plan
 }: UseMapOptions) {
     const canvasRef = useRef<HTMLCanvasElement | undefined>(undefined)
     const cellsRef = useRef<number[] | null>(null)
@@ -101,16 +104,19 @@ export function useMap({
         if (!ctx) return
 
         const covered = coverage && runCellsRef.current?.length === cellsRef.current.length
-        drawMap(
+        if (plan) drawPlanFloor(ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize, backgroundToken)
+        else drawMap(
             ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize,
             shape, covered ? null : runCellsRef.current,
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
         if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, 40)
+        // walls on top, so they stay sharp over the covered area
+        if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
-    }, [mapSize, shape, backgroundToken, runMarkers, coverage])
+    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true

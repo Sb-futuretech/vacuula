@@ -518,3 +518,57 @@ export function drawCoverage(
     ctx.fill(discs)
     ctx.restore()
 }
+
+// "Plan" look: the floor as one continuous area instead of a dot per cell. Unexplored cells stay
+// background. Walls are drawn separately (drawPlanWalls) so they can go on top of an overlay.
+export function drawPlanFloor(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    cells: number[],
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+    backgroundToken?: string,
+) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = backgroundToken ? readMapToken(backgroundToken) : COLORS.BACKGROUND
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // one rectangle per horizontal run of non-unknown cells: walls are part of the floor area too
+    const floor = new Path2D()
+    for (let y = 0; y < mapSize.height; y++) {
+        let runStart = -1
+        for (let x = 0; x <= mapSize.width; x++) {
+            const known = x < mapSize.width && cells[y * mapSize.width + x] !== 0
+            if (known && runStart < 0) runStart = x
+            if (!known && runStart >= 0) {
+                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+                runStart = -1
+            }
+        }
+    }
+    ctx.fillStyle = COLORS.EMPTY
+    ctx.fill(floor)
+}
+
+// Walls as continuous lines: the D7's wall pixels are dashed, so every wall cell becomes a disc a bit
+// larger than half a cell; filled as one path the discs close the gaps into one rounded line.
+export function drawPlanWalls(
+    ctx: CanvasRenderingContext2D,
+    cells: number[],
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    const r = Math.max(1, zoom * 0.85)
+    const walls = new Path2D()
+    for (let i = 0; i < cells.length; i++) {
+        if (cells[i] !== 2) continue
+        const cx = offset.x + (i % mapSize.width + 0.5) * zoom
+        const cy = offset.y + (Math.floor(i / mapSize.width) + 0.5) * zoom
+        walls.moveTo(cx + r, cy)
+        walls.arc(cx, cy, r, 0, Math.PI * 2)
+    }
+    ctx.fillStyle = COLORS.WALL
+    ctx.fill(walls)
+}
