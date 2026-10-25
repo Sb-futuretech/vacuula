@@ -9,7 +9,6 @@ import AppLoadingIndicator from "./components/appLoadingIndicator/appLoadingIndi
 import Schedule from "./pages/schedule/schedule"
 import Settings from "./pages/settings/settings"
 import Drive from "./pages/drive/drive"
-import Notifications from "./pages/notifications/notifications"
 import { RequireRobot } from "./components/require/requireRobot"
 import { RequireRobots } from "./components/require/requireRobots"
 
@@ -29,7 +28,6 @@ const App = () => (
                         <Route path="schedule" element={<Schedule />} />
                         <Route path="settings" element={<Settings />} />
                         <Route path="drive" element={<Drive />} />
-                        <Route path="notifications" element={<Notifications />} />
                     </Routes>
                 </RequireRobot>
             </div>

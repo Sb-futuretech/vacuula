@@ -1,8 +1,7 @@
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import TimeAgo from 'react-timeago'
-import styles from './notifications.module.scss'
+import styles from './notificationList.module.scss'
 import { useApp } from '../../context/useApp'
 import { useRobot } from '../../context/useRobot'
 import { useUnits } from '../../units'
@@ -14,19 +13,15 @@ const ICONS: Record<AppNotification['kind'], string> = {
     run_done: '✅', error: '❌', alert: '⚠️', offline: '🔌', online: '🔌', robot_push: '📣',
 }
 
-// Notification centre: everything the server noted about the robot, newest first
-export default function Notifications() {
+// Notification centre list (the bell's dropdown): everything the server noted about the robot,
+// newest first. `onOpenRun` is called before a finished run opens on the runs page.
+export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void }) {
     const { t, i18n } = useTranslation()
-    const { notifications, unreadNotifications, markNotificationsRead } = useApp()
+    const { notifications } = useApp()
     const { robot } = useRobot()
     const { formatArea } = useUnits()
     const timeAgoFormatter = useTimeAgoFormatter()
     const navigate = useNavigate()
-
-    // opening the page reads everything; a notification arriving while it is open counts as read too
-    useEffect(() => {
-        if (unreadNotifications) markNotificationsRead()
-    }, [unreadNotifications])
 
     // the robot's own error / alert texts, already translated for the home page
     const robotText = (code: string | null) => {
@@ -55,14 +50,14 @@ export default function Notifications() {
 
     return (
         <div className={styles.notifications}>
-            <h2 className={styles.title}>{t('notifications.title')}</h2>
+            <span className={styles.title}>{t('notifications.title')}</span>
             {notifications.length === 0 && <span className={styles.empty}>{t('notifications.empty')}</span>}
             {notifications.map(n => {
                 const { title, detail } = describe(n)
                 const opensRun = n.kind === 'run_done' && n.code
                 return (
                     <div key={n.id} className={`${styles.item} ${opensRun ? styles.link : ''}`}
-                        onClick={opensRun ? () => navigate('/runs', { state: { runId: n.code } }) : undefined}>
+                        onClick={opensRun ? () => { onOpenRun?.(); navigate('/runs', { state: { runId: n.code } }) } : undefined}>
                         <span className={styles.icon}>{ICONS[n.kind]}</span>
                         <div className={styles.text}>
                             <span className={styles.itemTitle}>{title}</span>

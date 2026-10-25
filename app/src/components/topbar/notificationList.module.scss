@@ -3,17 +3,16 @@
 .notifications {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
-    width: 100%;
-    padding: 1.6rem;
-    overflow-y: auto;
-    @include desktop-page;
+    gap: 0.6rem;
 }
 
 .title {
-    margin: 0 0 0.8rem;
-    font-size: 1.8rem;
-    color: $text-primary;
+    padding: 0.2rem 0.4rem 0.4rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.05rem;
+    text-transform: uppercase;
+    color: $text-muted;
 }
 
 .empty {
