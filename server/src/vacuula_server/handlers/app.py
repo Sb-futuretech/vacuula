@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, schedule_tz
 from vacuula_server import notifications
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -264,7 +264,7 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
             zone_queue.cancel(serial, f"app sent {data.get('cmd')}")
         logger.debug("Sending command to robot %s: %s", serial, data)
         try:
-            req_id = send_command(conn.conn.wfile, serial, data, slot)
+            req_id = send_command(conn.conn.wfile, serial, schedule_tz.to_robot(data), slot)
         except Exception:
             _send_quietly(lambda: req.send_error_response(502, "Failed to send command to robot"))
             return
@@ -276,7 +276,8 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
     slot.event.wait(COMMAND_TIMEOUT_S)
     pending_requests.pop(key, None)
     if slot.event.is_set():
-        _send_quietly(lambda: req.send_response_data(slot.content, True, slot.status))
+        content = schedule_tz.from_robot(serial, data, slot.content, slot.status) if conn.gen == Generation.GEN3 else slot.content
+        _send_quietly(lambda: req.send_response_data(content, True, slot.status))
     else:
         _send_quietly(lambda: req.send_error_response(504, "Robot did not answer in time"))
     

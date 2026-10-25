@@ -24,6 +24,8 @@ be offered back as pull requests.
   server holds the robot's drive socket, browsers cannot sign it themselves.
 - Deep navigation can no longer be combined with Eco (the robot rejects it).
 - Schedule: several days at once with presets (daily, weekdays, weekend).
+- Schedule times are local time (the server's timezone). The D7 runs its schedule in UTC, so the
+  server converts them, and moves the robot's events after a DST switch so 8:00 stays 8:00.
 
 ### Map
 - **Desktop layout** from 900 px: side navigation, wider pages; the map page shows its panel next
@@ -64,6 +66,9 @@ Useful if you work on Gen3 support yourself:
   can return the old list for a few seconds.
 - The mapping run (`startPersistentMapExploration`) vacuums: it runs as a house clean.
 - `getLocalStats` answers `command_not_found`; `life_stats` uploads are empty.
+- The robot has no timezone: schedule events (`day`, `startTime`) are UTC. Started without a
+  `mapId`, a map run first tries the last used floor plan (`nav_floorplan_localization_fail` if the
+  robot now stands at another base).
 - RunMap pixel values: `128` background, a thin `3` track of the robot's centre, and 4×4 marker
   blocks: `100` dock (only in completed runs), `200` start and `150` end position (the last two from
   little data so far). FloorMap and RunMap of a run have the same size and line up cell for cell;

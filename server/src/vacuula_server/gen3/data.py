@@ -10,5 +10,7 @@ class Gen3Data(Base):
     robot: Mapped[str] = mapped_column(String, ForeignKey("robot.serial", ondelete='CASCADE'), primary_key=True)
     password: Mapped[str] = mapped_column(String, nullable=False)
     installed_with: Mapped[str] = mapped_column(String, nullable=False)
+    # UTC offset (min) the robot's schedule was written with, to follow DST (gen3/schedule_tz.py)
+    schedule_utc_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     
     
