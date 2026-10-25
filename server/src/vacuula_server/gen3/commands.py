@@ -80,9 +80,9 @@ def build_command(robot_serial: str, cmd: dict):
     payload = json.dumps({
         "reqId": str(this_id),
         **cmd
-    }).encode()
+    }, ensure_ascii=False)
 
-    return [this_id, sign_cmd(robot_serial, payload.decode()).encode()]
+    return [this_id, sign_cmd(robot_serial, payload).encode()]
 
 
 def send_command(wfile, robot_serial: str, cmd: dict, slot) -> str:

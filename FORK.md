@@ -2,7 +2,7 @@
 
 This is a fork of [Vacuula](https://github.com/vacuula/vacuula) by Philip, the custom server for
 Neato robot vacuums whose cloud is gone. It follows upstream closely (currently based on
-**1.1.0-b9**) and adds features and fixes on top, mostly for **Gen3 robots**.
+**1.1.0-b11**) and adds features and fixes on top, mostly for **Gen3 robots**.
 
 Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**. Other
 Gen3 models (D3–D6) will probably behave similarly, but have not been tested. Gen4 robots (D8–D10)
@@ -46,8 +46,7 @@ be offered back as pull requests.
 - Optional **map of the last cleaning** instead of the mascot (*Settings → Home page*): the covered
   area, walls, zones (the cleaned ones highlighted), dock, start flag and the mascot where the robot
   ended; swipe or use the arrows to flip through the last 20 runs.
-- Battery percentage stays visible while charging; Gen3 battery is polled (the robot only pushes
-  state changes).
+- Gen3 battery is polled (the robot only pushes state changes).
 - Narrow phones: the control buttons shrink instead of running off the screen.
 
 ### Fixes
@@ -59,7 +58,8 @@ be offered back as pull requests.
 - Gen3 dock position is taken from the run map's dock marker only (it used to be mixed with the
   start position).
 - Gen3 run maps: the background is no longer drawn as path (whole map tinted).
-- Names with umlauts and other non-ASCII characters no longer get mangled on every save.
+- Names the robot stored escaped before upstream's UTF-8 fix (`B\\u00fcro`) are shown and saved
+  as real text again.
 - Battery cycles / model in the settings are fetched again when the first request fails.
 - The robot's `life_stats` and `push_notifications` requests are answered and logged (they used to
   return 404).
