@@ -79,7 +79,10 @@ export interface RobotStats {
   totals: { week: StatsTotals, month: StatsTotals, all: StatsTotals }
   daily: { date: string, area: number, runs: number }[] // the last 28 days, oldest first
   // battery use of runs without a recharge break; perHour is per hour of actual cleaning
-  battery: { startAt: string, mode: number | null, used: number, area: number, perHour: number, perM2: number, chargeStart: number }[]
+  battery: { startAt: string, mode: number | null, navigationMode: number | null, used: number, area: number, perHour: number, chargeStart: number }[]
+  // every measurable run per mode + navigation the robot reported, summed up
+  batteryGroups: { mode: number | null, navigationMode: number | null, runs: number, used: number, minutesPerCharge: number | null, areaPerCharge: number | null }[]
+  batteryNotMeasurable: number // recharged in between or no battery values
   reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }
   launchedFrom: Record<string, number>
   problems: { kind: 'error' | 'alert', code: string, count: number, lastAt: number }[]

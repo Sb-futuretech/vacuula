@@ -161,9 +161,8 @@
         "dailyHint": "últimos {{count}} dias",
         "today": "hoje",
         "batteryTitle": "Consumo de bateria",
-        "batteryHint": "por hora de limpeza, sem recargas a meio",
+        "batteryHint": "% por hora de limpeza, um ponto por limpeza",
         "perHour": "{{value}} %/h",
-        "runtime": "{{mode}}: cerca de {{minutes}} min por carga ({{count}} limpezas)",
         "batteryTooltip": "{{used}} % para {{area}}, começou com {{start}} %",
         "noBattery": "Ainda não há limpezas suficientes",
         "reliabilityTitle": "Fiabilidade",
@@ -183,7 +182,19 @@
             "schedule": "Agendamento",
             "button": "Botão do robô",
             "unknown": "Desconhecido"
-        }
+        },
+        "batteryFrom_one": "de {{count}} limpeza",
+        "batteryFrom_other": "de {{count}} limpezas",
+        "combination": "Modo · navegação",
+        "perCharge": "por carga",
+        "runsCol": "limpezas",
+        "evidence": "dados",
+        "minutes": "≈ {{value}} min",
+        "areaPerCharge": "Área por carga",
+        "notMeasurable_one": "{{count}} limpeza sem medição (recarregou a meio ou sem valores)",
+        "notMeasurable_other": "{{count}} limpezas sem medição (recarregou a meio ou sem valores)",
+        "details": "Todas as limpezas",
+        "mapping": "Mapeamento"
     },
     "schedule": {
         "schedule": "Agendamento",

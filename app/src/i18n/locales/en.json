@@ -168,9 +168,8 @@
         "dailyHint": "last {{count}} days",
         "today": "today",
         "batteryTitle": "Battery use",
-        "batteryHint": "per hour of cleaning, runs without a recharge break",
+        "batteryHint": "% per hour of cleaning, one dot per run",
         "perHour": "{{value}} %/h",
-        "runtime": "{{mode}}: about {{minutes}} min per charge ({{count}} runs)",
         "batteryTooltip": "{{used}} % for {{area}}, started at {{start}} %",
         "noBattery": "Not enough runs to tell yet",
         "reliabilityTitle": "Reliability",
@@ -190,7 +189,19 @@
             "schedule": "Schedule",
             "button": "Robot button",
             "unknown": "Unknown"
-        }
+        },
+        "batteryFrom_one": "from {{count}} run",
+        "batteryFrom_other": "from {{count}} runs",
+        "combination": "Mode · navigation",
+        "perCharge": "per charge",
+        "runsCol": "runs",
+        "evidence": "data",
+        "minutes": "≈ {{value}} min",
+        "areaPerCharge": "Area per charge",
+        "notMeasurable_one": "{{count}} run not measurable (recharged in between or no battery values)",
+        "notMeasurable_other": "{{count}} runs not measurable (recharged in between or no battery values)",
+        "details": "Every run",
+        "mapping": "Mapping run"
     },
     "schedule": {
         "schedule": "Schedule",

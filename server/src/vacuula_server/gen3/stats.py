@@ -1,7 +1,8 @@
 """Cleaning statistics of a gen3 robot, computed from its stored runs and notifications.
 
 Only numbers leave here (no maps). Battery use is measured on runs without a recharge break,
-over the time the robot was actually cleaning (not paused, in error or charging).
+over the time the robot was actually cleaning (not paused, in error or charging), and grouped by
+the mode and navigation the robot reports for the run.
 """
 from __future__ import annotations
 from collections import Counter
@@ -16,9 +17,6 @@ from vacuula_server.models.run import Gen3__Run
 from vacuula_server.server_tz import server_timezone
 
 DAYS = 28  # length of the daily history
-# runs shorter or smaller than this say little about the battery (undocking dominates)
-BATTERY_MIN_ACTIVE_S = 5 * 60
-BATTERY_MIN_AREA_M2 = 2
 
 
 def _time(value: str | None) -> datetime | None:
@@ -51,23 +49,50 @@ def _totals(runs: list[dict]) -> dict:
     }
 
 
-def _battery_point(run: dict) -> dict | None:
+def _used(run: dict) -> int | None:
+    """Battery % a run used, None if that cannot be measured (recharged in between, no values)."""
     start, end = run.get("run_charge_at_start"), run.get("run_charge_at_end")
+    if start is None or end is None or run.get("suspended_cleaning_charging_count") or end > start:
+        return None
+    return start - end
+
+
+def _battery_point(run: dict) -> dict | None:
+    used = _used(run)
+    if used is None or run["_active"] <= 0:
+        return None
     area = run.get("cleaned_area") or 0
-    if start is None or end is None or start <= end or run.get("suspended_cleaning_charging_count"):
-        return None
-    if run["_active"] < BATTERY_MIN_ACTIVE_S or area < BATTERY_MIN_AREA_M2:
-        return None
-    used = start - end
     return {
         "startAt": run.get("start_at"),
         "mode": run.get("mode"),
+        "navigationMode": run.get("navigation_mode"),
         "used": used,
         "area": round(area, 1),
         "perHour": round(used / (run["_active"] / 3600), 1),
-        "perM2": round(used / area, 2),
-        "chargeStart": start,
+        "chargeStart": run.get("run_charge_at_start"),
     }
+
+
+def _battery_groups(runs: list[dict]) -> list[dict]:
+    """Per mode + navigation the robot reported: every measurable run summed up, so each counts
+    as much as it used (a short run barely moves the result, none is left out)."""
+    groups: dict[tuple, dict] = {}
+    for run in runs:
+        if (used := _used(run)) is None:
+            continue
+        g = groups.setdefault((run.get("mode"), run.get("navigation_mode")), {"runs": 0, "used": 0, "seconds": 0.0, "area": 0.0})
+        g["runs"] += 1
+        g["used"] += used
+        g["seconds"] += run["_active"]
+        g["area"] += run.get("cleaned_area") or 0
+    return [{
+        "mode": mode,
+        "navigationMode": nav,
+        "runs": g["runs"],
+        "used": g["used"],  # % in total: how much the numbers rest on
+        "minutesPerCharge": round(g["seconds"] / 60 / g["used"] * 100) if g["used"] else None,
+        "areaPerCharge": round(g["area"] / g["used"] * 100, 1) if g["used"] else None,
+    } for (mode, nav), g in sorted(groups.items(), key=lambda kv: -kv[1]["used"])]
 
 
 def _problems(serial: str) -> list[dict]:
@@ -101,6 +126,8 @@ def gen3_stats(serial: str) -> dict:
         },
         "daily": [{"date": d.isoformat(), "area": round(v["area"], 1), "runs": v["runs"]} for d, v in sorted(days.items())],
         "battery": [p for r in runs if (p := _battery_point(r))],
+        "batteryGroups": _battery_groups(runs),
+        "batteryNotMeasurable": sum(_used(r) is None for r in runs),
         "reliability": {
             "runs": len(runs),
             "complete": sum(r.get("status") == "complete" for r in runs),

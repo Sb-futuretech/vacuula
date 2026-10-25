@@ -13,10 +13,6 @@ const BATTERY_SERIES = [
     { mode: Neato.Gen3.CleaningMode.NORMAL, key: 'normal', color: 'var(--chart-2)' },
 ] as const
 
-const median = (values: number[]) => {
-    const s = [...values].sort((a, b) => a - b)
-    return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2
-}
 
 // keep a tooltip at the plot's edges inside the plot
 const tooltipShift = (leftPercent: number) => leftPercent < 15 ? '0' : leftPercent > 85 ? '-100%' : '-50%'
@@ -42,7 +38,7 @@ export default () => {
         <div className={styles.stats}>
             <Totals totals={stats.totals} />
             <DailyArea daily={stats.daily} />
-            <Battery points={stats.battery} />
+            <BatteryCard stats={stats} />
             <div className={styles.columns}>
                 <Reliability reliability={stats.reliability} />
                 <Problems problems={stats.problems} />
@@ -105,17 +101,76 @@ function DailyArea({ daily }: { daily: RobotStats['daily'] }) {
     )
 }
 
+const MODE_KEYS: Record<number, string> = { [Neato.Gen3.CleaningMode.ECO]: 'eco', [Neato.Gen3.CleaningMode.NORMAL]: 'normal' }
+const NAV_KEYS: Record<number, string> = {
+    [Neato.Gen3.CleaningNavigationMode.NORMAL]: 'normal',
+    [Neato.Gen3.CleaningNavigationMode.EXTRA_CARE]: 'extraCare',
+    [Neato.Gen3.CleaningNavigationMode.DEEP]: 'deep',
+}
+// how much a group's numbers rest on: battery % used in total -> 1..4 dots
+const evidence = (used: number) => used < 50 ? 1 : used < 150 ? 2 : used < 300 ? 3 : 4
+
+// How far a charge goes, per mode + navigation, from every run that can be measured
+function BatteryCard({ stats }: { stats: RobotStats }) {
+    const { t } = useTranslation()
+    const { formatArea } = useUnits()
+    const groups = stats.batteryGroups.filter(g => g.minutesPerCharge !== null)
+    const label = (g: RobotStats['batteryGroups'][number]) => g.mode === null
+        ? t('stats.mapping')
+        : `${t(`modes.${MODE_KEYS[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${NAV_KEYS[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
+    const dots = (used: number) => (
+        <span className={styles.dots} title={t('stats.evidence')} aria-label={t('stats.evidence')}>
+            {[1, 2, 3, 4].map(i => <i key={i} className={i <= evidence(used) ? styles.on : ''} />)}
+        </span>
+    )
+
+    return (
+        <section className={styles.card}>
+            <h3>{t('stats.batteryTitle')} <span className={styles.muted}>{t('stats.batteryFrom', { count: groups.reduce((n, g) => n + g.runs, 0) })}</span></h3>
+            {groups.length ? (
+                <>
+                    <table className={styles.table}>
+                        <thead><tr><th>{t('stats.combination')}</th><th>{t('stats.perCharge')}</th><th>{t('stats.runsCol')}</th><th>{t('stats.evidence')}</th></tr></thead>
+                        <tbody>
+                            {groups.map(g => (
+                                <tr key={`${g.mode}-${g.navigationMode}`}>
+                                    <td>{label(g)}</td>
+                                    <td className={styles.num}>{t('stats.minutes', { value: g.minutesPerCharge })}</td>
+                                    <td className={styles.num}>{g.runs}</td>
+                                    <td>{dots(g.used)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <h4>{t('stats.areaPerCharge')}</h4>
+                    <table className={styles.table}>
+                        <tbody>
+                            {groups.map(g => (
+                                <tr key={`${g.mode}-${g.navigationMode}`}>
+                                    <td>{label(g)}</td>
+                                    <td className={styles.num}>≈ {formatArea(g.areaPerCharge ?? 0)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </>
+            ) : <span className={styles.muted}>{t('stats.noBattery')}</span>}
+            {stats.batteryNotMeasurable > 0 && <span className={styles.muted}>{t('stats.notMeasurable', { count: stats.batteryNotMeasurable })}</span>}
+            <details className={styles.details}>
+                <summary>{t('stats.details')}</summary>
+                <Battery points={stats.battery} />
+            </details>
+        </section>
+    )
+}
+
+// every measured run as a dot: % per hour of cleaning over time, by mode
 function Battery({ points }: { points: RobotStats['battery'] }) {
     const { t } = useTranslation()
     const { formatArea } = useUnits()
     const [hover, setHover] = useState<number>()
     const shown = points.filter(p => BATTERY_SERIES.some(s => s.mode === p.mode))
-    if (!shown.length) return (
-        <section className={styles.card}>
-            <h3>{t('stats.batteryTitle')}</h3>
-            <span className={styles.muted}>{t('stats.noBattery')}</span>
-        </section>
-    )
+    if (!shown.length) return <span className={styles.muted}>{t('stats.noBattery')}</span>
 
     const times = shown.map(p => new Date(p.startAt).getTime())
     const first = Math.min(...times), span = Math.max(...times) - first || 1
@@ -126,20 +181,10 @@ function Battery({ points }: { points: RobotStats['battery'] }) {
     const y = (p: typeof shown[number]) => p.perHour / yMax * 100
 
     return (
-        <section className={styles.card}>
-            <h3>{t('stats.batteryTitle')} <span className={styles.muted}>{t('stats.batteryHint')}</span></h3>
+        <div className={styles.detailsBody}>
+            <span className={styles.muted}>{t('stats.batteryHint')}</span>
             <div className={styles.legend}>
-                {BATTERY_SERIES.map(s => {
-                    const values = shown.filter(p => p.mode === s.mode).map(p => p.perHour)
-                    return (
-                        <span key={s.key}>
-                            <i style={{ background: s.color }} />
-                            {values.length
-                                ? t('stats.runtime', { mode: t(`modes.${s.key}`), minutes: Math.round(100 / median(values) * 60), count: values.length })
-                                : t(`modes.${s.key}`)}
-                        </span>
-                    )
-                })}
+                {BATTERY_SERIES.map(s => <span key={s.key}><i style={{ background: s.color }} />{t(`modes.${s.key}`)}</span>)}
             </div>
             <div className={styles.plot} onPointerLeave={() => setHover(undefined)}
                 role="img" aria-label={t('stats.batteryTitle')}>
@@ -161,7 +206,7 @@ function Battery({ points }: { points: RobotStats['battery'] }) {
                     </div>
                 )}
             </div>
-        </section>
+        </div>
     )
 }
 
