@@ -85,10 +85,15 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
             dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
         }
         ;(async () => {
-            let best: { id: string, distance: number } | undefined = storedMapId ? { id: storedMapId, distance: 0 } : undefined
-            if (!best) for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
+            const stored = (id: string) => persistentMapLoader.peek(robot.serial, id) ?? persistentMapLoader.request(robot.serial, id).catch(() => undefined)
+            let best: { id: string, distance: number } | undefined
+            if (storedMapId) {
+                // the map the robot reported; its zones only fit if the grid is the same
+                const data = await stored(storedMapId)
+                if (data?.width === run.width && data.height === run.height) best = { id: storedMapId, distance: 0 }
+            } else for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
                 if (!m.enabled || m.id === mapId) continue
-                const data = persistentMapLoader.peek(robot.serial, m.id) ?? await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
+                const data = await stored(m.id)
                 const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
                 if (distance != null && (!best || distance < best.distance)) best = { id: m.id, distance }
             }

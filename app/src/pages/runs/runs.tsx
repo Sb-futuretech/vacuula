@@ -20,7 +20,7 @@ import { useRobot } from '../../context/useRobot'
 import { usePersistentMap } from '../../loaders/resources'
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../../utils/duration'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { useUnits } from '../../units'
 import Stats from './stats'
 
@@ -42,21 +42,26 @@ export default () => {
         })
     }
 
+    // reload when the robot's state changes (a run started or ended), not on every state message
     useEffect(() => {
         if (!robot) return;
         getCleanings();
-    }, [robot])
+    }, [robot.serial, robot.state])
 
     useEffect(() => {
         setDrawerOpen(!!selectedCleaning);
     }, [selectedCleaning])
 
-    // opened from the home page's last cleaning: show that run right away
+    // opened from the home page's last cleaning: show that run right away, once (the state is
+    // cleared so a later reload of the list does not open it again)
     const location = useLocation()
+    const navigate = useNavigate()
     useEffect(() => {
         const runId = location.state?.runId
         const cleaning = runId && cleanings?.find(c => c.id === runId)
-        if (cleaning) setSelectedCleaning(cleaning)
+        if (!cleaning) return
+        setSelectedCleaning(cleaning)
+        navigate(location.pathname, { replace: true, state: null })
     }, [cleanings, location.state])
 
     if (!cleanings) return
