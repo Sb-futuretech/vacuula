@@ -27,6 +27,7 @@ export interface CleaningRun {
 
 export interface Run {
     id: string
+    persistent_map_id?: string // the stored map the run was on (missing for a mapping run)
     status: string
     launched_from: string
     error: string | null

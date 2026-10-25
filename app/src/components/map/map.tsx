@@ -22,6 +22,7 @@ interface MapProps {
     coverage?: boolean // show the area the robot covered instead of its thin path
     plan?: boolean // continuous floor and wall lines instead of the cell shapes
     zones?: boolean // show the zones of the stored map the run was on (gen3)
+    storedMapId?: string // that stored map, when the robot reported it; otherwise it is looked up by grid and dock
     startFlag?: boolean // a flag where the run started, if that was away from the dock
 }
 
@@ -48,7 +49,7 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     }
 }
 
-export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones, startFlag }: MapProps) {
+export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones, storedMapId, startFlag }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
     const { data: persistantMapData, refresh: refreshPersistantMapData } = usePersistentMap(mapId);
@@ -70,7 +71,8 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
 
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
     // its grid, so its zones (normalised vertices) fit the run: take the enabled stored map on the same
-    // floor, the one whose dock is closest if there are several. No match, no zones.
+    // floor, the one whose dock is closest if there are several. No match, no zones. Newer runs name
+    // their stored map (`storedMapId`), then it is taken as is.
     const { data: storedMaps } = usePersistentMaps()
     const [runZones, setRunZones] = useState<Zone[]>([])
     useEffect(() => {
@@ -83,8 +85,8 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
             dock: cellsCentre(runCells, cleaningData.width, cleaningData.height, GEN3_RUN_DOCK),
         }
         ;(async () => {
-            let best: { id: string, distance: number } | undefined
-            for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
+            let best: { id: string, distance: number } | undefined = storedMapId ? { id: storedMapId, distance: 0 } : undefined
+            if (!best) for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
                 if (!m.enabled || m.id === mapId) continue
                 const data = persistentMapLoader.peek(robot.serial, m.id) ?? await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
                 const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
@@ -95,7 +97,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
             if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon'))
         })()
         return () => { cancelled = true }
-    }, [zones, runId, mapId, persistantMapData, storedMaps, runCells, cleaningData])
+    }, [zones, storedMapId, runId, mapId, persistantMapData, storedMaps, runCells, cleaningData])
 
     const visitedZones = useMemo(() => {
         const visited = new Set<string>()

@@ -66,7 +66,7 @@ export default function LastRun({ cleaning, marker, onOlder, onNewer }: LastRunP
         <div className={styles.lastRun} role="button" tabIndex={0} onClick={open}
             onKeyDown={e => { if (e.key === 'Enter') open() }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             <div className={styles.map}>
-                <RunMap key={cleaning.id} mapId={cleaning.id} runId={cleaning.id} marker={marker} focusRun coverage plan zones startFlag />
+                <RunMap key={cleaning.id} mapId={cleaning.id} runId={cleaning.id} marker={marker} focusRun coverage plan zones storedMapId={run.persistent_map_id} startFlag />
                 {arrow(onOlder, 'left', <FaChevronLeft size={18} />, t('home.lastRun.older'))}
                 {arrow(onNewer, 'right', <FaChevronRight size={18} />, t('home.lastRun.newer'))}
             </div>

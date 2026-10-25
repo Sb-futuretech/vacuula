@@ -122,8 +122,14 @@ function startPersistentMapExploration(serial: string) {
     return Http.sendCmd(serial, { cmd: "startPersistentMapExploration" })
 }
 
+// the D7 answers getMapBoundaries sent while another one is open with command_not_found,
+// so they go out one at a time
+let boundariesQueue: Promise<unknown> = Promise.resolve()
 function getMapBoundaries(serial: string, mapId: string) {
-    return Http.sendCmd<GetMapBoundariesResponse>(serial, { cmd: "getMapBoundaries", params: { mapId } })
+    const request = boundariesQueue.then(() =>
+        Http.sendCmd<GetMapBoundariesResponse>(serial, { cmd: "getMapBoundaries", params: { mapId } }))
+    boundariesQueue = request.catch(() => undefined)
+    return request
 }
 
 
