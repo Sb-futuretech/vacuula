@@ -173,7 +173,8 @@ def _start(entry: Gen3PiSchedule, start: datetime) -> None:
         return skipped("robot_busy")
 
     zones = entry.zones or []
-    logger.info("Server schedule %s of %s: starting (%d zones)", entry.start_time, serial, len(zones))
+    logger.info("Server schedule %s of %s: starting, mode %d, navigation %d, %s", entry.start_time, serial,
+                entry.mode, entry.navigation_mode, f"{len(zones)} zones" if zones else "whole map")
     if len(zones) > 1:
         ok, msg = zone_queue.start(serial, [zone_queue.Zone(z["mapId"], z["boundaryId"], z.get("name", "")) for z in zones],
                                    entry.mode, entry.navigation_mode)
@@ -183,8 +184,11 @@ def _start(entry: Gen3PiSchedule, start: datetime) -> None:
     params = {"category": 4, "mode": entry.mode, "navigationMode": entry.navigation_mode}
     if zones:
         params |= {"mapId": zones[0]["mapId"], "boundaryId": zones[0]["boundaryId"]}
-    if ask(serial, {"cmd": "startCleaning", "params": params}) is None:
+    reply = ask(serial, {"cmd": "startCleaning", "params": params})
+    if reply is None:
         skipped("refused")
+    else:
+        logger.info("Server schedule %s of %s: robot answered %s", entry.start_time, serial, reply.get("result"))
 
 
 def check(now: datetime) -> None:
