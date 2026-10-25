@@ -19,6 +19,7 @@ import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
 import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
 import { Http, type PiScheduleEntry } from '../../http'
+import { useMascot } from '../../mascot'
 
 // a robot event this close to a Pi entry is its fallback (server: gen3/pi_schedule.py OVERLAP_MIN)
 const OVERLAP_MIN = 15
@@ -57,6 +58,7 @@ export default () => {
         navigationMode: CleaningNavigationMode.NORMAL,
         zones: [],
     })
+    const { mascot } = useMascot()
     const [piEntries, setPiEntries] = useState<PiScheduleEntry[]>([])
     const getPiEntries = () => { Http.getPiSchedule(robot.serial).then(res => setPiEntries(res.data)).catch(() => setPiEntries([])) }
     useEffect(getPiEntries, [robot.serial])
@@ -168,7 +170,7 @@ export default () => {
                     return (
                         <div key={`pi-${entry.id}`} className={styles.item}>
                             <div className={styles.info}>
-                                <span><FaServer size={12} title={t('schedule.piBadge')} /> {entry.startTime}</span>
+                                <span><FaServer className={styles.badge} title={t('schedule.piBadge')} /> {entry.startTime}</span>
                                 <span className={styles.type}>
                                     {t('schedule.piSummary', {
                                         days: dayNames,
@@ -188,7 +190,7 @@ export default () => {
                     return (
                         <div key={i} className={styles.item}>
                             <div className={styles.info}>
-                                <span>{item.startTime}</span>
+                                <span><img src={mascot.src} alt={t('schedule.robotBadge')} title={t('schedule.robotBadge')} className={styles.badge} /> {item.startTime}</span>
                                 <span className={styles.type}>
                                     {t('schedule.gen3Summary', { day: t(`days.${dayKey(item.day)}`), mode: CleaningMode[item.mode] })}
                                     {item.boundary && ` | ${t('schedule.gen3SummaryZone', { zone: decodeRobotText(item.boundary.name) })}`}

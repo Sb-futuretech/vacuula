@@ -232,10 +232,11 @@
         "piWhatZones": "várias zonas",
         "piWhatBoth": "o modo de navegação e várias zonas",
         "fallbackNote": "A entrada do robô às {{times}} passa a ser a alternativa: só corre quando o Pi está desligado.",
-        "piBadge": "Pi",
+        "piBadge": "Executado pelo Pi",
         "wholeMap": "mapa inteiro",
         "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
-        "deepNeedsNormal": "Deep só funciona com o modo Normal."
+        "deepNeedsNormal": "Deep só funciona com o modo Normal.",
+        "robotBadge": "Executado pelo robô"
     },
     "map": {
         "heatmap": "Cobertura",

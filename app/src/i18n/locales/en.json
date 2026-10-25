@@ -239,10 +239,11 @@
         "piWhatZones": "several zones",
         "piWhatBoth": "the navigation mode and several zones",
         "fallbackNote": "The robot's entry at {{times}} becomes the fallback: it only runs when the Pi is off.",
-        "piBadge": "Pi",
+        "piBadge": "Run by the Pi",
         "wholeMap": "whole map",
         "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
-        "deepNeedsNormal": "Deep only works with mode Normal."
+        "deepNeedsNormal": "Deep only works with mode Normal.",
+        "robotBadge": "Run by the robot"
     },
     "map": {
         "heatmap": "Coverage",
