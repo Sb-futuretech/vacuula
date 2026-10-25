@@ -29,6 +29,12 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
         return code && i18n.exists(key) ? t(key as any) : code ?? ''
     }
 
+    // the push message's code; older notifications only kept the raw body ({"message_code": ...})
+    const pushCode = (n: AppNotification): string | null => {
+        if (n.code) return n.code
+        try { return JSON.parse(n.data.body)?.message_code ?? null } catch { return null }
+    }
+
     const describe = (n: AppNotification): { title: string, detail?: string } => {
         const d = n.data
         switch (n.kind) {
@@ -44,7 +50,7 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
             case 'alert': return { title: t('notifications.alert'), detail: robotText(n.code) }
             case 'offline': return { title: t('notifications.offline', { minutes: d.minutes ?? 5 }) }
             case 'online': return { title: t('notifications.online') }
-            case 'robot_push': return { title: t('notifications.robotPush'), detail: d.body }
+            case 'robot_push': return { title: t('notifications.robotPush'), detail: pushCode(n) ? robotText(pushCode(n)) : d.body }
         }
     }
 

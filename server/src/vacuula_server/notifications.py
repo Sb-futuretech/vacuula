@@ -86,6 +86,13 @@ def on_state(serial: str, data: dict) -> None:
         add(serial, kind, code)
 
 
+def robot_push(serial: str, code: str | None, body: str) -> None:
+    """The robot's own push message; skipped when it repeats the error / alert it is reporting anyway."""
+    if code and code in _last_state.get(serial, {}).values():
+        return
+    add(serial, "robot_push", code, {"body": body})
+
+
 # ---- finished runs ------------------------------------------------------------------------------
 def run_uploaded(serial: str, run: dict) -> None:
     """A run's map arrived; the first upload of a finished run becomes a notification."""

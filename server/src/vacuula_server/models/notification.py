@@ -20,6 +20,6 @@ class Notification(Base):
 
     # run_done | error | alert | offline | online | robot_push
     kind: Mapped[str] = mapped_column(String, nullable=False)
-    # what it is about: the robot's error / alert code, or the run id for run_done
+    # what it is about: the robot's error / alert / push message code, or the run id for run_done
     code: Mapped[str | None] = mapped_column(String, nullable=True)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)

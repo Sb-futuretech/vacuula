@@ -89,7 +89,7 @@ export interface AppNotification {
   id: number
   createdAt: number // unix seconds
   kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push'
-  code: string | null // robot error / alert code, or the run id for run_done
+  code: string | null // robot error / alert / push message code, or the run id for run_done
   data: Record<string, any>
 }
 

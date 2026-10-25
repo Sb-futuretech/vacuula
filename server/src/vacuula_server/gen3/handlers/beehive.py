@@ -244,10 +244,14 @@ def post_life_stats(req: RouterHandler, run_id: str) -> None:
 def post_push_notifications(req: RouterHandler) -> None:
     """POST /push_notifications - the robot asks the cloud to notify the user's phone (e.g. on an alert).
 
-    There is no phone to push to; log the body so its format can be learned.
+    There is no phone to push to; the body is like {"message_code": "nav_floorplan_localization_fail"}.
     """
     if not (serial := get_robot_serial(req)): return
     if (body := req.read_data()) is None: return
     logger.info("push_notifications from %s: %s", serial, body[:2000])
-    notifications.add(serial, "robot_push", data={"body": body[:1000].decode(errors="replace")})
+    try:
+        code = json.loads(body).get("message_code")
+    except (ValueError, AttributeError):
+        code = None
+    notifications.robot_push(serial, code, body[:1000].decode(errors="replace"))
     req.send_ok()
