@@ -5,7 +5,7 @@ import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from '
 import { drawMap, drawCoverage, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_NOT_PATH, GEN3_RUN_START, cellsCentre } from './gen3Run'
-import { useCleaning, usePersistentMap } from '../../loaders/resources'
+import { cleaningLoader, persistentMapLoader, useCleaning, usePersistentMap } from '../../loaders/resources'
 import { useRobot } from '../../context/useRobot'
 import { RobotType } from '../../types'
 import { loadSelectedMapShape } from '../../pages/settings/mapshapes'
@@ -145,12 +145,15 @@ export function useMap({
     const { data: persistantMapData, refresh: updatePersistantMapData } = usePersistentMap(mapId);
     const { data: cleaningData, refresh: updateCleaningData } = useCleaning(runId ?? '');
 
+    // a stored map can change (edited, used as floor plan), so it is fetched again each time; a run's
+    // maps never change once loaded
     useEffect(() => {
+        if (runId && persistentMapLoader.peek(robot.serial, mapId)) return
         updatePersistantMapData();
     }, [mapId])
 
     useEffect(() => {
-        if (!runId) return;
+        if (!runId || cleaningLoader.peek(robot.serial, runId)) return;
         updateCleaningData()
     }, [runId])
     
