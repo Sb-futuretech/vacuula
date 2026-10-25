@@ -14,3 +14,13 @@ class Gen3Data(Base):
     schedule_utc_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     
     
+
+# A stored map's zones and no-go lines, kept on the server so the app need not ask the robot each
+# time (gen3/boundaries_cache.py). Only this server changes them, through setMapBoundaries.
+class Gen3MapBoundaries(Base):
+    __tablename__ = "gen3__map_boundaries"
+
+    map_id: Mapped[str] = mapped_column(String, primary_key=True)
+    robot: Mapped[str] = mapped_column(String, ForeignKey("robot.serial", ondelete='CASCADE'), nullable=False)
+    boundaries: Mapped[list] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[int] = mapped_column(Integer, nullable=False)

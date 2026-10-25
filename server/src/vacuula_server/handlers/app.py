@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats, schedule_tz
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, schedule_tz, boundaries_cache
 from vacuula_server import notifications
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -245,6 +245,11 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
         req.send_not_found("Robot not found")
         return
 
+    # gen3 zones / no-go lines kept on the server (also answered while the robot is offline)
+    if '-' in serial and (cached := boundaries_cache.cached_reply(serial, data)) is not None:
+        req.send_response_data(cached, True, 200)
+        return
+
     if serial not in robot_connections:
         req.send_bad_request("Robot not connected")
         return
@@ -276,7 +281,10 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
     slot.event.wait(COMMAND_TIMEOUT_S)
     pending_requests.pop(key, None)
     if slot.event.is_set():
-        content = schedule_tz.from_robot(serial, data, slot.content, slot.status) if conn.gen == Generation.GEN3 else slot.content
+        content = slot.content
+        if conn.gen == Generation.GEN3:
+            boundaries_cache.remember(serial, data, content, slot.status)
+            content = schedule_tz.from_robot(serial, data, content, slot.status)
         _send_quietly(lambda: req.send_response_data(content, True, slot.status))
     else:
         _send_quietly(lambda: req.send_error_response(504, "Robot did not answer in time"))
