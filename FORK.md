@@ -25,6 +25,10 @@ be offered back as pull requests.
   server holds the robot's drive socket, browsers cannot sign it themselves.
 - Deep navigation can no longer be combined with Eco (the robot rejects it).
 - Schedule: several days at once with presets (daily, weekdays, weekend).
+- **Schedule entries the robot cannot keep** (Extra Care / Deep, several zones) are run by the
+  server: the schedule page decides on save. A robot entry within 15 minutes of such an entry is
+  its fallback: the server switches the robot's schedule off around its own start (noted in the
+  bell), so without the server the robot still cleans.
 - Schedule times are local time (the server's timezone). The D7 runs its schedule in UTC, so the
   server converts them, and moves the robot's events after a DST switch so 8:00 stays 8:00.
 

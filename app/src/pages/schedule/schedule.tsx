@@ -3,11 +3,11 @@ import styles from './schedule.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
 import type { GetSchedule, ScheduleEvent } from './types'
-import { FaTrash } from 'react-icons/fa'
+import { FaTrash, FaServer } from 'react-icons/fa'
 import Input from '../../components/input/input'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
-import { CleaningMode } from '../../types/neato/gen3/state'
+import { CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useRobot } from '../../context/useRobot'
 import { RobotDay } from '../../types/neato/gen3/api'
 import { RobotType } from '../../types'
@@ -18,6 +18,13 @@ import { dayKey } from '../../i18n/days'
 import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
 import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
+import { Http, type PiScheduleEntry } from '../../http'
+
+// a robot event this close to a Pi entry is its fallback (server: gen3/pi_schedule.py OVERLAP_MIN)
+const OVERLAP_MIN = 15
+const minutesOf = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
+const NAV_KEYS: Record<number, string> = { [CleaningNavigationMode.NORMAL]: 'normal', [CleaningNavigationMode.EXTRA_CARE]: 'extraCare', [CleaningNavigationMode.DEEP]: 'deep' }
+const ZONE_SEP = '||'
 
 export default () => {
     const { t } = useTranslation()
@@ -38,15 +45,21 @@ export default () => {
         fetchAllGen3Boundaries(robot.serial, persistentMaps)
     }, [robot.serial, persistentMaps])
 
+    // value "mapId||zoneId": a Pi entry needs the map, a robot event only the zone
     const zoneOptions = (persistentMaps ?? [])
         .filter(m => 'enabled' in m && m.enabled)
-        .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: z.id, label: `${m.name} - ${z.name}` })))
+        .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: `${m.id}${ZONE_SEP}${z.id}`, label: `${m.name} - ${z.name}` })))
 
 
-    const [scheduleForm, SetScheduleForm] = useState<Omit<ScheduleEvent, 'day'>>({
+    const [scheduleForm, SetScheduleForm] = useState<{ startTime: string, mode: CleaningMode, navigationMode: CleaningNavigationMode, zones: string[] }>({
         startTime: '',
-        mode: CleaningMode.ECO
+        mode: CleaningMode.ECO,
+        navigationMode: CleaningNavigationMode.NORMAL,
+        zones: [],
     })
+    const [piEntries, setPiEntries] = useState<PiScheduleEntry[]>([])
+    const getPiEntries = () => { Http.getPiSchedule(robot.serial).then(res => setPiEntries(res.data)).catch(() => setPiEntries([])) }
+    useEffect(getPiEntries, [robot.serial])
     // one robot event is created per selected day
     const [days, setDays] = useState<RobotDay[]>([])
 
@@ -61,6 +74,17 @@ export default () => {
         getSchedule();
     }, [robot])
 
+    // what the robot's own schedule cannot keep goes to the Pi (FORK.md: only mode, day, time and one zone)
+    const piNeedsNavigation = scheduleForm.navigationMode !== CleaningNavigationMode.NORMAL
+    const piNeedsZones = scheduleForm.zones.length > 1
+    const needsPi = piNeedsNavigation || piNeedsZones
+
+    // robot events (local time, from the server) close to a Pi entry on one of its days
+    const fallbacks = (entryDays: number[], startTime: string) => (schedule?.events ?? [])
+        .filter(e => entryDays.includes(e.day) && Math.abs(minutesOf(e.startTime) - minutesOf(startTime)) <= OVERLAP_MIN)
+        .map(e => e.startTime)
+        .filter((time, i, all) => all.indexOf(time) === i)
+
     const removeEvent = (event: ScheduleEvent) => {
         if (!schedule) return;
         GEN3_COMMANDS.setSchedule(robot.serial, schedule.events.filter(e => e !== event)).finally(() => getSchedule())
@@ -68,8 +92,20 @@ export default () => {
 
     const addEvents = () => {
         if (!schedule) return;
+        if (needsPi) {
+            setDrawerOpen(false)
+            Http.addPiSchedule(robot.serial, {
+                days, startTime: scheduleForm.startTime, mode: scheduleForm.mode, navigationMode: scheduleForm.navigationMode,
+                zones: scheduleForm.zones.map(value => {
+                    const [mapId, boundaryId] = value.split(ZONE_SEP)
+                    return { mapId, boundaryId, name: zoneOptions.find(o => o.value === value)?.label ?? '' }
+                }),
+            }).finally(getPiEntries)
+            return
+        }
         const zoneOf = (e: ScheduleEvent) => e.boundaryId ?? e.boundary?.id
-        const added: ScheduleEvent[] = days.map(day => ({ ...scheduleForm, day }))
+        const zone = scheduleForm.zones[0]?.split(ZONE_SEP)[1]
+        const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = schedule.events.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
         setDrawerOpen(false)
@@ -126,6 +162,28 @@ export default () => {
                     </div>
                 </div>
 
+                {piEntries.map(entry => {
+                    const fallback = fallbacks(entry.days, entry.startTime)
+                    const dayNames = [...entry.days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(d => t(`days.${dayKey(d)}`)).join(', ')
+                    return (
+                        <div key={`pi-${entry.id}`} className={styles.item}>
+                            <div className={styles.info}>
+                                <span><FaServer size={12} title={t('schedule.piBadge')} /> {entry.startTime}</span>
+                                <span className={styles.type}>
+                                    {t('schedule.piSummary', {
+                                        days: dayNames,
+                                        mode: t(`modes.${entry.mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any),
+                                        navigation: t(`modes.${NAV_KEYS[entry.navigationMode] ?? 'normal'}` as any),
+                                        zones: entry.zones.length ? entry.zones.map(z => decodeRobotText(z.name)).join(', ') : t('schedule.wholeMap'),
+                                    })}
+                                </span>
+                                {fallback.length > 0 && <span className={styles.type}>{t('schedule.fallbackNote', { times: fallback.join(', ') })}</span>}
+                            </div>
+                            <FaTrash onClick={() => Http.deletePiSchedule(robot.serial, entry.id).finally(getPiEntries)} />
+                        </div>
+                    )
+                })}
+
                 {sortedEvents.map((item, i) => {
                     return (
                         <div key={i} className={styles.item}>
@@ -140,7 +198,7 @@ export default () => {
                         </div>
                     )
                 })}
-                {sortedEvents.length === 0 && (
+                {sortedEvents.length === 0 && piEntries.length === 0 && (
                     <span style={{ textAlign: 'center' }}>{t('schedule.noSchedules')}</span>
                 )}
             </div>
@@ -190,7 +248,23 @@ export default () => {
                             { value: CleaningMode.NORMAL, label: t('modes.normal') },
                         ]}
                         value={scheduleForm.mode}
-                        onChange={(mode) => updateForm(SetScheduleForm, { mode })}
+                        // Eco together with Deep is rejected by the robot
+                        onChange={(mode) => updateForm(SetScheduleForm, mode === CleaningMode.ECO && scheduleForm.navigationMode === CleaningNavigationMode.DEEP
+                            ? { mode, navigationMode: CleaningNavigationMode.NORMAL } : { mode })}
+                    />
+
+                    <Input
+                        type="select"
+                        label={t('schedule.navigation')}
+                        options={[
+                            { value: CleaningNavigationMode.NORMAL, label: t('modes.normal') },
+                            { value: CleaningNavigationMode.EXTRA_CARE, label: t('modes.extraCare') },
+                            { value: CleaningNavigationMode.DEEP, label: t('modes.deep') },
+                        ]}
+                        value={scheduleForm.navigationMode}
+                        extraInfo={scheduleForm.navigationMode === CleaningNavigationMode.DEEP ? t('schedule.deepNeedsNormal') : undefined}
+                        onChange={(navigationMode) => updateForm(SetScheduleForm, navigationMode === CleaningNavigationMode.DEEP
+                            ? { navigationMode, mode: CleaningMode.NORMAL } : { navigationMode })}
                     />
 
                     <Input
@@ -200,14 +274,22 @@ export default () => {
                         onChange={(startTime) => updateForm(SetScheduleForm, { startTime })} />
 
                     <Input
-                        type="select"
+                        type="multi-select"
                         label={t('schedule.selectZones')}
                         extraInfo={t('schedule.selectZonesHelp')}
                         options={zoneOptions}
-                        allowDeselect
-                        value={scheduleForm.boundaryId}
-                        onChange={(boundaryId) => updateForm(SetScheduleForm, { boundaryId })}
+                        value={scheduleForm.zones}
+                        onChange={(zones) => updateForm(SetScheduleForm, { zones })}
                     />
+
+                    {needsPi && (
+                        <span className={styles.note}>
+                            <FaServer size={12} /> {t('schedule.runsOnPi', { what: t(piNeedsNavigation && piNeedsZones ? 'schedule.piWhatBoth' : piNeedsNavigation ? 'schedule.piWhatNavigation' : 'schedule.piWhatZones') })}
+                            {scheduleForm.startTime && fallbacks(days, scheduleForm.startTime).length > 0 && (
+                                <> {t('schedule.fallbackNote', { times: fallbacks(days, scheduleForm.startTime).join(', ') })}</>
+                            )}
+                        </span>
+                    )}
 
                     <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={addEvents} />
                 </div>

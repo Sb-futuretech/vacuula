@@ -73,6 +73,16 @@ instance.interceptors.response.use(
 );
 
 // One entry of the notification centre (server: vacuula_server/notifications.py)
+/** A schedule entry the server runs itself (gen3): navigation modes and several zones */
+export interface PiScheduleEntry {
+  id: number
+  days: number[] // robot day numbers, 0 = Sunday
+  startTime: string // HH:MM, server time
+  mode: number
+  navigationMode: number
+  zones: { mapId: string, boundaryId: string, name: string }[] // empty: whole map
+}
+
 /** GET /api/robot/<serial>/stats (gen3) */
 export interface StatsTotals { runs: number, area: number, hours: number }
 export interface RobotStats {
@@ -91,7 +101,7 @@ export interface RobotStats {
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
-  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push'
+  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped'
   code: string | null // robot error / alert / push message code, or the run id for run_done
   data: Record<string, any>
 }
@@ -176,6 +186,18 @@ export class Http {
 
   static promoteFloorplan(serial: string, mapId: string) {
     return instance.post(`/robot/${serial}/maps/${mapId}/promote`)
+  }
+
+  static getPiSchedule(serial: string) {
+    return instance.get<PiScheduleEntry[]>(`/robot/${serial}/pi-schedule`)
+  }
+
+  static addPiSchedule(serial: string, entry: Omit<PiScheduleEntry, 'id'>) {
+    return instance.post<PiScheduleEntry>(`/robot/${serial}/pi-schedule`, JSON.stringify(entry))
+  }
+
+  static deletePiSchedule(serial: string, id: number) {
+    return instance.delete(`/robot/${serial}/pi-schedule/${id}`)
   }
 
   static getStats(serial: string) {

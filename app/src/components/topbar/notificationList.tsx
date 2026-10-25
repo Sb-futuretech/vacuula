@@ -11,6 +11,7 @@ import type { AppNotification } from '../../http'
 
 const ICONS: Record<AppNotification['kind'], string> = {
     run_done: '✅', error: '❌', alert: '⚠️', offline: '🔌', online: '🔌', robot_push: '📣',
+    schedule_overlap: '🗓️', schedule_skipped: '🗓️',
 }
 
 // Notification centre list (the bell's dropdown): everything the server noted about the robot,
@@ -50,6 +51,14 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
             case 'alert': return { title: t('notifications.alert'), detail: robotText(n.code) }
             case 'offline': return { title: t('notifications.offline', { minutes: d.minutes ?? 5 }) }
             case 'online': return { title: t('notifications.online') }
+            case 'schedule_overlap': return {
+                title: t('notifications.scheduleOverlap', { time: d.piTime }),
+                detail: t('notifications.scheduleOverlapDetail', { times: (d.robotTimes ?? []).join(', ') }),
+            }
+            case 'schedule_skipped': return {
+                title: t('notifications.scheduleSkipped', { time: d.piTime }),
+                detail: i18n.exists(`notifications.skipReason.${n.code}`) ? t(`notifications.skipReason.${n.code}` as any) : n.code ?? '',
+            }
             case 'robot_push': return { title: t('notifications.robotPush'), detail: pushCode(n) ? robotText(pushCode(n)) : d.body }
         }
     }

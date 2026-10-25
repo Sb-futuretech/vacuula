@@ -298,3 +298,11 @@
         color: $accent;
     }
 }
+// the save form's hint that an entry runs from the Pi
+.note {
+    font-size: 1.2rem;
+    color: $text-muted;
+    background: $surface;
+    border-radius: 0.8rem;
+    padding: 0.8rem 1rem;
+}

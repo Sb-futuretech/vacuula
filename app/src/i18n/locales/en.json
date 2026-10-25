@@ -128,7 +128,15 @@
         "alert": "Alert",
         "offline": "Robot offline for more than {{minutes}} min",
         "online": "Robot back online",
-        "robotPush": "Message from the robot"
+        "robotPush": "Message from the robot",
+        "scheduleOverlap": "Pi schedule {{time}} ran",
+        "scheduleOverlapDetail": "The robot's own entry {{times}} was skipped for it (it only runs when the Pi is off)",
+        "scheduleSkipped": "Pi schedule {{time}} did not start",
+        "skipReason": {
+            "robot_offline": "The robot was not connected",
+            "robot_busy": "The robot was busy or not on its base",
+            "refused": "The robot refused the start"
+        }
     },
     "drive": {
         "connecting": "Connecting to the robot…",
@@ -224,7 +232,17 @@
         "weekdaysShort": "Mon–Fri",
         "weekendShort": "Weekend",
         "days": "Days",
-        "selectZonesHelp": "Optional, select one or more zones to clean, if none selected, it will clean entire map."
+        "selectZonesHelp": "Optional, select one or more zones to clean, if none selected, it will clean entire map.",
+        "navigationExtra": "Extra Care and Deep",
+        "runsOnPi": "Runs from the Pi: the robot's own schedule cannot keep {{what}}.",
+        "piWhatNavigation": "the navigation mode",
+        "piWhatZones": "several zones",
+        "piWhatBoth": "the navigation mode and several zones",
+        "fallbackNote": "The robot's entry at {{times}} becomes the fallback: it only runs when the Pi is off.",
+        "piBadge": "Pi",
+        "wholeMap": "whole map",
+        "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
+        "deepNeedsNormal": "Deep only works with mode Normal."
     },
     "map": {
         "heatmap": "Coverage",

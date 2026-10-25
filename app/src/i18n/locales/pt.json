@@ -121,7 +121,15 @@
         "alert": "Alerta",
         "offline": "Robot offline há mais de {{minutes}} min",
         "online": "Robot novamente online",
-        "robotPush": "Mensagem do robot"
+        "robotPush": "Mensagem do robot",
+        "scheduleOverlap": "Agendamento do Pi {{time}} executado",
+        "scheduleOverlapDetail": "A entrada do robô {{times}} foi ignorada (só corre quando o Pi está desligado)",
+        "scheduleSkipped": "Agendamento do Pi {{time}} não arrancou",
+        "skipReason": {
+            "robot_offline": "O robô não estava ligado",
+            "robot_busy": "O robô estava ocupado ou fora da base",
+            "refused": "O robô recusou o arranque"
+        }
     },
     "drive": {
         "connecting": "A ligar ao robot…",
@@ -217,7 +225,17 @@
         "weekdaysShort": "Seg–Sex",
         "weekendShort": "Fim de semana",
         "days": "Dias",
-        "selectZonesHelp": "Opcional: selecione uma ou mais zonas para limpar; se nenhuma for selecionada, todo o mapa será limpo."
+        "selectZonesHelp": "Opcional: selecione uma ou mais zonas para limpar; se nenhuma for selecionada, todo o mapa será limpo.",
+        "navigationExtra": "Extra Care e Deep",
+        "runsOnPi": "Executado pelo Pi: o agendamento do robô não guarda {{what}}.",
+        "piWhatNavigation": "o modo de navegação",
+        "piWhatZones": "várias zonas",
+        "piWhatBoth": "o modo de navegação e várias zonas",
+        "fallbackNote": "A entrada do robô às {{times}} passa a ser a alternativa: só corre quando o Pi está desligado.",
+        "piBadge": "Pi",
+        "wholeMap": "mapa inteiro",
+        "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
+        "deepNeedsNormal": "Deep só funciona com o modo Normal."
     },
     "map": {
         "heatmap": "Cobertura",
