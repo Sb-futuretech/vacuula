@@ -5,7 +5,7 @@ import { Neato, RobotType } from '../../types'
 import Button from '../button/button'
 import { Http } from '../../http'
 import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
-import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
+import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
@@ -86,12 +86,12 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
             let best: { id: string, distance: number } | undefined
             for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
                 if (!m.enabled || m.id === mapId) continue
-                const data = await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
+                const data = persistentMapLoader.peek(robot.serial, m.id) ?? await persistentMapLoader.request(robot.serial, m.id).catch(() => undefined)
                 const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
                 if (distance != null && (!best || distance < best.distance)) best = { id: m.id, distance }
             }
             if (!best) return
-            const boundaries = await fetchGen3MapBoundaries(robot.serial, best.id).catch(() => [])
+            const boundaries = await getGen3MapBoundaries(robot.serial, best.id).catch(() => [])
             if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon'))
         })()
         return () => { cancelled = true }
