@@ -75,10 +75,18 @@ def run(label: str, params: dict) -> dict:
     row.update(mode=MODES.get(c.get("mode"), c.get("mode")), nav=NAVS.get(c.get("navigationMode"), c.get("navigationMode")),
                alert=s.get("alert") or s.get("error") or "-", state=s.get("state"))
     print(f"   robot reports: mode {row['mode']}, navigation {row['nav']}, alert {row['alert']}")
-    cmd({"cmd": "stopCleaning"})
-    time.sleep(3)
-    cmd({"cmd": "sendToBase"})
+    go_home()
     return row
+
+
+def go_home() -> None:
+    """Pause, then send to base (after stopCleaning the D7 stays where it is and refuses sendToBase)."""
+    cmd({"cmd": "pauseCleaning"})
+    time.sleep(3)
+    reply = cmd({"cmd": "sendToBase"})
+    if reply.get("result") != "ok":
+        print(f"   sendToBase: {reply.get('result')}, stopping instead - put the robot on its base by hand")
+        cmd({"cmd": "stopCleaning"})
 
 
 def main():
