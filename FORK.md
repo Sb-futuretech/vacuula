@@ -68,6 +68,10 @@ Useful if you work on Gen3 support yourself:
   dropped silently, and `setSchedule` still answers `ok`. `getSchedule` right after `setSchedule`
   can return the old list for a few seconds.
 - The mapping run (`startPersistentMapExploration`) vacuums: it runs as a house clean.
+- Mode combinations (checked with `build/pi/d7_mode_test.py`): spot cleaning accepts everything
+  but always runs Eco with normal navigation; zone cleaning takes every combination except Eco +
+  Deep (`invalid_entry`, the same as for house cleaning).
+- Scheduled starts run as map cleaning on the stored map, so with its no-go lines.
 - `getLocalStats` answers `command_not_found`; `life_stats` uploads are empty.
 - The robot has no timezone: schedule events (`day`, `startTime`) are UTC. Started without a
   `mapId`, a map run first tries the last used floor plan (`nav_floorplan_localization_fail` if the
