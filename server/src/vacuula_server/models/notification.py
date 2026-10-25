@@ -18,7 +18,7 @@ class Notification(Base):
     robot: Mapped[str] = mapped_column(String, ForeignKey("robot.serial", ondelete='CASCADE'), nullable=False, index=True)
     created_at: Mapped[int] = mapped_column(Integer, nullable=False, default=lambda: int(time.time()))
 
-    # run_done | error | alert | offline | online | robot_push | schedule_overlap | schedule_skipped
+    # run_done | error | alert | offline | online | robot_push | schedule_overlap | schedule_skipped | schedule_clock
     kind: Mapped[str] = mapped_column(String, nullable=False)
     # what it is about: the robot's error / alert / push message code, or the run id for run_done
     code: Mapped[str | None] = mapped_column(String, nullable=True)

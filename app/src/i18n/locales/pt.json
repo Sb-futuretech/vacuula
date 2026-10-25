@@ -129,7 +129,10 @@
             "robot_offline": "O robô não estava ligado",
             "robot_busy": "O robô estava ocupado ou fora da base",
             "refused": "O robô recusou o arranque"
-        }
+        },
+        "scheduleClock": "Relógio do agendamento ajustado",
+        "scheduleClockLocal": "O robô executa o agendamento na hora local (configurado com fuso horário). As entradas foram ajustadas e mantêm as horas; uma limpeza pode ter começado uma hora fora.",
+        "scheduleClockUtc": "O robô executa o agendamento em UTC. As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado uma hora fora."
     },
     "drive": {
         "connecting": "A ligar ao robot…",

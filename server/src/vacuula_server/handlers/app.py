@@ -269,7 +269,7 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
             zone_queue.cancel(serial, f"app sent {data.get('cmd')}")
         logger.debug("Sending command to robot %s: %s", serial, data)
         try:
-            req_id = send_command(conn.conn.wfile, serial, schedule_tz.to_robot(data), slot)
+            req_id = send_command(conn.conn.wfile, serial, schedule_tz.to_robot(serial, data), slot)
         except Exception:
             _send_quietly(lambda: req.send_error_response(502, "Failed to send command to robot"))
             return

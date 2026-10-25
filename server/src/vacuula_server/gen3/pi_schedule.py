@@ -22,8 +22,8 @@ from vacuula_server.db import get_session
 from vacuula_server.gen3 import zone_queue
 from vacuula_server.gen3.commands import ask
 from vacuula_server.gen3.data import Gen3Data, Gen3PiSchedule
-from vacuula_server.gen3.schedule_tz import shift_events
-from vacuula_server.server_tz import server_timezone, utc_offset_minutes
+from vacuula_server.gen3.schedule_tz import robot_to_local, shift_events
+from vacuula_server.server_tz import server_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -105,11 +105,11 @@ def _starts_near(entry: Gen3PiSchedule, now: datetime) -> list[datetime]:
     return out
 
 
-def _overlapping_robot_events(events_utc: list[dict], start: datetime) -> list[str]:
-    """Start times of the robot's own events (UTC as the robot keeps them) close to `start`."""
+def _overlapping_robot_events(serial: str, events: list[dict], start: datetime) -> list[str]:
+    """Start times of the robot's own events (on the robot's clock) close to `start`."""
     minute = start.hour * 60 + start.minute
     found = []
-    for e in shift_events(events_utc, utc_offset_minutes()):
+    for e in shift_events(events, robot_to_local(serial)):
         try:
             h, m = map(int, e["startTime"].split(":"))
         except (KeyError, ValueError):
@@ -137,7 +137,7 @@ def _pause_robot_schedule(entry: Gen3PiSchedule, start: datetime) -> None:
     schedule = (reply or {}).get("data") or {}
     if not schedule.get("enabled"):
         return
-    overlapping = _overlapping_robot_events(schedule.get("events") or [], start)
+    overlapping = _overlapping_robot_events(serial, schedule.get("events") or [], start)
     if not overlapping or ask(serial, {"cmd": "disableSchedule"}) is None:
         return
     _set_paused_until(serial, int(start.timestamp()) + RESUME_AFTER_S)

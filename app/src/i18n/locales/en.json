@@ -136,7 +136,10 @@
             "robot_offline": "The robot was not connected",
             "robot_busy": "The robot was busy or not on its base",
             "refused": "The robot refused the start"
-        }
+        },
+        "scheduleClock": "Schedule clock adjusted",
+        "scheduleClockLocal": "The robot runs its schedule in local time (set up with a timezone). Its entries were moved back, so they keep their times; one run may have started an hour off.",
+        "scheduleClockUtc": "The robot runs its schedule in UTC. Its entries were moved, so they keep their local times; one run may have started an hour off."
     },
     "drive": {
         "connecting": "Connecting to the robot…",

@@ -29,8 +29,10 @@ be offered back as pull requests.
   server: the schedule page decides on save. A robot entry within 15 minutes of such an entry is
   its fallback: the server switches the robot's schedule off around its own start (noted in the
   bell), so without the server the robot still cleans.
-- Schedule times are local time (the server's timezone). The D7 runs its schedule in UTC, so the
-  server converts them, and moves the robot's events after a DST switch so 8:00 stays 8:00.
+- Schedule times are local time (the server's timezone). A D7 set up without a timezone runs its
+  schedule in UTC, so the server converts them, and moves the robot's events after a DST switch so
+  8:00 stays 8:00. A robot set up with a timezone (newer installer) is recognised at its first
+  scheduled run: the conversion is switched off for it and its events are moved back.
 
 ### Map
 - **Desktop layout** from 900 px: side navigation, wider pages; the map page shows its panel next

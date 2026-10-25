@@ -101,7 +101,7 @@ export interface RobotStats {
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
-  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped'
+  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped' | 'schedule_clock'
   code: string | null // robot error / alert / push message code, or the run id for run_done
   data: Record<string, any>
 }

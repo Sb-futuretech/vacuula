@@ -10,6 +10,7 @@ from vacuula_server.models.robot import Robot
 from vacuula_server.models.persistent_map import PersistentMap
 from vacuula_server.models.run import Gen3__Run
 from vacuula_server import notifications
+from vacuula_server.gen3 import schedule_tz
 import os
 import re
 from sqlalchemy import select
@@ -210,6 +211,7 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
         session.commit()
 
     notifications.run_uploaded(serial, run)
+    schedule_tz.check_clock(serial, run)
 
 
 # run ids are timestamps like 2026-10-22T20:26:27Z; anything else must not reach the filesystem
