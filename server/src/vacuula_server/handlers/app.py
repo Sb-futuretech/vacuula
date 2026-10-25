@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats, schedule_tz, boundaries_cache
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, schedule_tz, boundaries_cache, pi_schedule
 from vacuula_server import notifications
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -354,6 +354,30 @@ def post_drive_stop(req: RouterHandler, serial: str) -> None:
 def get_notifications(req: RouterHandler, serial: str) -> None:
     """GET /robot/<serial>/notifications - the newest notifications of a robot (notification centre)"""
     req.send_ok(notifications.recent(serial))
+
+def get_pi_schedule(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/pi-schedule - schedule entries the server runs itself (gen3)"""
+    req.send_ok(pi_schedule.entries(serial))
+
+def post_pi_schedule(req: RouterHandler, serial: str) -> None:
+    """POST /robot/<serial>/pi-schedule - add one
+
+    body: {"days": [0..6, 0 = Sunday], "startTime": "HH:MM" (server time), "mode", "navigationMode",
+           "zones": [{"mapId", "boundaryId", "name"?}] (empty: whole map)}
+    """
+    if not (data := req.read_json()): return
+    if '-' not in serial or get_robot_by_serial(serial) is None:
+        return req.send_not_found("Gen3 robot not found")
+    entry, msg = pi_schedule.validate(data)
+    if entry is None:
+        return req.send_bad_request(msg)
+    req.send_ok(pi_schedule.add(serial, entry))
+
+def delete_pi_schedule(req: RouterHandler, serial: str, entry_id: str) -> None:
+    """DELETE /robot/<serial>/pi-schedule/<id>"""
+    if not entry_id.isdigit() or not pi_schedule.remove(serial, int(entry_id)):
+        return req.send_not_found("Schedule entry not found")
+    req.send_ok()
 
 def get_stats(req: RouterHandler, serial: str) -> None:
     """GET /robot/<serial>/stats - cleaning statistics (gen3 only)"""

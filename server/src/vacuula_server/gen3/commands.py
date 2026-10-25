@@ -99,3 +99,24 @@ def send_command(wfile, robot_serial: str, cmd: dict, slot) -> str:
         pending_requests.pop(key, None)
         raise
     return key
+
+
+def ask(robot_serial: str, cmd: dict, timeout: float = 15) -> dict | None:
+    """Send `cmd` from the server itself and wait for the reply; None if the robot is not connected,
+    does not answer in time or refuses the command."""
+    from vacuula_server.conn import Gen2Gen3Conn
+    from vacuula_server.state import PendingRequest, pending_requests, robot_connections
+
+    conn = robot_connections.get(robot_serial)
+    if conn is None or not isinstance(conn.conn, Gen2Gen3Conn):
+        return None
+    slot = PendingRequest()
+    key = send_command(conn.conn.wfile, robot_serial, cmd, slot)
+    slot.event.wait(timeout)
+    pending_requests.pop(key, None)
+    if not slot.event.is_set() or slot.status != 200:
+        return None
+    try:
+        return json.loads(slot.content)
+    except ValueError:
+        return None

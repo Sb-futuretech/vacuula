@@ -11,16 +11,15 @@ import threading
 
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.db import get_session
-from vacuula_server.gen3.commands import send_command
+from vacuula_server.gen3.commands import ask
 from vacuula_server.gen3.data import Gen3Data
 from vacuula_server.server_tz import utc_offset_minutes
-from vacuula_server.state import PendingRequest, pending_requests, robot_connections
+from vacuula_server.state import robot_connections
 
 logger = logging.getLogger(__name__)
 
 WEEK_MIN = 7 * 24 * 60
 DST_CHECK_S = 10 * 60
-COMMAND_TIMEOUT_S = 15
 
 
 def shift_events(events: list[dict], minutes: int) -> list[dict]:
@@ -76,31 +75,18 @@ def from_robot(serial: str, cmd: dict, content, status: int | None):
 
 
 # ---- DST switch ---------------------------------------------------------------------------------
-def _ask(serial: str, cmd: dict) -> dict | None:
-    conn = robot_connections.get(serial)
-    if conn is None or not isinstance(conn.conn, Gen2Gen3Conn):
-        return None
-    slot = PendingRequest()
-    key = send_command(conn.conn.wfile, serial, cmd, slot)
-    slot.event.wait(COMMAND_TIMEOUT_S)
-    pending_requests.pop(key, None)
-    if not slot.event.is_set() or slot.status != 200:
-        return None
-    return json.loads(slot.content)
-
-
 def _follow_dst(serial: str) -> None:
     recorded, current = _recorded_offset(serial), utc_offset_minutes()
     if recorded is None or recorded == current:
         return
-    reply = _ask(serial, {"cmd": "getSchedule"})
+    reply = ask(serial, {"cmd": "getSchedule"})
     if reply is None:
         return  # try again at the next check
     events = (reply.get("data") or {}).get("events") or []
     # setSchedule takes `boundaryId`; events read back carry `boundary` instead
     events = [{k: v for k, v in e.items() if k != "boundary"} | ({"boundaryId": e["boundary"]["id"]} if e.get("boundary") else {})
               for e in shift_events(events, recorded - current)]
-    if _ask(serial, {"cmd": "setSchedule", "params": {"events": events}}) is None:
+    if ask(serial, {"cmd": "setSchedule", "params": {"events": events}}) is None:
         return
     _set_recorded_offset(serial, current)
     logger.info("Schedule of %s kept at its local time after a DST switch (UTC offset %d -> %d min)", serial, recorded, current)
