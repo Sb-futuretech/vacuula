@@ -16,6 +16,19 @@
     font-family: inherit;
     text-align: left;
     @include pressable($hover-border: true);
+
+    // a big card only gives a little when pressed, and not at all while an arrow is pressed: the
+    // arrow sits at the edge and would move away from the pointer, so the click would land on the
+    // card (opening the run) or outside it (nothing)
+    &:active:not(:disabled):not(.disabled) {
+        transform: scale(0.99);
+    }
+
+    &:active:not(:disabled):not(.disabled):has(.arrow:active) {
+        transform: none;
+        opacity: 1;
+        box-shadow: none;
+    }
 }
 
 // a preview: the map itself does not pan or zoom here, the whole card opens the run
