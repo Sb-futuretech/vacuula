@@ -82,7 +82,8 @@ export default () => {
             ? boundaries.filter(b => b.id !== activeBoundaryId)
             : boundaries
 
-        drawZones(ctx, showBoundaries.filter(b => b.type === 'polygon'), currentZoom, currentOffset, mapSize)
+        // with the heatmap on, zones are outlines so the coverage below stays readable
+        drawZones(ctx, showBoundaries.filter(b => b.type === 'polygon'), currentZoom, currentOffset, mapSize, !!heatmap)
         drawNoGoLines(ctx, showBoundaries.filter(b => b.type === 'polyline'), currentZoom, currentOffset, mapSize)
 
         // TODO: rework this base drawing, very hacky for quick release...

@@ -222,6 +222,7 @@ function drawZone(
     zoom: number,
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
+    outlineOnly = false, // no fill, so what lies below (coverage, heatmap) stays fully visible
 ) {
     if (zone.vertices.length < 3) return
 
@@ -247,7 +248,7 @@ function drawZone(
     }
 
     ctx.closePath()
-    ctx.fill()
+    if (!outlineOnly) ctx.fill()
     ctx.stroke()
 }
 
@@ -257,13 +258,14 @@ export function drawZones(
     zoom: number,
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
+    outlineOnly = false,
 ) {
     // ctx.fillStyle = COLORS.POLYGON_FILL
     // ctx.strokeStyle = COLORS.LINE_COLOR
     ctx.lineWidth = Math.max(DRAWING.MIN_LINE_WIDTH, zoom * DRAWING.POLYGON_LINE_WIDTH_SCALE)
 
     for (const p of zones) {
-        drawZone(ctx, p, zoom, offset, mapSize)
+        drawZone(ctx, p, zoom, offset, mapSize, outlineOnly)
     }
 }
 
@@ -634,12 +636,18 @@ export function drawZoneOverlay(
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
 ) {
+    // outlines only, so the covered area below stays visible: zones the run went through solid,
+    // the others dashed and faint
     ctx.save()
-    ctx.lineWidth = Math.max(DRAWING.MIN_LINE_WIDTH, zoom * DRAWING.POLYGON_LINE_WIDTH_SCALE)
+    const width = Math.max(DRAWING.MIN_LINE_WIDTH, zoom * DRAWING.POLYGON_LINE_WIDTH_SCALE)
     for (const zone of zones) {
-        ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.35
-        drawZone(ctx, zone, zoom, offset, mapSize)
+        const wasVisited = visited.has(zone.id)
+        ctx.globalAlpha = wasVisited ? 1 : 0.45
+        ctx.lineWidth = wasVisited ? width * 1.5 : width
+        ctx.setLineDash(wasVisited ? [] : [width * 3, width * 2])
+        drawZone(ctx, zone, zoom, offset, mapSize, true)
     }
+    ctx.setLineDash([])
 
     ctx.font = `600 ${Math.max(11, Math.min(16, zoom * 3))}px Arial, sans-serif`
     ctx.textAlign = 'center'
