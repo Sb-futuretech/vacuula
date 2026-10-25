@@ -9,6 +9,7 @@ from vacuula_server.db import get_session, db_commit
 from vacuula_server.models.robot import Robot
 from vacuula_server.models.persistent_map import PersistentMap
 from vacuula_server.models.run import Gen3__Run
+from vacuula_server import notifications
 import os
 import re
 from sqlalchemy import select
@@ -208,6 +209,8 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
 
         session.commit()
 
+    notifications.run_uploaded(serial, run)
+
 
 # run ids are timestamps like 2026-10-22T20:26:27Z; anything else must not reach the filesystem
 RUN_ID_RE = re.compile(r"^[0-9A-Za-z:.\-]+$")
@@ -246,4 +249,5 @@ def post_push_notifications(req: RouterHandler) -> None:
     if not (serial := get_robot_serial(req)): return
     if (body := req.read_data()) is None: return
     logger.info("push_notifications from %s: %s", serial, body[:2000])
+    notifications.add(serial, "robot_push", data={"body": body[:1000].decode(errors="replace")})
     req.send_ok()

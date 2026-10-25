@@ -3,6 +3,7 @@ import styles from './topbar.module.scss'
 import { useApp } from '../../context/useApp'
 import { RequireRobot } from '../require/requireRobot'
 import RobotSwitcher from './robotSwitcher'
+import NotificationBell from './notificationBell'
 import { RobotStateIcon, RobotStatusBadges } from './robotInfo'
 
 let onlineTimeout: number;
@@ -19,6 +20,7 @@ export default function Topbar() {
 
     return (
         <RobotSwitcher
+            actions={<RequireRobot><NotificationBell /></RequireRobot>}
             icon={
                 <RequireRobot>
                     <RobotStateIcon />

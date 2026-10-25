@@ -1,7 +1,7 @@
 from __future__ import annotations
 from vacuula_server.conn import RobotConn
 from typing import Dict
-import threading, queue
+import json, threading, time, queue
 from contextlib import suppress
 
 # robot_connections: List[RobotConn]  = []
@@ -39,3 +39,14 @@ def put_drop_oldest(q: queue.Queue, item: bytes) -> None:
             q.get_nowait()
         with suppress(queue.Full):
             q.put_nowait(item)
+
+
+def push_to_app(serial: str, event: str, data) -> None:
+    """Send a server-side event (not from the robot) to every app connected to this robot."""
+    clients = [c for c in client_connections if c["serial"] == serial]
+    if not clients:
+        return
+    msg = json.dumps({"serial": serial, "event": event, "data": data, "ts": time.time()})
+    frame = f"data: {msg}\n\n".encode()
+    for client in clients:
+        put_drop_oldest(client["queue"], frame)

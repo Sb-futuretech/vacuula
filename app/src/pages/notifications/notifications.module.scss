@@ -1,0 +1,68 @@
+@use '../../variables.scss' as *;
+
+.notifications {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    width: 100%;
+    padding: 1.6rem;
+    overflow-y: auto;
+    @include desktop-page;
+}
+
+.title {
+    margin: 0 0 0.8rem;
+    font-size: 1.8rem;
+    color: $text-primary;
+}
+
+.empty {
+    color: $text-dim;
+    text-align: center;
+    padding: 2rem 0;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 1.2rem 1.4rem;
+    border-radius: 1.4rem;
+    border: 1px solid transparent;
+    background: $surface;
+
+    &.link {
+        @include hoverable;
+    }
+}
+
+.icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.itemTitle {
+    color: $text-primary;
+    font-weight: 600;
+    font-size: 1.4rem;
+}
+
+.detail {
+    color: $text-muted;
+    font-size: 1.3rem;
+    overflow-wrap: anywhere;
+}
+
+.time {
+    flex-shrink: 0;
+    color: $text-dim;
+    font-size: 1.2rem;
+}

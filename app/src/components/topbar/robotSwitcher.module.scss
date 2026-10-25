@@ -4,9 +4,13 @@
     position: relative;
     width: 90%;
     height: 80%;
+    display: flex;
+    gap: 0.8rem;
 }
 
 .trigger {
+    flex: 1;
+    min-width: 0;
     appearance: none;
     font-family: inherit;
     text-align: left;

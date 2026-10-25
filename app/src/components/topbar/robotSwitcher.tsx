@@ -5,7 +5,8 @@ import { useApp } from '../../context/useApp'
 import { useRobots } from '../../context/useRobots'
 import { useTranslation } from 'react-i18next'
 
-export default function RobotSwitcher({ icon, children }: { icon?: ReactNode, children?: ReactNode }) {
+// `actions`: buttons next to the bar (the bar itself is one button that opens the robot list)
+export default function RobotSwitcher({ icon, children, actions }: { icon?: ReactNode, children?: ReactNode, actions?: ReactNode }) {
     const { t } = useTranslation()
     const { robot, selectRobot } = useApp()
     const { robots } = useRobots()
@@ -44,6 +45,7 @@ export default function RobotSwitcher({ icon, children }: { icon?: ReactNode, ch
                     aria-hidden="true"
                 />
             </button>
+            {actions}
 
             {isOpen && (
                 <div className={styles.dropdown} role="listbox">

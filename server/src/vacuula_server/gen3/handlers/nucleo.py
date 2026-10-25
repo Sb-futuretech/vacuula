@@ -16,6 +16,7 @@ import traceback
 if TYPE_CHECKING:
     from vacuula_server.handlers.router import RouterHandler
 
+from vacuula_server import notifications
 logger = logging.getLogger(__name__)
 
 def nucleo_init(req: RouterHandler) -> None:
@@ -42,6 +43,7 @@ def nucleo_init(req: RouterHandler) -> None:
     robot_connections[serial] = conn
     logger.info("Robot %s connected", serial)
     notify_robots_changed()
+    notifications.robot_connected(serial)
 
     try:
         while True:
@@ -57,3 +59,4 @@ def nucleo_init(req: RouterHandler) -> None:
             del robot_connections[serial]
             logger.info("Robot %s disconnected", serial)
             notify_robots_changed()
+            notifications.robot_disconnected(serial)

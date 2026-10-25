@@ -5,6 +5,7 @@ import json
 import time
 from vacuula_server.state import pending_requests, put_drop_oldest
 from vacuula_server.gen3 import zone_queue
+from vacuula_server import notifications
 import typing
 
 logger = logging.getLogger(__name__)
@@ -45,8 +46,10 @@ def robot_data(serial: str, data: bytes):
     # state comes at the top level of command replies and under `data` in state events
     if decoded.get("type") == "state":
         zone_queue.on_state(serial, decoded.get("data") or {})
+        notifications.on_state(serial, decoded.get("data") or {})
     elif "state" in decoded:
         zone_queue.on_state(serial, decoded)
+        notifications.on_state(serial, decoded)
 
     if reqId in pending_requests:
         slot = pending_requests.get(reqId)

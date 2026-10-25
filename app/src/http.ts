@@ -72,6 +72,15 @@ instance.interceptors.response.use(
   }
 );
 
+// One entry of the notification centre (server: vacuula_server/notifications.py)
+export interface AppNotification {
+  id: number
+  createdAt: number // unix seconds
+  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push'
+  code: string | null // robot error / alert code, or the run id for run_done
+  data: Record<string, any>
+}
+
 // Gen3 zone queue as the server reports it (GET /zone-queue and `zoneQueue` events)
 export interface ZoneQueueStatus {
   index: number // zone being cleaned (or next, while waiting)
@@ -88,6 +97,10 @@ export type DriveCommand = `${'vacuum' | 'brush' | 'eco' | 'turbo'}-${'on' | 'of
 export class Http {
   static sendCmd<T>(robotSerial: string, cmd: object) {
     return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+  }
+
+  static getNotifications(serial: string) {
+    return instance.get<AppNotification[]>(`/robot/${serial}/notifications`)
   }
 
   static getZoneQueue(serial: string) {

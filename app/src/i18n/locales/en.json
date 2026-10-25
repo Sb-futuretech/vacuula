@@ -117,6 +117,17 @@
             "cleaning": "Cleaning"
         }
     },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "Nothing yet. Finished cleanings, errors and alerts show up here.",
+        "runDone": "Cleaning done",
+        "runCanceled": "Cleaning stopped",
+        "error": "Error",
+        "alert": "Alert",
+        "offline": "Robot offline for more than {{minutes}} min",
+        "online": "Robot back online",
+        "robotPush": "Message from the robot"
+    },
     "drive": {
         "connecting": "Connecting to the robot…",
         "ready": "Ready: hold an arrow to drive",

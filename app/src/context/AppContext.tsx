@@ -1,6 +1,6 @@
 import { createContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BASE_PATH, Http, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
+import { BASE_PATH, Http, type AppNotification, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
 import { GEN3_COMMANDS } from '../http/gen3'
 import type { UseState } from '../pages/map/types'
 import { Neato, RobotType, type QuickRobotInfo, type Robot } from '../types'
@@ -42,6 +42,11 @@ interface AppContextType {
     zoneQueue: ZoneQueueStatus | null
     setZoneQueue: (queue: ZoneQueueStatus | null) => void
 
+    // notification centre: newest first; read state is remembered per device
+    notifications: AppNotification[]
+    unreadNotifications: number
+    markNotificationsRead: () => void
+
 
     // TEMP, todo this better
     getGen3State: (serial: string, name: string) => void
@@ -63,6 +68,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: false })
     const [message, setMessage] = useState<string | null>(null)
     const [zoneQueue, setZoneQueue] = useState<ZoneQueueStatus | null>(null)
+    const [notifications, setNotifications] = useState<AppNotification[]>([])
+    const [lastReadNotification, setLastReadNotification] = useState(0)
+    const readKey = (serial: string) => `vacuula.notificationsRead.${serial}`
+    const unreadNotifications = notifications.filter(n => n.id > lastReadNotification).length
+    const markNotificationsRead = () => {
+        if (!robot || !notifications.length) return
+        const newest = notifications[0].id
+        setLastReadNotification(newest)
+        try { localStorage.setItem(readKey(robot.serial), String(newest)) } catch { /* storage unavailable */ }
+    }
     const [hasOutdatedRobot, setHasOutdatedRobot] = useState(false)
     const [serverInfo, setServerInfo] = useState<ServerInfo>()
     const [serverInfoError, setServerInfoError] = useState(false)
@@ -201,6 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             `${BASE_PATH}/api/robot/${robot.serial}/connect`,
         );
         setZoneQueue(null)
+        setNotifications([])
+        try { setLastReadNotification(Number(localStorage.getItem(readKey(robot.serial))) || 0) } catch { setLastReadNotification(0) }
 
         const refreshState = () => {
             if (robot.type === RobotType.NeatoGen3) {
@@ -236,6 +253,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (!robots) return;
             refreshState()
             if (robot.type === RobotType.NeatoGen3) Http.getZoneQueue(robot.serial).then(res => setZoneQueue(res.data.queue))
+            Http.getNotifications(robot.serial).then(res => setNotifications(res.data)).catch(() => { /* server without notifications */ })
         }
 
         // Gen3 only pushes state when state/action changes, never for battery level
@@ -263,6 +281,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // zone queue progress comes from the server itself, not from the robot
             if (parsed.event === 'zoneQueue') {
                 setZoneQueue(parsed.data)
+                return
+            }
+            if (parsed.event === 'notification') {
+                setNotifications(cur => cur.some(n => n.id === parsed.data.id) ? cur : [parsed.data, ...cur])
                 return
             }
             const wrapper: VacuulaRobotEvent = parsed;
@@ -340,6 +362,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMessage,
         zoneQueue,
         setZoneQueue,
+        notifications,
+        unreadNotifications,
+        markNotificationsRead,
         robot,
         robots,
         selectRobot,

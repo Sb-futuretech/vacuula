@@ -110,6 +110,17 @@
         "height": "Altura",
         "width": "Largura"
     },
+    "notifications": {
+        "title": "Notificações",
+        "empty": "Ainda nada. Limpezas concluídas, erros e alertas aparecem aqui.",
+        "runDone": "Limpeza concluída",
+        "runCanceled": "Limpeza interrompida",
+        "error": "Erro",
+        "alert": "Alerta",
+        "offline": "Robot offline há mais de {{minutes}} min",
+        "online": "Robot novamente online",
+        "robotPush": "Mensagem do robot"
+    },
     "drive": {
         "connecting": "A ligar ao robot…",
         "ready": "Pronto: mantenha uma seta premida para conduzir",

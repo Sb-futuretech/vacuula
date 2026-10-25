@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.state import robot_connections, pending_requests, PendingRequest, client_connections, put_drop_oldest
+from vacuula_server.state import robot_connections, pending_requests, PendingRequest, push_to_app
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +80,7 @@ def get_status(serial: str) -> dict | None:
 
 def _broadcast(serial: str, status: dict | None) -> None:
     """Push the queue status to the app's event stream; None = the queue was cancelled."""
-    clients = [c for c in client_connections if c["serial"] == serial]
-    if not clients:
-        return
-    msg = json.dumps({"serial": serial, "event": "zoneQueue", "data": status, "ts": time.time()})
-    frame = f"data: {msg}\n\n".encode()
-    for client in clients:
-        put_drop_oldest(client["queue"], frame)
+    push_to_app(serial, "zoneQueue", status)
 
 
 def cancel(serial: str, reason: str) -> None:
