@@ -31,11 +31,16 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
 
     useEffect(() => {
         setHeatmap(undefined)
+        setLoading(false) // a cancelled earlier build leaves it on
         if (!enabled || !mapId) return
         let cancelled = false
         setLoading(true)
         ;(async () => {
-            const stored = await persistentMapLoader.request(serial, mapId)
+            // runs never change: take what was loaded before instead of downloading every run again
+            const cached = <T,>(peek: T | undefined, request: () => Promise<T>) => peek !== undefined ? Promise.resolve(peek) : request().catch(() => undefined)
+            const floorOf = (id: string) => cached(persistentMapLoader.peek(serial, id), () => persistentMapLoader.request(serial, id))
+            const stored = await floorOf(mapId)
+            if (!stored) return
             const { width, height } = stored
             const floor = decodeRLE(stored.rle)
             const storedFloor = { width, height, dock: basePoint(stored.base) }
@@ -49,7 +54,7 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 if (cancelled || runs >= maxRuns) break
                 const reportedMap = cleaning.run.persistent_map_id
                 if (reportedMap && reportedMap !== mapId) continue
-                const runMap = await cleaningLoader.request(serial, cleaning.id).catch(() => undefined)
+                const runMap = await cached(cleaningLoader.peek(serial, cleaning.id), () => cleaningLoader.request(serial, cleaning.id))
                 if (!runMap) continue
                 const path = decodeRLE(runMap.rle)
 
@@ -57,7 +62,7 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 // part they reached and are aligned by their walls; older runs must share the grid
                 let offset: { dx: number, dy: number } | undefined
                 if (reportedMap) {
-                    const runFloor = await persistentMapLoader.request(serial, cleaning.id).catch(() => undefined)
+                    const runFloor = await floorOf(cleaning.id)
                     if (runFloor) offset = runOffset(cleaning.id, { cells: decodeRLE(runFloor.rle), width: runFloor.width, height: runFloor.height }, { cells: floor, width, height })
                 } else {
                     const runFloor = { width: runMap.width, height: runMap.height, dock: cellsCentre(path, runMap.width, runMap.height, GEN3_RUN_DOCK) }
