@@ -100,6 +100,7 @@ export interface ZoneQueueStatus {
   zones: { mapId: string, boundaryId: string, name: string }[]
   results: { boundaryId: string, name: string, alert: string | null }[] // finished zones
   waiting: boolean // between two zones
+  skipped: boolean // the zones after the current one were dropped
   done: boolean // last status of a finished queue
 }
 

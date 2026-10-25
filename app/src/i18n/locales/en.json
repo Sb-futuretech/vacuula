@@ -107,7 +107,9 @@
             "next": "Next zone {{index}}/{{total}} in a moment: {{name}}",
             "done": "All {{total}} zones cleaned",
             "notCleaned": "Not cleaned: {{names}}",
-            "skip": "Skip rest"
+            "skip": "Skip rest",
+            "runningSkipped": "{{name}} is still running, rest skipped",
+            "doneSkipped": "{{count}} of {{total}} zones cleaned, rest skipped"
         },
         "btnExplain": {
             "locate": "Lost robot?",

@@ -17,8 +17,9 @@ be offered back as pull requests.
 - **Several zones in one go (Gen3).** The D7 accepts a `startCleaning` with several `boundaryIds`
   but ignores them and cleans the whole map. The server keeps a zone queue instead and starts the
   zones one after another (`/api/robot/<serial>/zone-queue`), with the cleaning mode of your choice.
-- **Zone progress on the home page:** which zone is running, which are done, a *Skip rest* button,
-  and afterwards which zones could not be reached and why.
+- **Zone progress on the home page:** which zone is running, which are done, a *Skip rest* button
+  (the running zone is finished and still shown), and afterwards which zones could not be reached
+  and why.
 - **Manual drive (Gen3)**, like the old Neato app: hold an arrow to drive, left/right turn on the
   spot, with forward they curve; vacuum, brush and turbo toggles; arrow keys on a keyboard. The
   server holds the robot's drive socket, browsers cannot sign it themselves.

@@ -75,7 +75,9 @@
             "next": "Próxima zona {{index}}/{{total}} em breve: {{name}}",
             "done": "Todas as {{total}} zonas limpas",
             "notCleaned": "Não limpas: {{names}}",
-            "skip": "Saltar resto"
+            "skip": "Saltar resto",
+            "runningSkipped": "{{name}} ainda em curso, restantes ignoradas",
+            "doneSkipped": "{{count}} de {{total}} zonas limpas, restantes ignoradas"
         },
         "lastRun": {
             "older": "Limpeza anterior",

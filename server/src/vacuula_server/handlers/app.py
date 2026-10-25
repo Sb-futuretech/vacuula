@@ -324,7 +324,7 @@ def post_zone_queue(req: RouterHandler, serial: str) -> None:
 
 def delete_zone_queue(req: RouterHandler, serial: str) -> None:
     """DELETE /robot/<serial>/zone-queue - drop the remaining zones (the current run continues)"""
-    zone_queue.cancel(serial, "cancelled from the app")
+    zone_queue.skip(serial)
     req.send_ok()
 
 

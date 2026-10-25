@@ -55,6 +55,7 @@ class ZoneQueue:
     alert: str | None = None        # alert raised while the current zone was running
     stale_alert: str | None = None  # alert already set when the current zone started
     results: list[dict] = field(default_factory=list)  # finished zones: name + alert
+    skipped: bool = False    # the remaining zones were dropped; the current one still runs
 
     def status(self, done: bool = False) -> dict:
         return {
@@ -63,6 +64,7 @@ class ZoneQueue:
             "zones": [{"mapId": z.map_id, "boundaryId": z.boundary_id, "name": z.name} for z in self.zones],
             "results": self.results,
             "waiting": self.starting,  # between two zones, next one starts shortly
+            "skipped": self.skipped,   # the zones after the current one were dropped
             "done": done,              # last status of a finished queue
         }
 
@@ -89,6 +91,20 @@ def cancel(serial: str, reason: str) -> None:
     if q:
         _broadcast(serial, None)
         logger.info("Zone queue for %s cancelled at zone %d/%d: %s", serial, q.index + 1, len(q.zones), reason)
+
+
+def skip(serial: str) -> None:
+    """Drop the zones not started yet. A running zone is finished first, so the app can still show it."""
+    with _lock:
+        q = _queues.get(serial)
+        if q is None:
+            return
+        q.skipped = True
+        if q.starting:  # between two zones: nothing runs any more
+            _queues.pop(serial, None)
+        status = q.status(done=q.starting)
+    _broadcast(serial, status)
+    logger.info("Zone queue for %s: zones after %d/%d skipped from the app", serial, q.index + 1, len(q.zones))
 
 
 def start(serial: str, zones: list[Zone], mode: int, navigation_mode: int) -> tuple[bool, str]:
@@ -130,11 +146,11 @@ def on_state(serial: str, data: dict) -> None:
             reason = "robot stopped away from the dock"
         else:
             _finish_zone(serial, q)
-            if q.index + 1 >= len(q.zones):
+            if q.skipped or q.index + 1 >= len(q.zones):
                 _queues.pop(serial, None)
                 _broadcast(serial, q.status(done=True))
                 failed = sum(1 for r in q.results if r["alert"])
-                logger.info("Zone queue for %s finished all %d zones (%d with alerts)", serial, len(q.zones), failed)
+                logger.info("Zone queue for %s finished %d of %d zones (%d with alerts)", serial, len(q.results), len(q.zones), failed)
                 return
             q.index += 1
             q.seen_busy = False
