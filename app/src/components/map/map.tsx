@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
 import { decodeRLE } from './utils'
 import type { ExtraDrawFn } from './useMap'
-import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, sameFloorDistance } from './gen3Run'
+import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, alignToStored, basePoint, cellsCentre, sameFloorDistance, zoneInRun } from './gen3Run'
 import type { VacuulaMapData, Zone } from './types'
 
 interface MapProps {
@@ -49,6 +49,9 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
     }
 }
 
+// run id -> where its grid lies on its stored map (aligning takes a moment, runs do not change)
+const runOffsets: Record<string, { dx: number, dy: number }> = {}
+
 export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones, storedMapId, startFlag }: MapProps) {
     const { t } = useTranslation()
     const { robot } = useRobot()
@@ -72,7 +75,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
     // its grid, so its zones (normalised vertices) fit the run: take the enabled stored map on the same
     // floor, the one whose dock is closest if there are several. No match, no zones. Newer runs name
-    // their stored map (`storedMapId`), then it is taken as is.
+    // their stored map (`storedMapId`); a run's grid is then only the part of the map it reached.
     const { data: storedMaps } = usePersistentMaps()
     const [runZones, setRunZones] = useState<Zone[]>([])
     useEffect(() => {
@@ -86,12 +89,22 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         }
         ;(async () => {
             const stored = (id: string) => persistentMapLoader.peek(robot.serial, id) ?? persistentMapLoader.request(robot.serial, id).catch(() => undefined)
-            let best: { id: string, distance: number } | undefined
             if (storedMapId) {
-                // the map the robot reported; its zones only fit if the grid is the same
+                // the map the robot reported: the run only covers part of it, so its zones are moved
+                // to where the run's walls lie on the map's walls
                 const data = await stored(storedMapId)
-                if (data?.width === run.width && data.height === run.height) best = { id: storedMapId, distance: 0 }
-            } else for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
+                if (!data) return
+                const runGrid = { cells: decodeRLE(persistantMapData.rle), width: run.width, height: run.height }
+                const storedGrid = { cells: decodeRLE(data.rle), width: data.width, height: data.height }
+                const offset = runOffsets[runId] ?? alignToStored(runGrid, storedGrid)
+                if (!offset) return
+                runOffsets[runId] = offset
+                const boundaries = await getGen3MapBoundaries(robot.serial, storedMapId).catch(() => [])
+                if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon').map(z => zoneInRun(z, offset, storedGrid, runGrid)))
+                return
+            }
+            let best: { id: string, distance: number } | undefined
+            for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
                 if (!m.enabled || m.id === mapId) continue
                 const data = await stored(m.id)
                 const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
