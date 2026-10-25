@@ -64,8 +64,9 @@ be offered back as pull requests.
 Useful if you work on Gen3 support yourself:
 
 - `startCleaning` with `boundaryIds` is accepted and ignored; only one `boundaryId` per run works.
-- Schedule events only hold mode, day, start time and zone. A `navigationMode` (e.g. Deep) is
-  dropped silently, and `setSchedule` still answers `ok`. `getSchedule` right after `setSchedule`
+- Schedule events only keep `mode`, `day`, `startTime`, one `boundaryId` and its `mapId`
+  (checked with `build/pi/d7_schedule_test.py`). `navigationMode` (Deep, Extra Care), `modifier`,
+  `category`, spot size and `boundaryIds` are dropped silently, and `setSchedule` still answers `ok`. `getSchedule` right after `setSchedule`
   can return the old list for a few seconds.
 - The mapping run (`startPersistentMapExploration`) vacuums: it runs as a house clean.
 - Mode combinations (checked with `build/pi/d7_mode_test.py`): spot cleaning accepts everything
