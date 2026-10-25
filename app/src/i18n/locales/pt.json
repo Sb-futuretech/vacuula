@@ -107,7 +107,7 @@
         "selectMode": "Selecionar modo",
         "modeMapInfo": "Limpa zonas específicas definidas no mapa.",
         "modeHouseInfo": "Limpa toda a área possível, ignorando zonas e linhas No-Go.",
-        "modeSpotInfo": "Limpa uma área específica definida pela altura e largura.",
+        "modeSpotInfo": "Limpa uma área definida pela altura e largura, sempre em Eco com navegação normal (o robô ignora outras definições).",
         "mapModeHint": "O modo de limpeza Mapa está disponível quando o robot está na base.",
         "height": "Altura",
         "width": "Largura"

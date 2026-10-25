@@ -98,7 +98,7 @@
         "selectMode": "Select Mode",
         "modeMapInfo": "Cleans specific zones defined on the map.",
         "modeHouseInfo": "Cleans the entire area it can, ignoring zones and no-go lines.",
-        "modeSpotInfo": "Cleans a specific area defined by height and width.",
+        "modeSpotInfo": "Cleans a specific area defined by height and width, always in Eco with normal navigation (the robot ignores other settings).",
         "mapModeHint": "Map cleaning mode is available when robot is docked.",
         "height": "Height",
         "width": "Width",

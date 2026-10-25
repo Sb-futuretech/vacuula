@@ -209,6 +209,12 @@ export default function Home() {
         .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: `${m.id}||:||${z.id}`, label: `${m.name} - ${z.name}` })))
 
     if (!isDocked(robot) && gen3__cleaningCategory === CleaningCategory.MAP ) gen3__setCleaningCategory(CleaningCategory.HOUSE)
+
+    // a gen3 spot clean always runs Eco with normal navigation, whatever is sent (checked on a D7):
+    // show that and keep the chosen settings for house / map cleaning
+    const spotFixed = robot.type === RobotType.NeatoGen3 && gen3__cleaningCategory === CleaningCategory.SPOT
+    const shownMode = spotFixed ? CleaningMode.ECO : gen3__cleaningMode
+    const shownNavigation = spotFixed ? CleaningNavigationMode.NORMAL : gen3__navigationMode
         
     return (
         <div className={styles.home}>
@@ -332,12 +338,12 @@ export default function Home() {
                     {robot.type === RobotType.NeatoGen3 && (
                         <>
 
-                            {gen3__navigationMode === CleaningNavigationMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdCleaningServices color='var(--accent)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.EXTRA_CARE)} selection={t('modes.normal')} />)}
-                            {gen3__navigationMode === CleaningNavigationMode.EXTRA_CARE && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdOutlineHealthAndSafety color='var(--warn)' size={22} />} onClick={() => { gen3__setNavigationMode(CleaningNavigationMode.DEEP); gen3__setCleaningMode(CleaningMode.NORMAL) }} selection={t('modes.extraCare')} />)}
-                            {gen3__navigationMode === CleaningNavigationMode.DEEP && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdAutoAwesome color='var(--violet)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.NORMAL)} selection={t('modes.deep')} />)}
+                            {shownNavigation === CleaningNavigationMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.navigation')} disabled={spotFixed} icon={<MdCleaningServices color='var(--accent)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.EXTRA_CARE)} selection={t('modes.normal')} />)}
+                            {shownNavigation === CleaningNavigationMode.EXTRA_CARE && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdOutlineHealthAndSafety color='var(--warn)' size={22} />} onClick={() => { gen3__setNavigationMode(CleaningNavigationMode.DEEP); gen3__setCleaningMode(CleaningMode.NORMAL) }} selection={t('modes.extraCare')} />)}
+                            {shownNavigation === CleaningNavigationMode.DEEP && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdAutoAwesome color='var(--violet)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.NORMAL)} selection={t('modes.deep')} />)}
 
-                            {gen3__cleaningMode === CleaningMode.ECO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<TbLeaf size={22} color='lime' />} onClick={() => gen3__setCleaningMode(CleaningMode.NORMAL)} selection={t('modes.eco')} />)}
-                            {gen3__cleaningMode === CleaningMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaFan size={22} color='orange' />} onClick={() => {
+                            {shownMode === CleaningMode.ECO && (<CtrlBtn label={t('home.btnExplain.cleaning')} disabled={spotFixed} icon={<TbLeaf size={22} color='lime' />} onClick={() => gen3__setCleaningMode(CleaningMode.NORMAL)} selection={t('modes.eco')} />)}
+                            {shownMode === CleaningMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaFan size={22} color='orange' />} onClick={() => {
                                 gen3__setCleaningMode(CleaningMode.ECO)
                                 // Gen3 rejects Deep together with Eco (invalid_entry)
                                 if (gen3__navigationMode === CleaningNavigationMode.DEEP) gen3__setNavigationMode(CleaningNavigationMode.NORMAL)
@@ -394,7 +400,7 @@ export default function Home() {
                                 // GEN3
                                 if (robot.type === RobotType.NeatoGen3) {
                                     if (gen3__cleaningCategory === CleaningCategory.SPOT) {
-                                        GEN3_COMMANDS.startCleaningSpot(robot.serial, spotHeight, spotWidth, gen3__cleaningMode, gen3__navigationMode)
+                                        GEN3_COMMANDS.startCleaningSpot(robot.serial, spotHeight, spotWidth, shownMode, shownNavigation)
                                         return;
                                     }
 
