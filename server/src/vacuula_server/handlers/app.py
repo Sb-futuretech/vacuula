@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive
+from vacuula_server.gen3 import zone_queue, manual_drive, stats
 from vacuula_server import notifications
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -345,3 +345,9 @@ def post_drive_stop(req: RouterHandler, serial: str) -> None:
 def get_notifications(req: RouterHandler, serial: str) -> None:
     """GET /robot/<serial>/notifications - the newest notifications of a robot (notification centre)"""
     req.send_ok(notifications.recent(serial))
+
+def get_stats(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/stats - cleaning statistics (gen3 only)"""
+    if '-' not in serial:
+        return req.send_bad_request("Statistics are only available for gen3 robots")
+    req.send_ok(stats.gen3_stats(serial))

@@ -45,6 +45,9 @@
   --info: #66b3ff;
   --info-bg: #1a4672;
   --violet: #a78bfa;
+  /* chart series (eco / normal), validated for this surface */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
 
   --overlay: rgba(0, 0, 0, 0.6);
   --overlay-bg: rgba(15, 17, 19, 0.8);
@@ -90,6 +93,8 @@
   --info: #7db6f0;
   --info-bg: #1a4672;
   --violet: #b39dfa;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
 
   --overlay: rgba(0, 0, 0, 0.5);
   --overlay-bg: rgba(37, 41, 46, 0.82);
@@ -132,6 +137,8 @@
   --info: #0a458d;
   --info-bg: #60a3e6;
   --violet: #7c3aed;
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
 
   --overlay: rgba(0, 0, 0, 0.35);
   --overlay-bg: rgba(244, 246, 245, 0.85);

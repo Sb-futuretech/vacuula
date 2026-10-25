@@ -73,6 +73,18 @@ instance.interceptors.response.use(
 );
 
 // One entry of the notification centre (server: vacuula_server/notifications.py)
+/** GET /api/robot/<serial>/stats (gen3) */
+export interface StatsTotals { runs: number, area: number, hours: number }
+export interface RobotStats {
+  totals: { week: StatsTotals, month: StatsTotals, all: StatsTotals }
+  daily: { date: string, area: number, runs: number }[] // the last 28 days, oldest first
+  // battery use of runs without a recharge break; perHour is per hour of actual cleaning
+  battery: { startAt: string, mode: number | null, used: number, area: number, perHour: number, perM2: number, chargeStart: number }[]
+  reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }
+  launchedFrom: Record<string, number>
+  problems: { kind: 'error' | 'alert', code: string, count: number, lastAt: number }[]
+}
+
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
@@ -160,6 +172,10 @@ export class Http {
 
   static promoteFloorplan(serial: string, mapId: string) {
     return instance.post(`/robot/${serial}/maps/${mapId}/promote`)
+  }
+
+  static getStats(serial: string) {
+    return instance.get<RobotStats>(`/robot/${serial}/stats`)
   }
 
   static getCleanings(serial: string) {

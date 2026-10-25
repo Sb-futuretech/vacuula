@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../../utils/duration'
 import { useLocation } from 'react-router'
 import { useUnits } from '../../units'
+import Stats from './stats'
 
 export default () => {
     const { t } = useTranslation()
@@ -30,6 +31,7 @@ export default () => {
     const { robot } = useRobot()
     const [selectedCleaning, setSelectedCleaning] = useState<Neato.Gen4.Cleaning | Neato.Gen3.CleaningRun>();
     const [drawerOpen, setDrawerOpen] = useState(false)
+    const [tab, setTab] = useState<'runs' | 'stats'>('runs')
 
     const getCleanings = () => {
         Http.getCleanings(robot.serial).then(res => {
@@ -62,7 +64,20 @@ export default () => {
     return (
         <div className={styles.container}>
 
-            <div className={styles.featureList} style={{ overflow: drawerOpen ? 'hidden' : 'auto' }}>
+            {robot.type === RobotType.NeatoGen3 && (
+                <div className={styles.tabs} role="tablist">
+                    {(['runs', 'stats'] as const).map(id => (
+                        <button key={id} role="tab" aria-selected={tab === id}
+                            className={tab === id ? styles.activeTab : ''} onClick={() => setTab(id)}>
+                            {t(id === 'runs' ? 'stats.tabRuns' : 'stats.tabStats')}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {tab === 'stats' && <div className={styles.featureList}><Stats /></div>}
+
+            {tab === 'runs' && <div className={styles.featureList} style={{ overflow: drawerOpen ? 'hidden' : 'auto' }}>
                 {cleanings.map((item, i) => (
                     <div key={i} className={styles.item} onClick={() => item.id === selectedCleaning?.id ? setDrawerOpen(true) : setSelectedCleaning(item)}>
                         <div className={styles.info}>
@@ -84,7 +99,7 @@ export default () => {
                 {cleanings?.length === 0 && (
                     <span style={{ textAlign: 'center' }}>{t('runs.noRuns')}</span>
                 )}
-            </div>
+            </div>}
 
             <Drawer
                 open={drawerOpen}
