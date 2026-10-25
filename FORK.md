@@ -49,6 +49,8 @@ be offered back as pull requests.
 - Concurrent commands to a Gen3 robot are serialised (shared request ids and interleaved socket
   writes made the robot disconnect).
 - Run maps that end away from the dock no longer fail to upload.
+- Zones and no-go lines of gen3 maps are kept on the server, so pages load without asking the
+  robot each time and show them while it is offline.
 - Gen3 dock position is taken from the run map's dock marker only (it used to be mixed with the
   start position).
 - Gen3 run maps: the background is no longer drawn as path (whole map tinted).
@@ -71,8 +73,9 @@ Useful if you work on Gen3 support yourself:
   robot now stands at another base).
 - RunMap pixel values: `128` background, a thin `3` track of the robot's centre, and 4×4 marker
   blocks: `100` dock (only in completed runs), `200` start and `150` end position (the last two from
-  little data so far). FloorMap and RunMap of a run have the same size and line up cell for cell;
-  runs on the same stored map share its grid.
+  little data so far). FloorMap and RunMap of a run have the same size and line up cell for cell.
+  A run's grid only covers the part of its stored map it reached (smaller with doors closed); the
+  run names the map in `persistent_map_id`, and the app places it by matching the walls.
 - Manual drive: `getRobotManualCleaningInfo` returns the robot's IP and port (8081). The robot then
   accepts a WebSocket at `ws://<ip>:8081/drive` with `Authorization: NEATOAPP <hmac>`, where the
   HMAC-SHA256 is over `lowercase(serial) + "\n" + date + "\n"` with the robot's secret, and a

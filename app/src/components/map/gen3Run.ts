@@ -131,6 +131,13 @@ function fits(run: Grid, stored: Grid, dx: number, dy: number) {
     return walls > 0 && wallHits >= walls * MIN_WALL_MATCH && freeOnWall <= free * MAX_FREE_ON_WALL
 }
 
+// run id -> its offset on its stored map (runs never change, aligning takes a moment)
+const runOffsets: Record<string, { dx: number, dy: number } | null> = {}
+export function runOffset(runId: string, run: Grid, stored: Grid) {
+    if (!(runId in runOffsets)) runOffsets[runId] = alignToStored(run, stored) ?? null
+    return runOffsets[runId] ?? undefined
+}
+
 // a stored map's zone, moved into a run's grid (normalised vertices of both)
 export function zoneInRun(zone: Zone, offset: { dx: number, dy: number }, stored: Grid, run: Grid): Zone {
     return {

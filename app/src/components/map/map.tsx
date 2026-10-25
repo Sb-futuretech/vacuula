@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
 import { decodeRLE } from './utils'
 import type { ExtraDrawFn } from './useMap'
-import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, alignToStored, basePoint, cellsCentre, sameFloorDistance, zoneInRun } from './gen3Run'
+import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
 import type { VacuulaMapData, Zone } from './types'
 
 interface MapProps {
@@ -48,9 +48,6 @@ function basePoseFromMapData(data: VacuulaMapData, gen3: boolean) {
         resolution,
     }
 }
-
-// run id -> where its grid lies on its stored map (aligning takes a moment, runs do not change)
-const runOffsets: Record<string, { dx: number, dy: number }> = {}
 
 export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zones, storedMapId, startFlag }: MapProps) {
     const { t } = useTranslation()
@@ -96,9 +93,8 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
                 if (!data) return
                 const runGrid = { cells: decodeRLE(persistantMapData.rle), width: run.width, height: run.height }
                 const storedGrid = { cells: decodeRLE(data.rle), width: data.width, height: data.height }
-                const offset = runOffsets[runId] ?? alignToStored(runGrid, storedGrid)
+                const offset = runOffset(runId, runGrid, storedGrid)
                 if (!offset) return
-                runOffsets[runId] = offset
                 const boundaries = await getGen3MapBoundaries(robot.serial, storedMapId).catch(() => [])
                 if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon').map(z => zoneInRun(z, offset, storedGrid, runGrid)))
                 return

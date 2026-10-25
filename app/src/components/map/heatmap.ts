@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Http } from '../../http'
 import { cleaningLoader, persistentMapLoader } from '../../loaders/resources'
 import { decodeRLE } from './utils'
-import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, ROBOT_RADIUS_MM, basePoint, cellsCentre, sameFloorDistance } from './gen3Run'
+import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, ROBOT_RADIUS_MM, basePoint, cellsCentre, runOffset, sameFloorDistance } from './gen3Run'
 import type { Neato } from '../../types'
 
 const ROBOT_RADIUS_CELLS = ROBOT_RADIUS_MM / GEN3_MM_PER_CELL
@@ -21,9 +21,10 @@ for (let dy = -Math.ceil(ROBOT_RADIUS_CELLS); dy <= Math.ceil(ROBOT_RADIUS_CELLS
     for (let dx = -Math.ceil(ROBOT_RADIUS_CELLS); dx <= Math.ceil(ROBOT_RADIUS_CELLS); dx++)
         if (dx * dx + dy * dy <= ROBOT_RADIUS_CELLS * ROBOT_RADIUS_CELLS) DISC.push([dx, dy])
 
-// Coverage of the stored map `mapId` over its last `maxRuns` gen3 runs: a run counts if it is on the
-// map's floor (same grid size, its dock block near the map's dock if it has one). Each run's path is
-// widened to the robot's size and limited to free floor, like the home page's covered area.
+// Coverage of the stored map `mapId` over its last `maxRuns` gen3 runs: a run counts if it reports
+// this map (placed by its walls, it may cover only part of it), or, for older runs, if it shares the
+// map's grid (its dock block near the map's dock). Each run's path is widened to the robot's size and
+// limited to free floor, like the home page's covered area.
 export function useCoverageHeatmap(serial: string, mapId: string | undefined, enabled: boolean, maxRuns: number) {
     const [heatmap, setHeatmap] = useState<Heatmap>()
     const [loading, setLoading] = useState(false)
@@ -46,16 +47,28 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
             let runs = 0
             for (const cleaning of cleanings) {
                 if (cancelled || runs >= maxRuns) break
+                const reportedMap = cleaning.run.persistent_map_id
+                if (reportedMap && reportedMap !== mapId) continue
                 const runMap = await cleaningLoader.request(serial, cleaning.id).catch(() => undefined)
                 if (!runMap) continue
                 const path = decodeRLE(runMap.rle)
-                const runFloor = { width: runMap.width, height: runMap.height, dock: cellsCentre(path, runMap.width, runMap.height, GEN3_RUN_DOCK) }
-                if (path.length !== width * height || sameFloorDistance(runFloor, storedFloor) === null) continue
+
+                // where the run's grid lies on the stored map: runs that name the map only cover the
+                // part they reached and are aligned by their walls; older runs must share the grid
+                let offset: { dx: number, dy: number } | undefined
+                if (reportedMap) {
+                    const runFloor = await persistentMapLoader.request(serial, cleaning.id).catch(() => undefined)
+                    if (runFloor) offset = runOffset(cleaning.id, { cells: decodeRLE(runFloor.rle), width: runFloor.width, height: runFloor.height }, { cells: floor, width, height })
+                } else {
+                    const runFloor = { width: runMap.width, height: runMap.height, dock: cellsCentre(path, runMap.width, runMap.height, GEN3_RUN_DOCK) }
+                    if (sameFloorDistance(runFloor, storedFloor) !== null) offset = { dx: 0, dy: 0 }
+                }
+                if (!offset) continue
 
                 covered.fill(0)
                 for (let i = 0; i < path.length; i++) {
                     if (path[i] === 0 || GEN3_RUN_NOT_PATH.has(path[i])) continue
-                    const x = i % width, y = Math.floor(i / width)
+                    const x = i % runMap.width + offset.dx, y = Math.floor(i / runMap.width) + offset.dy
                     for (const [ox, oy] of DISC) {
                         const cx = x + ox, cy = y + oy
                         if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue
