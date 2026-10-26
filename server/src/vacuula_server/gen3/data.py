@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import String, Integer, Boolean, Float, ForeignKey, JSON
+from sqlalchemy import String, Integer, Boolean, Float, ForeignKey, JSON, true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column
 from vacuula_server.db import Base
 
@@ -44,4 +44,5 @@ class Gen3PiSchedule(Base):
     mode: Mapped[int] = mapped_column(Integer, nullable=False)
     navigation_mode: Mapped[int] = mapped_column(Integer, nullable=False)
     zones: Mapped[list] = mapped_column(JSON, nullable=False)         # [{mapId, boundaryId, name}], empty = whole map
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=sa_true())  # off: kept, not run
     last_run_at: Mapped[int | None] = mapped_column(Integer, nullable=True)  # start it was last run for

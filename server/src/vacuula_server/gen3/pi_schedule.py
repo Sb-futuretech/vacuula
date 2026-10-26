@@ -40,7 +40,7 @@ STATE_IDLE = 1
 # ---- entries --------------------------------------------------------------------------------------
 def _to_dict(e: Gen3PiSchedule) -> dict:
     return {"id": e.id, "days": e.days, "startTime": e.start_time, "mode": e.mode,
-            "navigationMode": e.navigation_mode, "zones": e.zones}
+            "navigationMode": e.navigation_mode, "zones": e.zones, "enabled": e.enabled}
 
 
 def entries(serial: str) -> list[dict]:
@@ -57,6 +57,7 @@ def validate(data: dict) -> tuple[dict | None, str]:
         mode, nav = int(data["mode"]), int(data["navigationMode"])
         zones = [{"mapId": str(z["mapId"]), "boundaryId": str(z["boundaryId"]), "name": str(z.get("name") or "")}
                  for z in data.get("zones") or []]
+        enabled = bool(data.get("enabled", True))
     except (KeyError, TypeError, ValueError):
         return None, "days, startTime (HH:MM), mode, navigationMode and zones ({mapId, boundaryId}) are required"
     if not days or any(d < 0 or d > 6 for d in days):
@@ -67,13 +68,25 @@ def validate(data: dict) -> tuple[dict | None, str]:
         return None, "mode must be 1 or 2, navigationMode 1, 2 or 3"
     if mode == MODE_ECO and nav == NAV_DEEP:
         return None, "the robot rejects Eco together with Deep"
-    return {"days": days, "start_time": f"{h:02d}:{m:02d}", "mode": mode, "navigation_mode": nav, "zones": zones}, "ok"
+    return {"days": days, "start_time": f"{h:02d}:{m:02d}", "mode": mode, "navigation_mode": nav, "zones": zones,
+            "enabled": enabled}, "ok"
 
 
 def add(serial: str, entry: dict) -> dict:
     with get_session() as session:
         row = Gen3PiSchedule(robot=serial, **entry)
         session.add(row)
+        session.commit()
+        return _to_dict(row)
+
+
+def update(serial: str, entry_id: int, entry: dict) -> dict | None:
+    with get_session() as session:
+        row = session.get(Gen3PiSchedule, entry_id)
+        if row is None or row.robot != serial:
+            return None
+        for k, v in entry.items():
+            setattr(row, k, v)
         session.commit()
         return _to_dict(row)
 
@@ -198,6 +211,8 @@ def check(now: datetime) -> None:
         all_entries = session.execute(select(Gen3PiSchedule)).scalars().all()
         session.expunge_all()
     for entry in all_entries:
+        if not entry.enabled:
+            continue
         for start in _starts_near(entry, now):
             if start - timedelta(seconds=PAUSE_BEFORE_S) <= now < start:
                 _pause_robot_schedule(entry, start)

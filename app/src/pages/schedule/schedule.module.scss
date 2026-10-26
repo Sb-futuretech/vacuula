@@ -147,6 +147,24 @@
             }
         }
 
+        // tapping the text opens the entry for editing
+        .editable {
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
+
+        .editIcon {
+            font-size: 1rem;
+            opacity: 0.5;
+            vertical-align: -0.1rem;
+            margin-left: 0.3rem;
+        }
+
+        // a Pi entry switched off: kept, but not run
+        &.paused .info {
+            opacity: 0.55;
+        }
     }
 
     // A row that only holds a control (e.g. the Gen3 "Schedule" on/off switch):

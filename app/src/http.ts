@@ -81,6 +81,7 @@ export interface PiScheduleEntry {
   mode: number
   navigationMode: number
   zones: { mapId: string, boundaryId: string, name: string }[] // empty: whole map
+  enabled?: boolean // off: kept, but not run
 }
 
 /** GET /api/robot/<serial>/stats (gen3) */
@@ -194,6 +195,10 @@ export class Http {
 
   static addPiSchedule(serial: string, entry: Omit<PiScheduleEntry, 'id'>) {
     return instance.post<PiScheduleEntry>(`/robot/${serial}/pi-schedule`, JSON.stringify(entry))
+  }
+
+  static updatePiSchedule(serial: string, id: number, entry: Omit<PiScheduleEntry, 'id'>) {
+    return instance.put<PiScheduleEntry>(`/robot/${serial}/pi-schedule/${id}`, JSON.stringify(entry))
   }
 
   static deletePiSchedule(serial: string, id: number) {

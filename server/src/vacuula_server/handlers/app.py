@@ -373,6 +373,16 @@ def post_pi_schedule(req: RouterHandler, serial: str) -> None:
         return req.send_bad_request(msg)
     req.send_ok(pi_schedule.add(serial, entry))
 
+def put_pi_schedule(req: RouterHandler, serial: str, entry_id: str) -> None:
+    """PUT /robot/<serial>/pi-schedule/<id> - change one; body as for POST, plus "enabled" (off: kept, not run)"""
+    if not (data := req.read_json()): return
+    entry, msg = pi_schedule.validate(data)
+    if entry is None:
+        return req.send_bad_request(msg)
+    if not entry_id.isdigit() or (updated := pi_schedule.update(serial, int(entry_id), entry)) is None:
+        return req.send_not_found("Schedule entry not found")
+    req.send_ok(updated)
+
 def delete_pi_schedule(req: RouterHandler, serial: str, entry_id: str) -> None:
     """DELETE /robot/<serial>/pi-schedule/<id>"""
     if not entry_id.isdigit() or not pi_schedule.remove(serial, int(entry_id)):
