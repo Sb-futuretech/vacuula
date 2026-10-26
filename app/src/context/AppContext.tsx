@@ -109,6 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const getGen3State = (serial: string, name: string) => {
         GEN3_COMMANDS.getRobotState(serial).then((res) => {
+                if (res.data.state !== undefined) setLastHeartbeat(Date.now())
                 setRobot({
                     type: RobotType.NeatoGen3,
                     serial,
@@ -223,6 +224,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const refreshState = () => {
             if (robot.type === RobotType.NeatoGen3) {
                 GEN3_COMMANDS.getRobotState(robot.serial).then((res) => {
+                    // the robot answered: counts as a sign of life too (gen3 only pushes on state changes)
+                    if (res.data.state !== undefined) setLastHeartbeat(Date.now())
                     setRobot(cur => cur ? {
                         ...cur,
                         type: RobotType.NeatoGen3,
