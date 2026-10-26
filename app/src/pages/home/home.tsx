@@ -215,7 +215,27 @@ export default function Home() {
     const spotFixed = robot.type === RobotType.NeatoGen3 && gen3__cleaningCategory === CleaningCategory.SPOT
     const shownMode = spotFixed ? CleaningMode.ECO : gen3__cleaningMode
     const shownNavigation = spotFixed ? CleaningNavigationMode.NORMAL : gen3__navigationMode
-        
+
+    // gen3: what the robot is cleaning right now (zone or map, mode, navigation), next to the state
+    const cleaningInfo = (() => {
+        if (robot.type !== RobotType.NeatoGen3 || !robot.cleaning) return null
+        if (robot.state !== Neato.Gen3.RobotState.BUSY && robot.state !== Neato.Gen3.RobotState.PAUSED) return null
+        const A = Neato.Gen3.RobotAction
+        if (![A.HOUSE_CLEANING, A.SPOT_CLEANING, A.MAP_CLEANING, A.SUSPENDED_CLEANING].includes(robot.action)) return null
+        const c = robot.cleaning
+        let where: string
+        if (c.category === CleaningCategory.SPOT) where = t('home.spot')
+        else if (c.category === CleaningCategory.HOUSE) where = t('home.house')
+        else if (c.category === CleaningCategory.MAP) {
+            const zone = c.boundary && c.mapId ? getCachedZones(robot.serial, c.mapId).find(z => z.id === c.boundary?.id) : undefined
+            where = c.boundary?.name || zone?.name || persistentMaps?.find(m => m.id === c.mapId)?.name || t('home.map')
+        } else return null
+        const parts = [where, t(c.mode === CleaningMode.ECO ? 'modes.eco' : 'modes.normal')]
+        if (c.navigationMode === CleaningNavigationMode.EXTRA_CARE) parts.push(t('modes.extraCare'))
+        if (c.navigationMode === CleaningNavigationMode.DEEP) parts.push(t('modes.deep'))
+        return parts.join(' · ')
+    })()
+
     return (
         <div className={styles.home}>
 
@@ -275,6 +295,7 @@ export default function Home() {
                     <span className={styles.statusLabel}>
                         {t(getRobotStateKey(robot))}
                     </span>
+                    {cleaningInfo && <span className={styles.statusDetail}>{cleaningInfo}</span>}
                     <hr />
                     <span className={styles.timeAgo}>
                         {lastHeartbeat ? <TimeAgo date={lastHeartbeat} formatter={timeAgoFormatter} /> : t('common.notAvailable')}

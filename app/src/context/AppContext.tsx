@@ -119,6 +119,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     error: res.data.error,
                     state: res.data.state,
                     action: res.data.action,
+                    cleaning: res.data.cleaning,
                 })
             })
     }
@@ -231,6 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                         error: res.data.error,
                         state: res.data.state,
                         action: res.data.action,
+                        cleaning: res.data.cleaning,
                     } : cur)
                 });
             } else if (robot.type === RobotType.NeatoGen4) {
@@ -327,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 error: wrapper.data.data.error,
                 state: wrapper.data.data.state,
                 action: wrapper.data.data.action,
+                cleaning: wrapper.data.data.cleaning,
             } : cur)
         };
 

@@ -66,6 +66,8 @@ export interface Cleaning {
     navigationMode: CleaningNavigationMode;
     spotWidth:      number;
     spotHeight:     number;
+    mapId?:         string;
+    boundary?:      { id: string; name?: string };
 }
 
 export interface Data {

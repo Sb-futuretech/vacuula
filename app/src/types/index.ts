@@ -28,6 +28,7 @@ export interface Gen3Robot {
     details: Neato.Gen3.Details
     state: Neato.Gen3.RobotState
     action: Neato.Gen3.RobotAction
+    cleaning?: Neato.Gen3.Cleaning
 }
 
 export interface Gen4Robot {

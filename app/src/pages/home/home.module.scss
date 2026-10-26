@@ -177,6 +177,7 @@
     border: 1px solid $accent-border;
     border-radius: 2rem;
     padding: 0.6rem 1.6rem;
+    max-width: calc(100% - 3.2rem);
 }
 
 .pulseDot {
@@ -206,8 +207,19 @@
     letter-spacing: 0.03rem;
 }
 
+.statusDetail {
+    font-size: 1rem;
+    color: $accent;
+    opacity: 0.8;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .timeAgo {
     font-size: 1rem;
+    white-space: nowrap;
 }
 
 // ── Stats strip ───────────────────────────────────────────────────────────────
