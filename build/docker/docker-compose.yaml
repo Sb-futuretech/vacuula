@@ -10,6 +10,8 @@ services:
       - GEN4_ENABLED=True
       - MDNS_ENABLED=True
       # - TZ=Etc/UTC # uncomment and change only if Vacuula cannot detect your timezone automatically
+      # - HOST_IP= # uncomment and change only if Vacuula cannot detect your host IP automatically
+      # - LOG_LEVEL=info # debug, info, warning, error
     volumes:
       - vacuula-data:/server/data
     restart: unless-stopped
