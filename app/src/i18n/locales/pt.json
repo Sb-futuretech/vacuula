@@ -132,7 +132,8 @@
         },
         "scheduleClock": "Relógio do agendamento ajustado",
         "scheduleClockLocal": "O robô executa o agendamento na hora local (configurado com fuso horário). As entradas foram ajustadas e mantêm as horas; uma limpeza pode ter começado uma hora fora.",
-        "scheduleClockUtc": "O robô executa o agendamento em UTC. As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado uma hora fora."
+        "scheduleClockUtc": "O robô executa o agendamento em UTC. As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado uma hora fora.",
+        "scheduleClockOffset": "O robô executa o agendamento num relógio próprio fixo ({{offset}}). As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado fora de hora."
     },
     "drive": {
         "connecting": "A ligar ao robot…",

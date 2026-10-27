@@ -139,7 +139,8 @@
         },
         "scheduleClock": "Schedule clock adjusted",
         "scheduleClockLocal": "The robot runs its schedule in local time (set up with a timezone). Its entries were moved back, so they keep their times; one run may have started an hour off.",
-        "scheduleClockUtc": "The robot runs its schedule in UTC. Its entries were moved, so they keep their local times; one run may have started an hour off."
+        "scheduleClockUtc": "The robot runs its schedule in UTC. Its entries were moved, so they keep their local times; one run may have started an hour off.",
+        "scheduleClockOffset": "The robot runs its schedule on a fixed clock of its own ({{offset}}). Its entries were moved, so they keep their local times; one run may have started off."
     },
     "drive": {
         "connecting": "Connecting to the robot…",

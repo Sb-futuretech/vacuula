@@ -12,8 +12,9 @@ class Gen3Data(Base):
     installed_with: Mapped[str] = mapped_column(String, nullable=False)
     # UTC offset (min) the robot's schedule was written with, to follow DST (gen3/schedule_tz.py)
     schedule_utc_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # the clock the robot runs its schedule on: "utc" (installed without a timezone; the default)
-    # or "local" (installed with one); learned from scheduled runs (gen3/schedule_tz.py)
+    # the clock the robot runs its schedule on: "utc" (installed without a timezone; the default),
+    # "local" (installed with one) or a fixed UTC offset in minutes such as "120";
+    # learned from scheduled runs (gen3/schedule_tz.py)
     schedule_clock: Mapped[str | None] = mapped_column(String, nullable=True)
     # set while the server has switched the robot's own schedule off around one of its own runs
     # (gen3/pi_schedule.py): when to switch it on again, also after a server restart

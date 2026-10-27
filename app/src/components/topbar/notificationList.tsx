@@ -16,6 +16,10 @@ const ICONS: Record<AppNotification['kind'], string> = {
 
 // Notification centre list (the bell's dropdown): everything the server noted about the robot,
 // newest first. `onOpenRun` is called before a finished run opens on the runs page.
+// a robot clock's offset from UTC in minutes, as "UTC+2" / "UTC+5:30"
+const utcOffset = (min: number) =>
+    `UTC${min < 0 ? '-' : '+'}${Math.floor(Math.abs(min) / 60)}${Math.abs(min) % 60 ? `:${String(Math.abs(min) % 60).padStart(2, '0')}` : ''}`
+
 export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void }) {
     const { t, i18n } = useTranslation()
     const { notifications } = useApp()
@@ -61,7 +65,9 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
             }
             case 'schedule_clock': return {
                 title: t('notifications.scheduleClock'),
-                detail: t(n.code === 'local' ? 'notifications.scheduleClockLocal' : 'notifications.scheduleClockUtc'),
+                detail: n.code === 'local' ? t('notifications.scheduleClockLocal')
+                    : n.code === 'utc' || !n.code ? t('notifications.scheduleClockUtc')
+                    : t('notifications.scheduleClockOffset', { offset: utcOffset(Number(n.code)) }),
             }
             case 'robot_push': return { title: t('notifications.robotPush'), detail: pushCode(n) ? robotText(pushCode(n)) : d.body }
         }
