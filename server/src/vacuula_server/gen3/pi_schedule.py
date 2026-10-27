@@ -22,7 +22,6 @@ from vacuula_server.db import get_session
 from vacuula_server.gen3 import zone_queue
 from vacuula_server.gen3.commands import ask
 from vacuula_server.gen3.data import Gen3Data, Gen3PiSchedule
-from vacuula_server.gen3.schedule_tz import robot_to_local, shift_events
 from vacuula_server.server_tz import server_timezone
 
 logger = logging.getLogger(__name__)
@@ -119,10 +118,10 @@ def _starts_near(entry: Gen3PiSchedule, now: datetime) -> list[datetime]:
 
 
 def _overlapping_robot_events(serial: str, events: list[dict], start: datetime) -> list[str]:
-    """Start times of the robot's own events (on the robot's clock) close to `start`."""
+    """Start times of the robot's own events (taken as local time) close to `start`."""
     minute = start.hour * 60 + start.minute
     found = []
-    for e in shift_events(events, robot_to_local(serial)):
+    for e in events:
         try:
             h, m = map(int, e["startTime"].split(":"))
         except (KeyError, ValueError):
