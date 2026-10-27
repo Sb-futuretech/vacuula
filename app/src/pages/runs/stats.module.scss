@@ -123,6 +123,15 @@
     }
 }
 
+// two bars per slot (one per mode)
+.pair {
+    gap: 2px;
+}
+
+.zoneName {
+    font-weight: 600;
+}
+
 .bar {
     width: 100%;
     min-height: 3px;

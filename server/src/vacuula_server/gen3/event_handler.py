@@ -4,7 +4,7 @@ from vacuula_server import state
 import json
 import time
 from vacuula_server.state import pending_requests, put_drop_oldest
-from vacuula_server.gen3 import zone_queue
+from vacuula_server.gen3 import zone_queue, run_zone
 from vacuula_server import notifications
 import typing
 
@@ -47,9 +47,11 @@ def robot_data(serial: str, data: bytes):
     if decoded.get("type") == "state":
         zone_queue.on_state(serial, decoded.get("data") or {})
         notifications.on_state(serial, decoded.get("data") or {})
+        run_zone.on_state(serial, decoded.get("data") or {})
     elif "state" in decoded:
         zone_queue.on_state(serial, decoded)
         notifications.on_state(serial, decoded)
+        run_zone.on_state(serial, decoded)
 
     if reqId in pending_requests:
         slot = pending_requests.get(reqId)

@@ -39,6 +39,8 @@ export default () => {
             <Totals totals={stats.totals} />
             <DailyArea daily={stats.daily} />
             <BatteryCard stats={stats} />
+            <BatteryTrend weekly={stats.batteryWeekly ?? []} />
+            <Zones zones={stats.zones ?? []} />
             <div className={styles.columns}>
                 <Reliability reliability={stats.reliability} />
                 <Problems problems={stats.problems} />
@@ -178,6 +180,94 @@ function BatteryCard({ stats }: { stats: RobotStats }) {
                 <summary>{t('stats.details')}</summary>
                 <Battery points={stats.battery} />
             </details>
+        </section>
+    )
+}
+
+// minutes per charge per week and mode: how the battery holds up over time
+function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
+    const { t } = useTranslation()
+    const [hover, setHover] = useState<number>()
+    const shown = weekly.filter(w => BATTERY_SERIES.some(s => s.mode === w.mode))
+    if (!shown.length) return null
+
+    // every week from the first with data up to this one, empty weeks included
+    const monday = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7)
+    const first = monday(new Date(shown[0].week + 'T00:00')), last = monday(new Date())
+    const weeks: string[] = []
+    for (let d = first; d <= last; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)) {
+        weeks.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    }
+    const value = (week: string, mode: number) => shown.find(w => w.week === week && w.mode === mode)
+    const yMax = Math.ceil(Math.max(...shown.map(w => w.minutesPerCharge)) / 30) * 30
+    const week = hover !== undefined ? weeks[hover] : undefined
+
+    return (
+        <section className={styles.card}>
+            <h3>{t('stats.trendTitle')} <span className={styles.muted}>{t('stats.trendHint')}</span></h3>
+            <div className={styles.legend}>
+                {BATTERY_SERIES.map(s => <span key={s.key}><i style={{ background: s.color }} />{t(`modes.${s.key}`)}</span>)}
+            </div>
+            <div className={styles.plot} onPointerLeave={() => setHover(undefined)} role="img" aria-label={t('stats.trendTitle')}>
+                <span className={styles.gridLabel}>{t('stats.minutes', { value: yMax })}</span>
+                <div className={styles.bars}>
+                    {weeks.map((w, i) => (
+                        <div key={w} className={`${styles.barSlot} ${styles.pair} ${hover === i ? styles.hovered : ''}`}
+                            onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
+                            {BATTERY_SERIES.map(s => {
+                                const v = value(w, s.mode)
+                                return <div key={s.key} className={styles.bar}
+                                    style={{ height: v ? `${v.minutesPerCharge / yMax * 100}%` : 0, minHeight: v ? undefined : 0, background: s.color }} />
+                            })}
+                        </div>
+                    ))}
+                </div>
+                {week && (
+                    <div className={styles.tooltip} style={{ left: `${(hover! + 0.5) / weeks.length * 100}%`, translate: tooltipShift((hover! + 0.5) / weeks.length * 100) }}>
+                        <strong>{t('stats.weekOf', { date: shortDate(week + 'T00:00') })}</strong>
+                        {BATTERY_SERIES.map(s => {
+                            const v = value(week, s.mode)
+                            return v && <span key={s.key}>{t(`modes.${s.key}`)}: {t('stats.minutes', { value: v.minutesPerCharge })} · {t('stats.runs', { count: v.runs })}</span>
+                        })}
+                        {BATTERY_SERIES.every(s => !value(week, s.mode)) && <span>{t('stats.noRunsWeek')}</span>}
+                    </div>
+                )}
+            </div>
+            <div className={styles.axis}>
+                <span>{shortDate(weeks[0] + 'T00:00')}</span>
+                <span>{t('stats.thisWeek')}</span>
+            </div>
+        </section>
+    )
+}
+
+// per zone: how often, when last, how long and how fast it is cleaned
+function Zones({ zones }: { zones: RobotStats['zones'] }) {
+    const { t } = useTranslation()
+    const { formatArea, formatAreaPerMinute } = useUnits()
+    return (
+        <section className={styles.card}>
+            <h3>{t('stats.zonesTitle')}</h3>
+            {zones.length ? (
+                <table className={styles.table}>
+                    <tbody>
+                        {zones.map(z => (
+                            <tr key={z.id}>
+                                <td>
+                                    <div className={styles.zoneName}>{z.name || t('stats.unnamedZone')}</div>
+                                    <div className={styles.muted}>
+                                        {t('stats.runs', { count: z.runs })}{z.lastAt && ` · ${t('stats.lastAt', { date: shortDate(z.lastAt) })}`}
+                                    </div>
+                                </td>
+                                <td className={styles.num}>
+                                    <div>{t('stats.minutes', { value: z.minutes })} · {formatArea(z.area)}</div>
+                                    {z.areaPerMinute != null && <div className={styles.muted}>{formatAreaPerMinute(z.areaPerMinute)}</div>}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            ) : <span className={styles.muted}>{t('stats.noZones')}</span>}
         </section>
     )
 }

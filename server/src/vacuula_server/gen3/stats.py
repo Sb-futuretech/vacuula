@@ -12,11 +12,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 
 from vacuula_server.db import get_session
+from vacuula_server.gen3.data import Gen3MapBoundaries
 from vacuula_server.models.notification import Notification
 from vacuula_server.models.run import Gen3__Run
 from vacuula_server.server_tz import server_timezone
 
 DAYS = 28  # length of the daily history
+WEEKS = 26  # length of the weekly battery history
 
 
 def _time(value: str | None) -> datetime | None:
@@ -120,6 +122,65 @@ def _speed_groups(runs: list[dict]) -> list[dict]:
     } for (mode, nav), g in sorted(groups.items(), key=lambda kv: -kv[1]["seconds"])]
 
 
+def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
+    """Minutes per charge per week (starting Monday) and mode, from every measurable run: how the
+    battery holds up over time. Mapping runs (no mode) are left out."""
+    first = today - timedelta(days=today.weekday() + 7 * (WEEKS - 1))
+    weeks: dict[tuple, dict] = {}
+    for run in runs:
+        if (used := _used(run)) is None or not used or run.get("mode") is None:
+            continue
+        day = run["_start"].astimezone(tz).date()
+        if day < first:
+            continue
+        week = day - timedelta(days=day.weekday())
+        w = weeks.setdefault((week, run["mode"]), {"runs": 0, "used": 0, "seconds": 0.0})
+        w["runs"] += 1
+        w["used"] += used
+        w["seconds"] += run["_active"]
+    return [{
+        "week": week.isoformat(),
+        "mode": mode,
+        "runs": w["runs"],
+        "used": w["used"],
+        "minutesPerCharge": round(w["seconds"] / 60 / w["used"] * 100),
+    } for (week, mode), w in sorted(weeks.items())]
+
+
+def _zone_names(serial: str) -> dict[str, str]:
+    """Zone id -> name, from the zones kept for the robot's maps."""
+    with get_session() as session:
+        rows = session.execute(select(Gen3MapBoundaries.boundaries).where(Gen3MapBoundaries.robot == serial)).scalars().all()
+    return {b["id"]: b.get("name") or "" for boundaries in rows for b in boundaries or [] if isinstance(b, dict) and b.get("id")}
+
+
+def _zones(serial: str, runs: list[dict]) -> list[dict]:
+    """Per zone: how often and when it was last cleaned, how long it takes, how fast. Only runs
+    whose zone was recorded (gen3/run_zone.py)."""
+    zones: dict[str, dict] = {}
+    for run in runs:
+        if not (zone := run.get("zone")) or not zone.get("id"):
+            continue
+        z = zones.setdefault(zone["id"], {"name": "", "mapId": "", "runs": 0, "seconds": 0.0, "area": 0.0, "lastAt": None})
+        z["runs"] += 1
+        z["seconds"] += run["_active"]
+        z["area"] += run.get("cleaned_area") or 0
+        z["lastAt"] = run.get("start_at")  # runs are oldest first
+        z["name"] = zone.get("name") or z["name"]
+        z["mapId"] = zone.get("mapId") or z["mapId"]
+    names = _zone_names(serial) if zones else {}
+    return [{
+        "id": zone_id,
+        "name": names.get(zone_id) or z["name"],
+        "mapId": z["mapId"],
+        "runs": z["runs"],
+        "lastAt": z["lastAt"],
+        "minutes": round(z["seconds"] / 60 / z["runs"]),
+        "area": round(z["area"] / z["runs"], 1),
+        "areaPerMinute": _per_minute(z["area"], z["seconds"]),
+    } for zone_id, z in sorted(zones.items(), key=lambda kv: kv[1]["lastAt"] or "", reverse=True)]
+
+
 def _problems(serial: str) -> list[dict]:
     with get_session() as session:
         rows = session.execute(
@@ -153,6 +214,8 @@ def gen3_stats(serial: str) -> dict:
         "battery": [p for r in runs if (p := _battery_point(r))],
         "batteryGroups": _battery_groups(runs),
         "speedGroups": _speed_groups(runs),
+        "batteryWeekly": _battery_weekly(runs, tz, today),
+        "zones": _zones(serial, runs),
         "batteryNotMeasurable": sum(_used(r) is None for r in runs),
         "reliability": {
             "runs": len(runs),
