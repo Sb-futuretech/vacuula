@@ -41,11 +41,17 @@ def _runs(serial: str) -> list[dict]:
     return sorted(runs, key=lambda r: r["_start"])
 
 
+def _per_minute(area: float, seconds: float) -> float | None:
+    return round(area / (seconds / 60), 2) if seconds > 0 else None
+
+
 def _totals(runs: list[dict]) -> dict:
+    area, seconds = sum(r.get("cleaned_area") or 0 for r in runs), sum(r["_active"] for r in runs)
     return {
         "runs": len(runs),
-        "area": round(sum(r.get("cleaned_area") or 0 for r in runs), 1),
-        "hours": round(sum(r["_active"] for r in runs) / 3600, 1),  # cleaning time, without breaks
+        "area": round(area, 1),
+        "hours": round(seconds / 3600, 1),  # cleaning time, without breaks
+        "areaPerMinute": _per_minute(area, seconds),
     }
 
 
@@ -95,6 +101,25 @@ def _battery_groups(runs: list[dict]) -> list[dict]:
     } for (mode, nav), g in sorted(groups.items(), key=lambda kv: -kv[1]["used"])]
 
 
+def _speed_groups(runs: list[dict]) -> list[dict]:
+    """Area per minute of cleaning per mode + navigation, from every run with a cleaning time
+    (a recharge break does not matter here, unlike for battery use)."""
+    groups: dict[tuple, dict] = {}
+    for run in runs:
+        if run["_active"] <= 0:
+            continue
+        g = groups.setdefault((run.get("mode"), run.get("navigation_mode")), {"runs": 0, "seconds": 0.0, "area": 0.0})
+        g["runs"] += 1
+        g["seconds"] += run["_active"]
+        g["area"] += run.get("cleaned_area") or 0
+    return [{
+        "mode": mode,
+        "navigationMode": nav,
+        "runs": g["runs"],
+        "areaPerMinute": _per_minute(g["area"], g["seconds"]),
+    } for (mode, nav), g in sorted(groups.items(), key=lambda kv: -kv[1]["seconds"])]
+
+
 def _problems(serial: str) -> list[dict]:
     with get_session() as session:
         rows = session.execute(
@@ -127,6 +152,7 @@ def gen3_stats(serial: str) -> dict:
         "daily": [{"date": d.isoformat(), "area": round(v["area"], 1), "runs": v["runs"]} for d, v in sorted(days.items())],
         "battery": [p for r in runs if (p := _battery_point(r))],
         "batteryGroups": _battery_groups(runs),
+        "speedGroups": _speed_groups(runs),
         "batteryNotMeasurable": sum(_used(r) is None for r in runs),
         "reliability": {
             "runs": len(runs),

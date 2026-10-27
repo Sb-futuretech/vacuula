@@ -210,6 +210,7 @@
         "evidence": "data",
         "minutes": "≈ {{value}} min",
         "areaPerCharge": "Area per charge",
+        "areaPerMinute": "Area per minute of cleaning",
         "notMeasurable_one": "{{count}} run not measurable (recharged in between or no battery values)",
         "notMeasurable_other": "{{count}} runs not measurable (recharged in between or no battery values)",
         "details": "Every run",

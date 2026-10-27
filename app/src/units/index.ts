@@ -44,6 +44,12 @@ export function formatArea(squareMetres: number, units: Units = getUnits()): str
     return `${round(squareMetres, 1)} m²`
 }
 
+/** Area per minute given in m²/min, one more decimal than an area, e.g. "0.68 m²/min" or "7.3 ft²/min". */
+export function formatAreaPerMinute(squareMetres: number, units: Units = getUnits()): string {
+    if (units === 'imperial') return `${round(squareMetres * SQM_TO_SQFT, 1)} ft²/min`
+    return `${round(squareMetres, 2)} m²/min`
+}
+
 /** Length given in cm, formatted in the selected units, e.g. "120 cm" or "3.9 ft". */
 export function formatLength(centimetres: number, units: Units = getUnits()): string {
     if (units === 'imperial') return `${round(centimetres * CM_TO_FT, 1)} ft`
@@ -55,5 +61,6 @@ export function useUnits() {
     const set = useCallback((u: Units) => setUnits(u), [])
     const area = useCallback((squareMetres: number) => formatArea(squareMetres, units), [units])
     const length = useCallback((centimetres: number) => formatLength(centimetres, units), [units])
-    return { units, setUnits: set, formatArea: area, formatLength: length }
+    const areaPerMinute = useCallback((squareMetres: number) => formatAreaPerMinute(squareMetres, units), [units])
+    return { units, setUnits: set, formatArea: area, formatLength: length, formatAreaPerMinute: areaPerMinute }
 }

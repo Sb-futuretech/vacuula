@@ -85,7 +85,7 @@ export interface PiScheduleEntry {
 }
 
 /** GET /api/robot/<serial>/stats (gen3) */
-export interface StatsTotals { runs: number, area: number, hours: number }
+export interface StatsTotals { runs: number, area: number, hours: number, areaPerMinute: number | null }
 export interface RobotStats {
   totals: { week: StatsTotals, month: StatsTotals, all: StatsTotals }
   daily: { date: string, area: number, runs: number }[] // the last 28 days, oldest first
@@ -93,6 +93,7 @@ export interface RobotStats {
   battery: { startAt: string, mode: number | null, navigationMode: number | null, used: number, area: number, perHour: number, chargeStart: number }[]
   // every measurable run per mode + navigation the robot reported, summed up
   batteryGroups: { mode: number | null, navigationMode: number | null, runs: number, used: number, minutesPerCharge: number | null, areaPerCharge: number | null }[]
+  speedGroups: { mode: number | null, navigationMode: number | null, runs: number, areaPerMinute: number | null }[]
   batteryNotMeasurable: number // recharged in between or no battery values
   reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }
   launchedFrom: Record<string, number>

@@ -50,7 +50,7 @@ export default () => {
 
 function Totals({ totals }: { totals: RobotStats['totals'] }) {
     const { t } = useTranslation()
-    const { formatArea } = useUnits()
+    const { formatArea, formatAreaPerMinute } = useUnits()
     return (
         <div className={styles.tiles}>
             {(['week', 'month', 'all'] as const).map(period => (
@@ -58,6 +58,7 @@ function Totals({ totals }: { totals: RobotStats['totals'] }) {
                     <span className={styles.label}>{t(`stats.${period}`)}</span>
                     <span className={styles.hero}>{formatArea(totals[period].area)}</span>
                     <span className={styles.muted}>{t('stats.runsHours', { runs: totals[period].runs, hours: totals[period].hours })}</span>
+                    {totals[period].areaPerMinute != null && <span className={styles.muted}>{formatAreaPerMinute(totals[period].areaPerMinute)}</span>}
                 </div>
             ))}
         </div>
@@ -113,9 +114,10 @@ const evidence = (used: number) => used < 50 ? 1 : used < 150 ? 2 : used < 300 ?
 // How far a charge goes, per mode + navigation, from every run that can be measured
 function BatteryCard({ stats }: { stats: RobotStats }) {
     const { t } = useTranslation()
-    const { formatArea } = useUnits()
+    const { formatArea, formatAreaPerMinute } = useUnits()
     const groups = stats.batteryGroups.filter(g => g.minutesPerCharge !== null)
-    const label = (g: RobotStats['batteryGroups'][number]) => g.mode === null
+    const speed = (stats.speedGroups ?? []).filter(g => g.areaPerMinute !== null)
+    const label = (g: { mode: number | null, navigationMode: number | null }) => g.mode === null
         ? t('stats.mapping')
         : `${t(`modes.${MODE_KEYS[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${NAV_KEYS[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
     const dots = (used: number) => (
@@ -155,6 +157,22 @@ function BatteryCard({ stats }: { stats: RobotStats }) {
                     </table>
                 </>
             ) : <span className={styles.muted}>{t('stats.noBattery')}</span>}
+            {speed.length > 0 && (
+                <>
+                    <h4>{t('stats.areaPerMinute')}</h4>
+                    <table className={styles.table}>
+                        <tbody>
+                            {speed.map(g => (
+                                <tr key={`${g.mode}-${g.navigationMode}`}>
+                                    <td>{label(g)}</td>
+                                    <td className={styles.num}>{formatAreaPerMinute(g.areaPerMinute ?? 0)}</td>
+                                    <td className={styles.num}>{t('stats.runs', { count: g.runs })}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </>
+            )}
             {stats.batteryNotMeasurable > 0 && <span className={styles.muted}>{t('stats.notMeasurable', { count: stats.batteryNotMeasurable })}</span>}
             <details className={styles.details}>
                 <summary>{t('stats.details')}</summary>

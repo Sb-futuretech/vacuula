@@ -203,6 +203,7 @@
         "evidence": "dados",
         "minutes": "≈ {{value}} min",
         "areaPerCharge": "Área por carga",
+        "areaPerMinute": "Área por minuto de limpeza",
         "notMeasurable_one": "{{count}} limpeza sem medição (recarregou a meio ou sem valores)",
         "notMeasurable_other": "{{count}} limpezas sem medição (recarregou a meio ou sem valores)",
         "details": "Todas as limpezas",
