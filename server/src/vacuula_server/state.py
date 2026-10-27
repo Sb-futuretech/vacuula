@@ -6,6 +6,8 @@ from contextlib import suppress
 
 # robot_connections: List[RobotConn]  = []
 robot_connections: Dict[str, RobotConn] = {}
+# serial -> when its command connection last ended (time.time()), to tell how long a robot was gone
+disconnected_at: Dict[str, float] = {}
 
 
 # client_connection:
