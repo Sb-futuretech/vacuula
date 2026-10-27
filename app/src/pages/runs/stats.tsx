@@ -110,6 +110,14 @@ const NAV_KEYS: Record<number, string> = {
     [Neato.Gen3.CleaningNavigationMode.EXTRA_CARE]: 'extraCare',
     [Neato.Gen3.CleaningNavigationMode.DEEP]: 'deep',
 }
+// "Eco · Normal", "Normal · Deep", or "Mapping run" for a run without a mode
+function useComboLabel() {
+    const { t } = useTranslation()
+    return (g: { mode: number | null, navigationMode: number | null }) => g.mode === null
+        ? t('stats.mapping')
+        : `${t(`modes.${MODE_KEYS[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${NAV_KEYS[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
+}
+
 // how much a group's numbers rest on: battery % used in total -> 1..4 dots
 const evidence = (used: number) => used < 50 ? 1 : used < 150 ? 2 : used < 300 ? 3 : 4
 
@@ -119,9 +127,7 @@ function BatteryCard({ stats }: { stats: RobotStats }) {
     const { formatArea, formatAreaPerMinute } = useUnits()
     const groups = stats.batteryGroups.filter(g => g.minutesPerCharge !== null)
     const speed = (stats.speedGroups ?? []).filter(g => g.areaPerMinute !== null)
-    const label = (g: { mode: number | null, navigationMode: number | null }) => g.mode === null
-        ? t('stats.mapping')
-        : `${t(`modes.${MODE_KEYS[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${NAV_KEYS[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
+    const label = useComboLabel()
     const dots = (used: number) => (
         <span className={styles.dots} title={t('stats.evidence')} aria-label={t('stats.evidence')}>
             {[1, 2, 3, 4].map(i => <i key={i} className={i <= evidence(used) ? styles.on : ''} />)}
@@ -184,11 +190,12 @@ function BatteryCard({ stats }: { stats: RobotStats }) {
     )
 }
 
-// minutes per charge per week and mode: how the battery holds up over time
+// battery index per week: each run against the average of its own mode + navigation (100 % = as usual)
 function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
     const { t } = useTranslation()
+    const label = useComboLabel()
     const [hover, setHover] = useState<number>()
-    const shown = weekly.filter(w => BATTERY_SERIES.some(s => s.mode === w.mode))
+    const shown = weekly.filter(w => w.index !== null)
     if (!shown.length) return null
 
     // every week from the first with data up to this one, empty weeks included
@@ -198,40 +205,39 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
     for (let d = first; d <= last; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)) {
         weeks.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
     }
-    const value = (week: string, mode: number) => shown.find(w => w.week === week && w.mode === mode)
-    const yMax = Math.ceil(Math.max(...shown.map(w => w.minutesPerCharge)) / 30) * 30
-    const week = hover !== undefined ? weeks[hover] : undefined
+    const byWeek = (week: string) => shown.find(w => w.week === week)
+    const yMax = Math.max(125, Math.ceil(Math.max(...shown.map(w => w.index!)) / 25) * 25)
+    const week = hover !== undefined ? byWeek(weeks[hover]) : undefined
 
     return (
         <section className={styles.card}>
             <h3>{t('stats.trendTitle')} <span className={styles.muted}>{t('stats.trendHint')}</span></h3>
-            <div className={styles.legend}>
-                {BATTERY_SERIES.map(s => <span key={s.key}><i style={{ background: s.color }} />{t(`modes.${s.key}`)}</span>)}
-            </div>
             <div className={styles.plot} onPointerLeave={() => setHover(undefined)} role="img" aria-label={t('stats.trendTitle')}>
-                <span className={styles.gridLabel}>{t('stats.minutes', { value: yMax })}</span>
+                <div className={styles.gridLine} style={{ bottom: `${100 / yMax * 100}%` }}><span>100 %</span></div>
+                <span className={styles.gridLabel}>{yMax} %</span>
                 <div className={styles.bars}>
-                    {weeks.map((w, i) => (
-                        <div key={w} className={`${styles.barSlot} ${styles.pair} ${hover === i ? styles.hovered : ''}`}
-                            onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
-                            {BATTERY_SERIES.map(s => {
-                                const v = value(w, s.mode)
-                                return <div key={s.key} className={styles.bar}
-                                    style={{ height: v ? `${v.minutesPerCharge / yMax * 100}%` : 0, minHeight: v ? undefined : 0, background: s.color }} />
-                            })}
-                        </div>
-                    ))}
+                    {weeks.map((w, i) => {
+                        const v = byWeek(w)
+                        return (
+                            <div key={w} className={`${styles.barSlot} ${hover === i ? styles.hovered : ''}`}
+                                onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
+                                {v && <div className={styles.bar} style={{ height: `${v.index! / yMax * 100}%` }} />}
+                            </div>
+                        )
+                    })}
                 </div>
-                {week && (
-                    <div className={styles.tooltip} style={{ left: `${(hover! + 0.5) / weeks.length * 100}%`, translate: tooltipShift((hover! + 0.5) / weeks.length * 100) }}>
-                        <strong>{t('stats.weekOf', { date: shortDate(week + 'T00:00') })}</strong>
-                        {BATTERY_SERIES.map(s => {
-                            const v = value(week, s.mode)
-                            return v && <span key={s.key}>{t(`modes.${s.key}`)}: {t('stats.minutes', { value: v.minutesPerCharge })} · {t('stats.runs', { count: v.runs })}</span>
-                        })}
-                        {BATTERY_SERIES.every(s => !value(week, s.mode)) && <span>{t('stats.noRunsWeek')}</span>}
+                {hover !== undefined && (
+                    <div className={styles.tooltip} style={{ left: `${(hover + 0.5) / weeks.length * 100}%`, translate: tooltipShift((hover + 0.5) / weeks.length * 100) }}>
+                        <strong>{t('stats.weekOf', { date: shortDate(weeks[hover] + 'T00:00') })}</strong>
+                        {week ? <>
+                            <span>{t('stats.trendValue', { value: week.index })} · {t('stats.runs', { count: week.runs })}</span>
+                            {week.combos.map(c => <span key={`${c.mode}-${c.navigationMode}`}>{c.runs}× {label(c)}</span>)}
+                        </> : <span>{t('stats.noRunsWeek')}</span>}
                     </div>
                 )}
+            </div>
+            <div className={`${styles.axis} ${styles.counts}`}>
+                {weeks.map(w => <span key={w}>{byWeek(w)?.runs ?? ''}</span>)}
             </div>
             <div className={styles.axis}>
                 <span>{shortDate(weeks[0] + 'T00:00')}</span>

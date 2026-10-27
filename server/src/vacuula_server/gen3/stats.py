@@ -123,28 +123,37 @@ def _speed_groups(runs: list[dict]) -> list[dict]:
 
 
 def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
-    """Minutes per charge per week (starting Monday) and mode, from every measurable run: how the
-    battery holds up over time. Mapping runs (no mode) are left out."""
+    """A battery index per week (starting Monday): each run's minutes per % against the average of
+    its own mode + navigation (100 = as usual), so weeks with other modes compare. Weighted by the
+    battery a run used: index = cleaning time / the time the same use takes on average."""
+    measured = [(r, used) for r in runs if (used := _used(r))]
+    sums: dict[tuple, list] = {}
+    for run, used in measured:
+        g = sums.setdefault((run.get("mode"), run.get("navigation_mode")), [0.0, 0])
+        g[0] += run["_active"]
+        g[1] += used
+    per_pct = {combo: seconds / used for combo, (seconds, used) in sums.items() if seconds > 0}
+
     first = today - timedelta(days=today.weekday() + 7 * (WEEKS - 1))
-    weeks: dict[tuple, dict] = {}
-    for run in runs:
-        if (used := _used(run)) is None or not used or run.get("mode") is None:
-            continue
+    weeks: dict = {}
+    for run, used in measured:
+        combo = (run.get("mode"), run.get("navigation_mode"))
         day = run["_start"].astimezone(tz).date()
-        if day < first:
+        if day < first or combo not in per_pct:
             continue
-        week = day - timedelta(days=day.weekday())
-        w = weeks.setdefault((week, run["mode"]), {"runs": 0, "used": 0, "seconds": 0.0})
+        w = weeks.setdefault(day - timedelta(days=day.weekday()), {"runs": 0, "used": 0, "seconds": 0.0, "expected": 0.0, "combos": Counter()})
         w["runs"] += 1
         w["used"] += used
         w["seconds"] += run["_active"]
+        w["expected"] += used * per_pct[combo]
+        w["combos"][combo] += 1
     return [{
         "week": week.isoformat(),
-        "mode": mode,
+        "index": round(w["seconds"] / w["expected"] * 100) if w["expected"] else None,
         "runs": w["runs"],
         "used": w["used"],
-        "minutesPerCharge": round(w["seconds"] / 60 / w["used"] * 100),
-    } for (week, mode), w in sorted(weeks.items())]
+        "combos": [{"mode": m, "navigationMode": n, "runs": c} for (m, n), c in w["combos"].most_common()],
+    } for week, w in sorted(weeks.items())]
 
 
 def _zone_names(serial: str) -> dict[str, str]:

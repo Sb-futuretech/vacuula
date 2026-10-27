@@ -123,9 +123,14 @@
     }
 }
 
-// two bars per slot (one per mode)
-.pair {
-    gap: 2px;
+// runs per week, one cell under each bar
+.counts {
+    justify-content: stretch;
+
+    span {
+        flex: 1;
+        text-align: center;
+    }
 }
 
 .zoneName {
