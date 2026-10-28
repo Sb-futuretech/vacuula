@@ -39,7 +39,8 @@ def _runs(serial: str) -> list[dict]:
             continue
         seconds = (end - start).total_seconds()
         idle = sum(run.get(k) or 0 for k in ("time_in_suspended_cleaning", "time_in_pause", "time_in_error"))
-        runs.append({**run, "_start": start, "_seconds": seconds, "_active": max(seconds - idle, 0)})
+        r = {**run, "_start": start, "_seconds": seconds, "_active": max(seconds - idle, 0)}
+        runs.append({**r, "_battery": _battery(r)})
     return sorted(runs, key=lambda r: r["_start"])
 
 
@@ -57,17 +58,32 @@ def _totals(runs: list[dict]) -> dict:
     }
 
 
-def _used(run: dict) -> int | None:
-    """Battery % a run used, None if that cannot be measured (recharged in between, no values)."""
+def _battery(run: dict) -> tuple[int, float] | None:
+    """Battery % a run used and the cleaning seconds it took, None if that cannot be measured. A run
+    that recharged in between counts by its stretches between recharges (gen3/run_segments.py)."""
+    if run.get("suspended_cleaning_charging_count"):
+        segments = [s for s in run.get("segments") or [] if s["charge_end"] <= s["charge_start"] and s["seconds"] > 0]
+        used, seconds = sum(s["charge_start"] - s["charge_end"] for s in segments), sum(s["seconds"] for s in segments)
+        return (used, seconds) if used > 0 else None
     start, end = run.get("run_charge_at_start"), run.get("run_charge_at_end")
-    if start is None or end is None or run.get("suspended_cleaning_charging_count") or end > start:
+    if start is None or end is None or end > start:
         return None
-    return start - end
+    return start - end, run["_active"]
+
+
+def _used(run: dict) -> int | None:
+    """Battery % a run used, None if that cannot be measured."""
+    return run["_battery"][0] if run["_battery"] else None
+
+
+def _battery_seconds(run: dict) -> float:
+    """The cleaning seconds the battery use was measured over."""
+    return run["_battery"][1] if run["_battery"] else 0.0
 
 
 def _battery_point(run: dict) -> dict | None:
     used = _used(run)
-    if used is None or run["_active"] <= 0:
+    if used is None or _battery_seconds(run) <= 0:
         return None
     area = run.get("cleaned_area") or 0
     return {
@@ -76,7 +92,7 @@ def _battery_point(run: dict) -> dict | None:
         "navigationMode": run.get("navigation_mode"),
         "used": used,
         "area": round(area, 1),
-        "perHour": round(used / (run["_active"] / 3600), 1),
+        "perHour": round(used / (_battery_seconds(run) / 3600), 1),
         "chargeStart": run.get("run_charge_at_start"),
     }
 
@@ -91,7 +107,7 @@ def _battery_groups(runs: list[dict]) -> list[dict]:
         g = groups.setdefault((run.get("mode"), run.get("navigation_mode")), {"runs": 0, "used": 0, "seconds": 0.0, "area": 0.0})
         g["runs"] += 1
         g["used"] += used
-        g["seconds"] += run["_active"]
+        g["seconds"] += _battery_seconds(run)
         g["area"] += run.get("cleaned_area") or 0
     return [{
         "mode": mode,
@@ -131,7 +147,7 @@ def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
     sums: dict[tuple, list] = {}
     for run, used in measured:
         g = sums.setdefault((run.get("mode"), run.get("navigation_mode")), [0.0, 0])
-        g[0] += run["_active"]
+        g[0] += _battery_seconds(run)
         g[1] += used
     per_pct = {combo: seconds / used for combo, (seconds, used) in sums.items() if seconds > 0}
 
@@ -149,7 +165,7 @@ def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
             continue
         w["runs"] += 1
         w["used"] += used
-        w["seconds"] += run["_active"]
+        w["seconds"] += _battery_seconds(run)
         w["expected"] += used * per_pct[combo]
         w["combos"][combo] += 1
     return [{
