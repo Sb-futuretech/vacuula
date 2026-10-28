@@ -40,6 +40,7 @@ export default () => {
             <DailyArea daily={stats.daily} />
             <BatteryCard stats={stats} />
             <BatteryTrend weekly={stats.batteryWeekly ?? []} />
+            {stats.batteryInfo && <BatteryHealth info={stats.batteryInfo} changes={stats.batteryChanges ?? []} />}
             <Zones zones={stats.zones ?? []} />
             <div className={styles.columns}>
                 <Reliability reliability={stats.reliability} />
@@ -220,7 +221,7 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
                     {weeks.map((w, i) => {
                         const v = byWeek(w)
                         return (
-                            <div key={w} className={`${styles.barSlot} ${hover === i ? styles.hovered : ''}`}
+                            <div key={w} className={`${styles.barSlot} ${hover === i ? styles.hovered : ''} ${v?.newBattery ? styles.newBattery : ''}`}
                                 onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
                                 {v?.index != null && <div className={styles.bar} style={{ height: `${v.index! / yMax * 100}%` }} />}
                             </div>
@@ -235,6 +236,7 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
                             {week.combos.map(c => <span key={`${c.mode}-${c.navigationMode}`}>{c.runs}× {label(c)}</span>)}
                         </> : <span>{t('stats.noRunsWeek')}</span>}
                         {!!week?.skipped && <span>{t('stats.trendSkipped', { count: week.skipped })}</span>}
+                        {week?.newBattery && <span>{t('stats.newBatteryWeek')}</span>}
                     </div>
                 )}
             </div>
@@ -248,6 +250,27 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
                 <span>{shortDate(weeks[0] + 'T00:00')}</span>
                 <span>{t('stats.thisWeek')}</span>
             </div>
+        </section>
+    )
+}
+
+// what the robot reports about its battery, read after each run; a new battery shows by its serial
+function BatteryHealth({ info, changes }: { info: NonNullable<RobotStats['batteryInfo']>, changes: NonNullable<RobotStats['batteryChanges']> }) {
+    const { t } = useTranslation()
+    const last = changes[changes.length - 1]
+    const rows: [string, string][] = []
+    if (info.totalCharges != null) rows.push([t('stats.chargeCycles'), String(info.totalCharges)])
+    if (info.timeToEmpty != null) rows.push([t('stats.timeToEmpty'), t('stats.minutes', { value: Math.round(info.timeToEmpty / 60) })])
+    if (info.designCapacity != null) rows.push([t('stats.designCapacity'), `${info.designCapacity} mAh${info.vendor ? ` · ${info.vendor}` : ''}`])
+    if (info.runSeconds != null) rows.push([t('stats.runHours'), `${Math.round(info.runSeconds / 3600)} h`])
+    if (info.serial != null) rows.push([t('stats.batterySerial'), String(info.serial)])
+    if (last) rows.push([t('stats.batteryChanged'), shortDate(last.at)])
+    return (
+        <section className={styles.card}>
+            <h3>{t('stats.batteryHealthTitle')} <span className={styles.muted}>{t('stats.batteryHealthHint', { date: shortDate(info.at) })}</span></h3>
+            <dl className={styles.rows}>
+                {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            </dl>
         </section>
     )
 }

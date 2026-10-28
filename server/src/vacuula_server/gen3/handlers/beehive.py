@@ -10,7 +10,7 @@ from vacuula_server.models.robot import Robot
 from vacuula_server.models.persistent_map import PersistentMap
 from vacuula_server.models.run import Gen3__Run
 from vacuula_server import notifications
-from vacuula_server.gen3 import run_segments, run_zone, schedule_tz
+from vacuula_server.gen3 import battery_info, run_segments, run_zone, schedule_tz
 import os
 import re
 from sqlalchemy import select
@@ -176,6 +176,8 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
     dock = floormap_meta.get("dock")
     base = (dock["normalised_x"], dock["normalised_y"]) if dock else None
     valid = run['valid_as_persistent_map']
+    # asked before the database session: the robot may take a few seconds to answer
+    battery = battery_info.read(serial)
 
     with get_session() as session:
         pmap = session.get(PersistentMap, run_id)
@@ -204,6 +206,8 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
         # its stretches between recharges, seen in its state
         if segments := run_segments.for_run(serial, run) or (grun.run.get("segments") if grun else None):
             run = {**run, "segments": segments}
+        if battery := battery or (grun.run.get("battery_info") if grun else None):
+            run = {**run, "battery_info": battery}
         if grun is None:
             session.add(Gen3__Run(
                 id=run_id,

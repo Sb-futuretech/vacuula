@@ -312,3 +312,8 @@
     gap: 1rem;
     margin-top: 1rem;
 }
+
+// the week a new battery was put in: a line at the start of its slot
+.newBattery {
+    box-shadow: inset 2px 0 0 $accent;
+}

@@ -94,7 +94,10 @@ export interface RobotStats {
   // every measurable run per mode + navigation the robot reported, summed up
   batteryGroups: { mode: number | null, navigationMode: number | null, runs: number, used: number, minutesPerCharge: number | null, areaPerCharge: number | null }[]
   speedGroups: { mode: number | null, navigationMode: number | null, runs: number, areaPerMinute: number | null }[]
-  batteryWeekly: { week: string, index: number | null, runs: number, skipped?: number, used: number, combos: { mode: number | null, navigationMode: number | null, runs: number }[] }[]
+  batteryWeekly: { week: string, index: number | null, runs: number, skipped?: number, newBattery?: boolean, used: number, combos: { mode: number | null, navigationMode: number | null, runs: number }[] }[]
+  batteryInfo?: { serial: number | null, vendor: string | null, designCapacity: number | null, totalCharges: number | null,
+    timeToEmpty: number | null, level: number | null, runSeconds: number | null, at: string } | null
+  batteryChanges?: { at: string, serial: number, totalCharges: number | null }[]
   zones: { id: string, name: string, mapId: string, runs: number, lastAt: string | null, minutes: number, area: number, areaPerMinute: number | null }[]
   batteryNotMeasurable: number // recharged in between or no battery values
   reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }

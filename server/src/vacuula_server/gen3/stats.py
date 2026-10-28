@@ -178,6 +178,22 @@ def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
     } for week, w in sorted(weeks.items())]
 
 
+def _battery_readings(runs: list[dict]) -> tuple[dict | None, list[dict]]:
+    """The newest battery reading (gen3/battery_info.py) and every battery change: a run whose
+    battery serial differs from the run before."""
+    latest, changes, previous = None, [], None
+    for run in runs:
+        info = run.get("battery_info")
+        if not info:
+            continue
+        latest = {**info, "at": run.get("start_at")}
+        if info.get("serial") is not None:
+            if previous is not None and info["serial"] != previous:
+                changes.append({"at": run.get("start_at"), "serial": info["serial"], "totalCharges": info.get("totalCharges")})
+            previous = info["serial"]
+    return latest, changes
+
+
 def _zone_names(serial: str) -> dict[str, str]:
     """Zone id -> name, from the zones kept for the robot's maps."""
     with get_session() as session:
@@ -235,6 +251,16 @@ def gen3_stats(serial: str) -> dict:
             day["area"] += run.get("cleaned_area") or 0
             day["runs"] += 1
 
+    battery_info, battery_changes = _battery_readings(runs)
+    weekly = _battery_weekly(runs, tz, today)
+    change_weeks = set()
+    for change in battery_changes:
+        if day := _time(change["at"]):
+            day = day.astimezone(tz).date()
+            change_weeks.add((day - timedelta(days=day.weekday())).isoformat())
+    for w in weekly:
+        w["newBattery"] = w["week"] in change_weeks
+
     return {
         "totals": {
             "week": _totals([r for r in runs if r["_start"] >= now - timedelta(days=7)]),
@@ -245,7 +271,9 @@ def gen3_stats(serial: str) -> dict:
         "battery": [p for r in runs if (p := _battery_point(r))],
         "batteryGroups": _battery_groups(runs),
         "speedGroups": _speed_groups(runs),
-        "batteryWeekly": _battery_weekly(runs, tz, today),
+        "batteryWeekly": weekly,
+        "batteryInfo": battery_info,
+        "batteryChanges": battery_changes,
         "zones": _zones(serial, runs),
         "batteryNotMeasurable": sum(_used(r) is None for r in runs),
         "reliability": {
