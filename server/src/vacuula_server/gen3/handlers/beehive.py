@@ -10,7 +10,7 @@ from vacuula_server.models.robot import Robot
 from vacuula_server.models.persistent_map import PersistentMap
 from vacuula_server.models.run import Gen3__Run
 from vacuula_server import notifications
-from vacuula_server.gen3 import run_zone, schedule_tz
+from vacuula_server.gen3 import run_segments, run_zone, schedule_tz
 import os
 import re
 from sqlalchemy import select
@@ -201,6 +201,9 @@ def upload_finish(req: RouterHandler, upload_type:Literal["maps", "logs"], job_i
         # the zone it cleaned, seen in its state (an earlier upload of the run may have it already)
         if zone := run_zone.for_run(serial, run) or (grun.run.get("zone") if grun else None):
             run = {**run, "zone": zone}
+        # its stretches between recharges, seen in its state
+        if segments := run_segments.for_run(serial, run) or (grun.run.get("segments") if grun else None):
+            run = {**run, "segments": segments}
         if grun is None:
             session.add(Gen3__Run(
                 id=run_id,
