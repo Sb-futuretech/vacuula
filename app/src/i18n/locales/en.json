@@ -155,6 +155,8 @@
         "entryTitle": "{{startedBy}} cleaning | {{date}}",
         "batteryUsed": "{{percent}}% used",
         "noRuns": "Your robot has not worked yet, make it sweat!",
+        "openMap": "Open the map full screen",
+        "closeMap": "Close",
         "duration": "Duration",
         "area": "Area",
         "battery": "Battery",

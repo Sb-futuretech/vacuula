@@ -3,7 +3,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import Drawer from '../../components/drawer/drawer'
 
 import type { GetSchedule, ScheduleEvent } from './types'
-import { FaPlus, FaTimes, FaUndo, FaPen, FaCheckCircle, FaCircle, FaTrash } from 'react-icons/fa'
+import { FaPlus, FaTimes, FaUndo, FaPen, FaCheckCircle, FaCircle, FaTrash, FaExpand } from 'react-icons/fa'
 import Input from '../../components/input/input'
 import { PiBoundingBox } from "react-icons/pi";
 import { biEnum } from '../../types/.helpers'
@@ -32,6 +32,15 @@ export default () => {
     const [selectedCleaning, setSelectedCleaning] = useState<Neato.Gen4.Cleaning | Neato.Gen3.CleaningRun>();
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [tab, setTab] = useState<'runs' | 'stats'>('runs')
+    const [fullMap, setFullMap] = useState(false)
+
+    // Escape closes the full-screen map
+    useEffect(() => {
+        if (!fullMap) return
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullMap(false) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [fullMap])
 
     const getCleanings = () => {
         Http.getCleanings(robot.serial).then(res => {
@@ -138,7 +147,12 @@ export default () => {
 
                     <hr style={{ width: '100%' }} />
 
-                    <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />
+                    <div className={styles.mapWrap}>
+                        <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />
+                        <button className={styles.expandMap} onClick={() => setFullMap(true)} aria-label={t('runs.openMap')} title={t('runs.openMap')}>
+                            <FaExpand />
+                        </button>
+                    </div>
 
                     {/* TODO: Explain the differnet colors meaning */}
 
@@ -186,6 +200,18 @@ export default () => {
                 </>
 
             </Drawer>
+
+            {fullMap && selectedCleaning && (
+                <div className={styles.fullMap} role="dialog" aria-modal="true">
+                    <div className={styles.fullMapHeader}>
+                        <span>{new Date('timing' in selectedCleaning ? selectedCleaning.timing.start : selectedCleaning.run.start_at).toLocaleString()}</span>
+                        <button onClick={() => setFullMap(false)} aria-label={t('runs.closeMap')} title={t('runs.closeMap')}><FaTimes /></button>
+                    </div>
+                    <div className={styles.fullMapBody}>
+                        <Map mapId={selectedCleaning.id} runId={selectedCleaning.id} />
+                    </div>
+                </div>
+            )}
         </div>
 
     )

@@ -148,6 +148,8 @@
         "entryTitle": "Limpeza {{startedBy}} | {{date}}",
         "batteryUsed": "{{percent}}% gasta",
         "noRuns": "O seu robot ainda não trabalhou, ponha-o a suar!",
+        "openMap": "Abrir o mapa em tela cheia",
+        "closeMap": "Fechar",
         "duration": "Duração",
         "area": "Área",
         "battery": "Bateria",
