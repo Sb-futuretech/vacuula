@@ -125,7 +125,8 @@ def _speed_groups(runs: list[dict]) -> list[dict]:
 def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
     """A battery index per week (starting Monday): each run's minutes per % against the average of
     its own mode + navigation (100 = as usual), so weeks with other modes compare. Weighted by the
-    battery a run used: index = cleaning time / the time the same use takes on average."""
+    battery a run used: index = cleaning time / the time the same use takes on average. Runs that
+    cannot be measured (recharged in between) are counted per week as `skipped`."""
     measured = [(r, used) for r in runs if (used := _used(r))]
     sums: dict[tuple, list] = {}
     for run, used in measured:
@@ -136,12 +137,16 @@ def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
 
     first = today - timedelta(days=today.weekday() + 7 * (WEEKS - 1))
     weeks: dict = {}
-    for run, used in measured:
-        combo = (run.get("mode"), run.get("navigation_mode"))
+    for run in runs:
         day = run["_start"].astimezone(tz).date()
-        if day < first or combo not in per_pct:
+        if day < first:
             continue
-        w = weeks.setdefault(day - timedelta(days=day.weekday()), {"runs": 0, "used": 0, "seconds": 0.0, "expected": 0.0, "combos": Counter()})
+        w = weeks.setdefault(day - timedelta(days=day.weekday()),
+                             {"runs": 0, "skipped": 0, "used": 0, "seconds": 0.0, "expected": 0.0, "combos": Counter()})
+        used, combo = _used(run), (run.get("mode"), run.get("navigation_mode"))
+        if not used or combo not in per_pct:
+            w["skipped"] += 1
+            continue
         w["runs"] += 1
         w["used"] += used
         w["seconds"] += run["_active"]
@@ -151,6 +156,7 @@ def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
         "week": week.isoformat(),
         "index": round(w["seconds"] / w["expected"] * 100) if w["expected"] else None,
         "runs": w["runs"],
+        "skipped": w["skipped"],
         "used": w["used"],
         "combos": [{"mode": m, "navigationMode": n, "runs": c} for (m, n), c in w["combos"].most_common()],
     } for week, w in sorted(weeks.items())]

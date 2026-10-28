@@ -197,15 +197,16 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
     const [hover, setHover] = useState<number>()
     const shown = weekly.filter(w => w.index !== null)
     if (!shown.length) return null
+    const all = weekly.filter(w => w.index !== null || w.skipped)
 
     // every week from the first with data up to this one, empty weeks included
     const monday = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7)
-    const first = monday(new Date(shown[0].week + 'T00:00')), last = monday(new Date())
+    const first = monday(new Date(all[0].week + 'T00:00')), last = monday(new Date())
     const weeks: string[] = []
     for (let d = first; d <= last; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)) {
         weeks.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
     }
-    const byWeek = (week: string) => shown.find(w => w.week === week)
+    const byWeek = (week: string) => all.find(w => w.week === week)
     const yMax = Math.max(125, Math.ceil(Math.max(...shown.map(w => w.index!)) / 25) * 25)
     const week = hover !== undefined ? byWeek(weeks[hover]) : undefined
 
@@ -221,7 +222,7 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
                         return (
                             <div key={w} className={`${styles.barSlot} ${hover === i ? styles.hovered : ''}`}
                                 onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
-                                {v && <div className={styles.bar} style={{ height: `${v.index! / yMax * 100}%` }} />}
+                                {v?.index != null && <div className={styles.bar} style={{ height: `${v.index! / yMax * 100}%` }} />}
                             </div>
                         )
                     })}
@@ -229,15 +230,19 @@ function BatteryTrend({ weekly }: { weekly: RobotStats['batteryWeekly'] }) {
                 {hover !== undefined && (
                     <div className={styles.tooltip} style={{ left: `${(hover + 0.5) / weeks.length * 100}%`, translate: tooltipShift((hover + 0.5) / weeks.length * 100) }}>
                         <strong>{t('stats.weekOf', { date: shortDate(weeks[hover] + 'T00:00') })}</strong>
-                        {week ? <>
+                        {week?.index != null ? <>
                             <span>{t('stats.trendValue', { value: week.index })} · {t('stats.runs', { count: week.runs })}</span>
                             {week.combos.map(c => <span key={`${c.mode}-${c.navigationMode}`}>{c.runs}× {label(c)}</span>)}
                         </> : <span>{t('stats.noRunsWeek')}</span>}
+                        {!!week?.skipped && <span>{t('stats.trendSkipped', { count: week.skipped })}</span>}
                     </div>
                 )}
             </div>
             <div className={`${styles.axis} ${styles.counts}`}>
-                {weeks.map(w => <span key={w}>{byWeek(w)?.runs ?? ''}</span>)}
+                {weeks.map(w => {
+                    const v = byWeek(w)
+                    return <span key={w}>{v?.runs || ''}{v?.skipped ? <span className={styles.muted}> +{v.skipped}</span> : ''}</span>
+                })}
             </div>
             <div className={styles.axis}>
                 <span>{shortDate(weeks[0] + 'T00:00')}</span>
