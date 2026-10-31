@@ -19,3 +19,19 @@ export function getGen4NavigationMode(): Neato.Gen4.CleaningNavigationMode {
     return localStorage.getItem('vacuula.gen4.navigationMode') as (Neato.Gen4.CleaningNavigationMode | null) || Neato.Gen4.CleaningNavigationMode.NORMAL
 }
 
+
+// Help-text i18n keys for the cleaning options, so Home and Schedule describe them
+// the same way. The values live under `modeHelp.*` in the locales.
+export function gen3CleaningModeHelp(mode: Neato.Gen3.CleaningMode): string {
+    return mode === Neato.Gen3.CleaningMode.ECO ? 'modeHelp.cleaning.eco' : 'modeHelp.cleaning.normal'
+}
+export function gen3NavigationHelp(nav: Neato.Gen3.CleaningNavigationMode): string {
+    return nav === Neato.Gen3.CleaningNavigationMode.EXTRA_CARE ? 'modeHelp.navigation.extraCare'
+        : nav === Neato.Gen3.CleaningNavigationMode.DEEP ? 'modeHelp.navigation.deep'
+        : 'modeHelp.navigation.normal'
+}
+export function gen3CategoryHelp(cat: Neato.Gen3.CleaningCategory): string {
+    return cat === Neato.Gen3.CleaningCategory.SPOT ? 'modeHelp.category.spot'
+        : cat === Neato.Gen3.CleaningCategory.MAP ? 'modeHelp.category.map'
+        : 'modeHelp.category.house'
+}

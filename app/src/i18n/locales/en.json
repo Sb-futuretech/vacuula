@@ -19,6 +19,26 @@
         "loading": "Loading",
         "sendingCommand": "Sending command..."
     },
+    "modeHelp": {
+        "cleaning": {
+            "eco": "Quieter and uses less power — runs longer.",
+            "normal": "Full suction — cleans harder, a little louder.",
+            "turbo": "Stronger suction than Eco.",
+            "max": "Maximum suction.",
+            "auto": "Adjusts suction to the floor automatically."
+        },
+        "navigation": {
+            "normal": "Standard path and speed.",
+            "extraCare": "Slower and more careful around furniture and obstacles.",
+            "deep": "Goes over the floor twice for a more thorough clean — takes longer.",
+            "gentle": "Slower, quieter driving."
+        },
+        "category": {
+            "house": "Cleans the whole place in one go, no map needed.",
+            "map": "Cleans a stored map — lets you pick zones and no-go areas.",
+            "spot": "Cleans a small square around the robot."
+        }
+    },
     "modes": {
         "auto": "Auto",
         "eco": "Eco",

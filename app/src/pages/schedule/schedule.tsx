@@ -19,6 +19,7 @@ import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
 import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
 import { Http, type PiScheduleEntry } from '../../http'
+import { gen3CleaningModeHelp, gen3NavigationHelp } from '../../utils/modes'
 import { useMascot } from '../../mascot'
 
 // a robot event this close to a Pi entry is its fallback (server: gen3/pi_schedule.py OVERLAP_MIN)
@@ -315,6 +316,7 @@ export default () => {
                             { value: CleaningMode.NORMAL, label: t('modes.normal') },
                         ]}
                         value={scheduleForm.mode}
+                        extraInfo={t(gen3CleaningModeHelp(scheduleForm.mode) as any)}
                         // Eco together with Deep is rejected by the robot
                         onChange={(mode) => updateForm(SetScheduleForm, mode === CleaningMode.ECO && scheduleForm.navigationMode === CleaningNavigationMode.DEEP
                             ? { mode, navigationMode: CleaningNavigationMode.NORMAL } : { mode })}
@@ -329,7 +331,9 @@ export default () => {
                             { value: CleaningNavigationMode.DEEP, label: t('modes.deep') },
                         ]}
                         value={scheduleForm.navigationMode}
-                        extraInfo={scheduleForm.navigationMode === CleaningNavigationMode.DEEP ? t('schedule.deepNeedsNormal') : undefined}
+                        extraInfo={scheduleForm.navigationMode === CleaningNavigationMode.DEEP
+                            ? `${t('modeHelp.navigation.deep')} ${t('schedule.deepNeedsNormal')}`
+                            : t(gen3NavigationHelp(scheduleForm.navigationMode) as any)}
                         onChange={(navigationMode) => updateForm(SetScheduleForm, navigationMode === CleaningNavigationMode.DEEP
                             ? { navigationMode, mode: CleaningMode.NORMAL } : { navigationMode })}
                     />

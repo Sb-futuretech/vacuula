@@ -19,6 +19,26 @@
         "loading": "A carregar",
         "sendingCommand": "A enviar comando..."
     },
+    "modeHelp": {
+        "cleaning": {
+            "eco": "Mais silencioso e gasta menos energia — dura mais.",
+            "normal": "Sucção total — limpa com mais força, um pouco mais alto.",
+            "turbo": "Sucção mais forte que o Eco.",
+            "max": "Sucção máxima.",
+            "auto": "Ajusta a sucção ao piso automaticamente."
+        },
+        "navigation": {
+            "normal": "Trajeto e velocidade padrão.",
+            "extraCare": "Mais lento e cuidadoso perto de móveis e obstáculos.",
+            "deep": "Passa duas vezes pelo chão para uma limpeza mais completa — demora mais.",
+            "gentle": "Condução mais lenta e silenciosa."
+        },
+        "category": {
+            "house": "Limpa tudo de uma vez, sem precisar de mapa.",
+            "map": "Limpa um mapa salvo — permite escolher zonas e áreas proibidas.",
+            "spot": "Limpa um pequeno quadrado ao redor do robô."
+        }
+    },
     "modes": {
         "auto": "Auto",
         "eco": "Eco",
