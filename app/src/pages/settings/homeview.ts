@@ -13,5 +13,5 @@ export function saveHomeView(view: HomeView) {
 
 export function loadHomeView(): HomeView {
     const view = localStorage.getItem('vacuula.homeView') as HomeView | null;
-    return view && HOME_VIEWS.some(v => v.value === view) ? view : 'mascot';
+    return view && HOME_VIEWS.some(v => v.value === view) ? view : 'lastRun';
 }
