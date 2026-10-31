@@ -5,6 +5,8 @@ import { MdOutlineFitScreen } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { useTranslation } from 'react-i18next'
 import Drawer from '../../components/drawer/drawer'
+import MapRulers from './MapRulers'
+import PointEditor from './PointEditor'
 import { DRAWING } from '../../components/map/constants'
 import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
 import type { Point, UseState } from '../../components/map/types'
@@ -76,8 +78,28 @@ export default function MapCanvas({
 
     const atPointLimit = maxPoints !== undefined && currentLinePoints.length >= maxPoints
 
-    // Mouse only (touch keeps the crosshair + button): a click that did not pan the map picks the
-    // point under the cursor, or adds a new point there. Pointer events tell mouse and touch apart.
+    // canvas size in CSS pixels, for the rulers
+    const [canvasBox, setCanvasBox] = useState({ width: 0, height: 0 })
+    useEffect(() => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const observer = new ResizeObserver(() => setCanvasBox({ width: canvas.clientWidth, height: canvas.clientHeight }))
+        observer.observe(canvas)
+        return () => observer.disconnect()
+    }, [canvasRef])
+
+    // index of the drawn point at canvas position x/y (CSS px), -1 if none; `reach` scales the hit radius
+    const pointAt = (x: number, y: number, reach: number) => !mapSize ? -1 : currentLinePoints.findIndex(([px, py]) =>
+        Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * reach)
+
+    const deletePoint = (index: number) => {
+        if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
+        setCurrentLinePoints(prev => prev.filter((_, i) => i !== index))
+        setSelectedPoint(null)
+    }
+
+    // Mouse (touch: see onTouchEnd): a click that did not pan the map picks the point under the
+    // cursor, or adds a new point there. Pointer events tell mouse and touch apart.
     const clickStartRef = useRef<{ x: number, y: number } | null>(null)
     const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
         clickStartRef.current = e.pointerType === 'mouse' && e.button === 0 ? { x: e.clientX, y: e.clientY } : null
@@ -91,8 +113,7 @@ export default function MapCanvas({
         const rect = e.currentTarget.getBoundingClientRect()
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
-        const hit = currentLinePoints.findIndex(([px, py]) =>
-            Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * 2.5)
+        const hit = pointAt(x, y, 2.5)
         if (hit !== -1) {
             setSelectedPoint(hit)
             return
@@ -135,9 +156,7 @@ export default function MapCanvas({
                 : p))
         } else if (e.key === 'Backspace' || e.key === 'Delete') {
             if (active < 0) return true
-            if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
-            setCurrentLinePoints(prev => prev.filter((_, i) => i !== active))
-            setSelectedPoint(null)
+            deletePoint(active)
         } else if (e.key === 'Enter') {
             if (allowClose && currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
         } else if (e.key === 'Escape') {
@@ -177,9 +196,22 @@ export default function MapCanvas({
         }
     }
 
-    const onTouchEnd = (e: React.TouchEvent) => {
+    // a tap (no pan) on a drawn point selects it for the position editor; anywhere else adds a
+    // point at the crosshair as before
+    const onTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
         canvasHandlers.onTouchEnd(e)
-        if (mode === 'boundary-edit' && !hasMoved) addPointAtCrosshair()
+        if (mode !== 'boundary-edit' || hasMoved) return
+        const touch = e.changedTouches[0]
+        if (touch) {
+            const rect = e.currentTarget.getBoundingClientRect()
+            const hit = pointAt(touch.clientX - rect.left, touch.clientY - rect.top, 4) // fingers are less precise
+            if (hit !== -1) {
+                setSelectedPoint(hit)
+                return
+            }
+        }
+        setSelectedPoint(null)
+        addPointAtCrosshair()
     }
 
     return (
@@ -202,6 +234,24 @@ export default function MapCanvas({
                     touchAction: 'none'
                 }}
             />
+
+            {mode === 'boundary-edit' && mapSize && (
+                <MapRulers zoom={zoom} offset={offset} mapSize={mapSize} mmPerPixel={mmPerPixel}
+                    width={canvasBox.width} height={canvasBox.height} />
+            )}
+
+            {mode === 'boundary-edit' && mapSize && selectedPoint !== null && currentLinePoints[selectedPoint] && (
+                <PointEditor
+                    index={selectedPoint}
+                    point={currentLinePoints[selectedPoint]}
+                    previous={selectedPoint > 0 ? currentLinePoints[selectedPoint - 1] : null}
+                    mapSize={mapSize}
+                    mmPerPixel={mmPerPixel}
+                    onChange={p => setCurrentLinePoints(prev => prev.map((q, i) => i === selectedPoint ? p : q))}
+                    onDelete={() => deletePoint(selectedPoint)}
+                    onDone={() => setSelectedPoint(null)}
+                />
+            )}
 
             <div className={styles.zoomButtons}>
                 <button onClick={() => zoomStep(DRAWING.ZOOM_STEP)} aria-label="Zoom in"><FaPlus size={16} /></button>
