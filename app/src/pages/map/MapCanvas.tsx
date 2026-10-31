@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './map.module.scss'
-import { FaMinus, FaPlus, FaUndo } from 'react-icons/fa'
+import { FaMinus, FaPlus, FaUndo, FaRegQuestionCircle } from 'react-icons/fa'
 import { MdOutlineFitScreen } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
+import { useTranslation } from 'react-i18next'
+import Drawer from '../../components/drawer/drawer'
 import { DRAWING } from '../../components/map/constants'
 import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
 import type { Point, UseState } from '../../components/map/types'
@@ -59,6 +61,8 @@ export default function MapCanvas({
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
+    const [helpOpen, setHelpOpen] = useState(false)
+    const { t } = useTranslation()
 
     const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep } = useMap({
         mapId,
@@ -201,6 +205,9 @@ export default function MapCanvas({
                 <button onClick={() => zoomStep(DRAWING.ZOOM_STEP)} aria-label="Zoom in"><FaPlus size={16} /></button>
                 <button onClick={() => zoomStep(1 / DRAWING.ZOOM_STEP)} aria-label="Zoom out"><FaMinus size={16} /></button>
                 <button onClick={resetView} aria-label="Fit map"><MdOutlineFitScreen size={18} /></button>
+                {mode === 'boundary-edit' && (
+                    <button onClick={() => setHelpOpen(true)} aria-label={t('map.help')}><FaRegQuestionCircle size={17} /></button>
+                )}
             </div>
 
             {mode === 'boundary-edit' && (
@@ -221,6 +228,22 @@ export default function MapCanvas({
                     </div>
                 </div>
             )}
+
+            <Drawer open={helpOpen} handle={false} onOpenChange={setHelpOpen} openHeightPercent={72} title={t('map.helpTitle')}>
+                <div className={styles.mapHelp}>
+                    <div className={styles.mapHelpSection}>
+                        <div className={styles.mapHelpHead}>{t('map.helpMoveTitle')}</div>
+                        <div className={styles.mapHelpText}>{t('map.helpMove')}</div>
+                    </div>
+                    <div className={styles.mapHelpSection}>
+                        <div className={styles.mapHelpHead}>{t('map.helpDrawTitle')}</div>
+                        <div className={styles.mapHelpRow}><span className={styles.mapHelpIcon}><FaPlus size={15} /></span><span>{t('map.helpDraw1')}</span></div>
+                        <div className={styles.mapHelpRow}><span className={styles.mapHelpIcon}><FaUndo size={15} /></span><span>{t('map.helpDraw2')}</span></div>
+                        <div className={styles.mapHelpRow}><span className={styles.mapHelpIcon}><PiBoundingBox size={15} /></span><span>{t('map.helpDraw3')}</span></div>
+                        <div className={styles.mapHelpText}>{t('map.helpDraw4')}</div>
+                    </div>
+                </div>
+            </Drawer>
         </>
     )
 }
