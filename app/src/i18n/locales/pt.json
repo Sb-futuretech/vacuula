@@ -256,6 +256,8 @@
         "weekdaysShort": "Seg–Sex",
         "weekendShort": "Fim de semana",
         "days": "Dias",
+        "saveHint": "Selecione pelo menos um dia e uma hora para salvar.",
+        "timeHint": "Nenhuma hora definida ainda — insira horas e minutos.",
         "selectZonesHelp": "Opcional: selecione uma ou mais zonas para limpar; se nenhuma for selecionada, todo o mapa será limpo.",
         "navigationExtra": "Extra Care e Deep",
         "runsOnPi": "Executado pelo Pi: o agendamento do robô não guarda {{what}}.",

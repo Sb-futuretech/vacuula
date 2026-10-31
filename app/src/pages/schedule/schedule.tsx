@@ -338,6 +338,7 @@ export default () => {
                         type="time"
                         label={`${t('common.time')} (${serverInfo?.timezone ?? 'UTC'})`}
                         value={scheduleForm.startTime}
+                        extraInfo={!scheduleForm.startTime ? t('schedule.timeHint') : undefined}
                         onChange={(startTime) => updateForm(SetScheduleForm, { startTime })} />
 
                     <Input
@@ -362,6 +363,9 @@ export default () => {
                         <span className={styles.note}>{t('schedule.movesToRobot')}</span>
                     )}
 
+                    {(days.length === 0 || !scheduleForm.startTime) && (
+                        <span className={styles.note}>{t('schedule.saveHint')}</span>
+                    )}
                     <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={saveEvents} />
                 </div>
 

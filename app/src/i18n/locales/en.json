@@ -263,6 +263,8 @@
         "weekdaysShort": "Mon–Fri",
         "weekendShort": "Weekend",
         "days": "Days",
+        "saveHint": "Pick at least one day and a time to save.",
+        "timeHint": "No time set yet — enter hours and minutes.",
         "selectZonesHelp": "Optional, select one or more zones to clean, if none selected, it will clean entire map.",
         "navigationExtra": "Extra Care and Deep",
         "runsOnPi": "Runs from the Pi: the robot's own schedule cannot keep {{what}}.",
