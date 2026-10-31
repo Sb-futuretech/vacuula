@@ -5,7 +5,7 @@ import { loadHomeView } from '../settings/homeview'
 import { MdAutoAwesome, MdCleaningServices, MdError, MdMotionPhotosAuto, MdOutlineHealthAndSafety, MdWarning } from 'react-icons/md'
 import { IoMdPause, IoMdPlay } from 'react-icons/io'
 import { TbAdjustments, TbLeaf, TbHome } from 'react-icons/tb'
-import { FaBell, FaFan, FaStop } from 'react-icons/fa'
+import { FaBell, FaFan, FaStop, FaLock } from 'react-icons/fa'
 import { HiMap } from "react-icons/hi2";
 import { CleaningCategory, CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useEffect, useState } from 'react'
@@ -133,6 +133,25 @@ function CtrlBtn({ icon, label, selection, disabled, onClick }: { icon: React.Re
 const BELL_MS = 5 * 2500;
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+// Gen3 cleaning options shown in the Home picker sheets, with their help-text keys.
+const NAV_OPTIONS = [
+    { value: CleaningNavigationMode.NORMAL, label: 'modes.normal', help: 'modeHelp.navigation.normal' },
+    { value: CleaningNavigationMode.EXTRA_CARE, label: 'modes.extraCare', help: 'modeHelp.navigation.extraCare' },
+    { value: CleaningNavigationMode.DEEP, label: 'modes.deep', help: 'modeHelp.navigation.deep' },
+] as const
+const CLEAN_OPTIONS = [
+    { value: CleaningMode.ECO, label: 'modes.eco', help: 'modeHelp.cleaning.eco' },
+    { value: CleaningMode.NORMAL, label: 'modes.normal', help: 'modeHelp.cleaning.normal' },
+] as const
+const navIconFor = (v: CleaningNavigationMode, size = 22) =>
+    v === CleaningNavigationMode.EXTRA_CARE ? <MdOutlineHealthAndSafety color='var(--warn)' size={size} /> :
+        v === CleaningNavigationMode.DEEP ? <MdAutoAwesome color='var(--violet)' size={size} /> :
+            <MdCleaningServices color='var(--accent)' size={size} />
+const cleanIconFor = (v: CleaningMode, size = 22) =>
+    v === CleaningMode.NORMAL ? <FaFan size={size} color='orange' /> : <TbLeaf size={size} color='lime' />
+const navName = (v: CleaningNavigationMode) => NAV_OPTIONS.find(o => o.value === v)?.label ?? 'modes.normal'
+const cleanName = (v: CleaningMode) => CLEAN_OPTIONS.find(o => o.value === v)?.label ?? 'modes.eco'
+
 export default function Home() {
     const { lastHeartbeat, getGen3State } = useApp()
     const { robot } = useRobot();
@@ -161,6 +180,7 @@ export default function Home() {
     }, [showLastRun, robot.serial, robot.state])
     const lastCleaning = recentCleanings[Math.min(runIndex, recentCleanings.length - 1)]
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
+    const [cleaningDrawerOpen, setCleaningDrawerOpen] = useState(false)
 
     // TODO: make functions of this to fetch easily etc
     const [gen3__cleaningMode, gen3__setCleaningMode] = useState<CleaningMode>(getGen3CleaningMode())
@@ -358,17 +378,10 @@ export default function Home() {
 
                     {robot.type === RobotType.NeatoGen3 && (
                         <>
-
-                            {shownNavigation === CleaningNavigationMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.navigation')} disabled={spotFixed} icon={<MdCleaningServices color='var(--accent)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.EXTRA_CARE)} selection={t('modes.normal')} />)}
-                            {shownNavigation === CleaningNavigationMode.EXTRA_CARE && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdOutlineHealthAndSafety color='var(--warn)' size={22} />} onClick={() => { gen3__setNavigationMode(CleaningNavigationMode.DEEP); gen3__setCleaningMode(CleaningMode.NORMAL) }} selection={t('modes.extraCare')} />)}
-                            {shownNavigation === CleaningNavigationMode.DEEP && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdAutoAwesome color='var(--violet)' size={22} />} onClick={() => gen3__setNavigationMode(CleaningNavigationMode.NORMAL)} selection={t('modes.deep')} />)}
-
-                            {shownMode === CleaningMode.ECO && (<CtrlBtn label={t('home.btnExplain.cleaning')} disabled={spotFixed} icon={<TbLeaf size={22} color='lime' />} onClick={() => gen3__setCleaningMode(CleaningMode.NORMAL)} selection={t('modes.eco')} />)}
-                            {shownMode === CleaningMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaFan size={22} color='orange' />} onClick={() => {
-                                gen3__setCleaningMode(CleaningMode.ECO)
-                                // Gen3 rejects Deep together with Eco (invalid_entry)
-                                if (gen3__navigationMode === CleaningNavigationMode.DEEP) gen3__setNavigationMode(CleaningNavigationMode.NORMAL)
-                            }} selection={t('modes.normal')} />)}
+                            <CtrlBtn label={t('home.btnExplain.cleaning')} disabled={spotFixed}
+                                icon={<span style={{ display: 'flex', gap: '2px' }}>{cleanIconFor(shownMode, 18)}{navIconFor(shownNavigation, 18)}</span>}
+                                selection={`${t(cleanName(shownMode) as any)} · ${t(navName(shownNavigation) as any)}`}
+                                onClick={() => setCleaningDrawerOpen(true)} />
                         </>
                     )}
 
@@ -604,6 +617,50 @@ export default function Home() {
                     </span>
                 )}
 
+            </Drawer>
+
+            <Drawer open={cleaningDrawerOpen} handle={false} onOpenChange={setCleaningDrawerOpen} openHeightPercent={78} title={t('home.btnExplain.cleaning')}>
+                <div className={styles.drawerContent}>
+                    <div className={styles.pickSection}>{t('home.cleaningSuction')}</div>
+                    {CLEAN_OPTIONS.map(o => {
+                        // Gen3 rejects Deep together with Eco: block Eco while Deep is on, don't flip silently
+                        const blocked = o.value === CleaningMode.ECO && gen3__navigationMode === CleaningNavigationMode.DEEP
+                        const sel = gen3__cleaningMode === o.value
+                        return (
+                            <button key={o.value} disabled={blocked}
+                                className={`${styles.pickRow} ${sel ? styles.pickSel : ''} ${blocked ? styles.pickBlocked : ''}`}
+                                onClick={() => gen3__setCleaningMode(o.value)}>
+                                <span className={styles.pickIcon}>{cleanIconFor(o.value)}</span>
+                                <span className={styles.pickText}>
+                                    <span className={styles.pickName}>{t(o.label)}{sel && <span className={styles.pickCheck}>✓</span>}</span>
+                                    <span className={styles.pickDesc}>{t(o.help as any)}</span>
+                                    {blocked && <span className={styles.pickReason}><FaLock size={11} /> {t('home.cleaningReasonEco')}</span>}
+                                </span>
+                            </button>
+                        )
+                    })}
+
+                    <div className={styles.pickSection}>{t('schedule.navigation')}</div>
+                    {NAV_OPTIONS.map(o => {
+                        // Deep needs full suction: block Deep while Eco is on
+                        const blocked = o.value === CleaningNavigationMode.DEEP && gen3__cleaningMode === CleaningMode.ECO
+                        const sel = gen3__navigationMode === o.value
+                        return (
+                            <button key={o.value} disabled={blocked}
+                                className={`${styles.pickRow} ${sel ? styles.pickSel : ''} ${blocked ? styles.pickBlocked : ''}`}
+                                onClick={() => gen3__setNavigationMode(o.value)}>
+                                <span className={styles.pickIcon}>{navIconFor(o.value)}</span>
+                                <span className={styles.pickText}>
+                                    <span className={styles.pickName}>{t(o.label)}{sel && <span className={styles.pickCheck}>✓</span>}</span>
+                                    <span className={styles.pickDesc}>{t(o.help as any)}</span>
+                                    {blocked && <span className={styles.pickReason}><FaLock size={11} /> {t('home.cleaningReasonDeep')}</span>}
+                                </span>
+                            </button>
+                        )
+                    })}
+
+                    <button className={styles.okButton} onClick={() => setCleaningDrawerOpen(false)}>{t('common.ok')}</button>
+                </div>
             </Drawer>
 
         </div>

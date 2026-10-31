@@ -530,3 +530,77 @@
     min-width: 8rem;
     @include pressable;
 }
+// option rows in the Home mode picker sheets (navigation / cleaning)
+.pickRow {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    width: 100%;
+    text-align: left;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: $text-primary;
+    cursor: pointer;
+
+    &:active { background: rgba(255, 255, 255, 0.05); }
+}
+.pickSel {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+.pickIcon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+}
+.pickText {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.pickName {
+    font-weight: 600;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pickCheck { color: var(--accent); font-size: 0.9rem; }
+.pickDesc {
+    opacity: 0.65;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+// combined cleaning sheet: section header, blocked (incompatible) option, and its reason line
+.pickSection {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    color: $text-primary;
+    opacity: 0.45;
+    margin: 14px 4px 6px;
+
+    &:first-child { margin-top: 2px; }
+}
+.pickBlocked {
+    opacity: 0.4;
+    cursor: not-allowed;
+
+    &:active { background: transparent; }
+}
+.pickReason {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: #e8b24a;
+}
