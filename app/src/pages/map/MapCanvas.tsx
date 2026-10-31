@@ -34,6 +34,7 @@ interface MapCanvasProps {
     closedAsPolygon: boolean
     setClosedAsPolygon: UseState<boolean>
     setDrawerOpen: (open: boolean) => void
+    allowClose?: boolean // false for a No-Go Line: the points can't be closed into a polygon
     maxPoints?: number // robot-side vertex limit, undefined = unlimited
     selectedPoint: number | null // null = the last point
     setSelectedPoint: (index: number | null) => void
@@ -54,6 +55,7 @@ export default function MapCanvas({
     closedAsPolygon,
     setClosedAsPolygon,
     setDrawerOpen,
+    allowClose = true,
     maxPoints,
     selectedPoint,
     setSelectedPoint,
@@ -137,7 +139,7 @@ export default function MapCanvas({
             setCurrentLinePoints(prev => prev.filter((_, i) => i !== active))
             setSelectedPoint(null)
         } else if (e.key === 'Enter') {
-            if (currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
+            if (allowClose && currentLinePoints.length > 2 && !closedAsPolygon) closeAsPolygon()
         } else if (e.key === 'Escape') {
             setSelectedPoint(null)
         } else return false
@@ -223,9 +225,11 @@ export default function MapCanvas({
                     <div onClick={addPointAtCrosshair} className={`${styles.add} ${closedAsPolygon || atPointLimit ? styles.disabled : ''}`}>
                         <FaPlus size={40} color="var(--text)" />
                     </div>
-                    <div onClick={closeAsPolygon} className={`${styles.closePolygon} ${((currentLinePoints.length > 2) && !closedAsPolygon) ? '' : styles.disabled}`}>
-                        <PiBoundingBox size={20} color="var(--text)" />
-                    </div>
+                    {allowClose && (
+                        <div onClick={closeAsPolygon} className={`${styles.closePolygon} ${((currentLinePoints.length > 2) && !closedAsPolygon) ? '' : styles.disabled}`}>
+                            <PiBoundingBox size={20} color="var(--text)" />
+                        </div>
+                    )}
                 </div>
             )}
 

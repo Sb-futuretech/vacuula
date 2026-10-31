@@ -48,6 +48,10 @@ export default () => {
     // point picked with the mouse for arrow keys / delete; null = the last point
     const [selectedPoint, setSelectedPoint] = useState<number | null>(null)
     const [closedAsPolygon, setClosedAsPolygon] = useState(false)
+    // feature type picked up front for a NEW feature (the Add-feature chooser): presets the zone
+    // type and, via allowClose below, decides whether drawing can be closed into a polygon
+    const [featureChooserOpen, setFeatureChooserOpen] = useState(false)
+    const [pendingKind, setPendingKind] = useState<BoundaryTypes>(BoundaryTypes.NOGO_LINE)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
@@ -192,10 +196,11 @@ export default () => {
             // New boundary: first preset not used on this map. Existing one with a
             // malformed colour (old un-padded random hex): also fall back to a preset.
             color: normalizeHex(existingBoundary?.color) ?? pickUnusedPreset(boundaries.map(b => b.color)),
-            zoneType: existingBoundary?.type === 'polygon' ?
-                (existingBoundary?.function === 'cleaning' ?
-                    BoundaryTypes.CLEANING_ZONE : BoundaryTypes.NOGO_ZONE
-                ) : BoundaryTypes.NOGO_LINE
+            zoneType: existingBoundary
+                ? (existingBoundary.type === 'polygon'
+                    ? (existingBoundary.function === 'cleaning' ? BoundaryTypes.CLEANING_ZONE : BoundaryTypes.NOGO_ZONE)
+                    : BoundaryTypes.NOGO_LINE)
+                : pendingKind // new feature: the kind picked in the Add-feature chooser
         });
         setCurrentLinePoints(existingBoundary?.vertices || [])
         setClosedAsPolygon(existingBoundary?.type === 'polygon')
@@ -288,6 +293,8 @@ export default () => {
                         setCurrentLinePoints={setCurrentLinePoints}
                         closedAsPolygon={closedAsPolygon}
                         setClosedAsPolygon={setClosedAsPolygon}
+                        // a No-Go Line stays an open line: no closing into a polygon
+                        allowClose={editForm.zoneType !== BoundaryTypes.NOGO_LINE}
                         setDrawerOpen={setDrawerOpen}
                         // Gen3 firmware silently keeps only the first 10 vertices of a boundary
                         maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
@@ -452,7 +459,7 @@ export default () => {
                         )}
                         <hr />
                         <div className={styles.buttonContainer}>
-                            <Button text={t('map.addFeature')} style='primary' onClick={() => openEdit(uuidv4())} />
+                            <Button text={t('map.addFeature')} style='primary' onClick={() => setFeatureChooserOpen(true)} />
                         </div>
 
                         <div className={styles.featureList}>
@@ -484,6 +491,31 @@ export default () => {
                         {t('map.gen4UpdateBugHint')}
                     </span>
                 )}
+            </Drawer>
+
+            <Drawer open={featureChooserOpen} handle={false} onOpenChange={setFeatureChooserOpen} openHeightPercent={robot.type === RobotType.NeatoGen4 ? 60 : 48} title={t('map.chooseFeature')}>
+                <div className={styles.featureChooser}>
+                    {(robot.type === RobotType.NeatoGen4
+                        ? [BoundaryTypes.CLEANING_ZONE, BoundaryTypes.NOGO_ZONE, BoundaryTypes.NOGO_LINE]
+                        : [BoundaryTypes.CLEANING_ZONE, BoundaryTypes.NOGO_LINE]
+                    ).map(kind => (
+                        <button key={kind} className={styles.featureChoice}
+                            onClick={() => {
+                                setPendingKind(kind)
+                                setFeatureChooserOpen(false)
+                                openEdit(uuidv4())
+                            }}>
+                            <span className={styles.featureChoiceName}>{
+                                kind === BoundaryTypes.CLEANING_ZONE ? t('map.cleaningZone')
+                                    : kind === BoundaryTypes.NOGO_ZONE ? t('map.noGoZone') : t('map.noGoLine')
+                            }</span>
+                            <span className={styles.featureChoiceDesc}>{
+                                kind === BoundaryTypes.CLEANING_ZONE ? t('map.featureCleaningZoneDesc')
+                                    : kind === BoundaryTypes.NOGO_ZONE ? t('map.featureNoGoZoneDesc') : t('map.featureNoGoLineDesc')
+                            }</span>
+                        </button>
+                    ))}
+                </div>
             </Drawer>
         </div>
     )
