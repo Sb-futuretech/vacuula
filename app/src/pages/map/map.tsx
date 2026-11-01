@@ -52,9 +52,6 @@ export default () => {
     // type and, via allowClose below, decides whether drawing can be closed into a polygon
     const [featureChooserOpen, setFeatureChooserOpen] = useState(false)
     const [pendingKind, setPendingKind] = useState<BoundaryTypes>(BoundaryTypes.NOGO_LINE)
-    // zone or line picked by tapping it on the map while viewing the features: shown in a small
-    // card over the map that leads to Edit or Details
-    const [tappedId, setTappedId] = useState<string | null>(null)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
@@ -92,6 +89,29 @@ export default () => {
         // with the heatmap on, zones are outlines so the coverage below stays readable
         drawZones(ctx, showBoundaries.filter(b => b.type === 'polygon'), currentZoom, currentOffset, mapSize, !!heatmap)
         drawNoGoLines(ctx, showBoundaries.filter(b => b.type === 'polyline'), currentZoom, currentOffset, mapSize)
+
+        // the selected zone or line: a light halo under a thicker stroke in its own colour
+        const selected = mode === 'boundary-info' ? boundaries.find(b => b.id === activeBoundaryId) : undefined
+        if (selected && selected.vertices.length > 1) {
+            ctx.save()
+            ctx.beginPath()
+            selected.vertices.forEach(([px, py], i) => {
+                const x = currentOffset.x + px * mapSize.width * currentZoom
+                const y = currentOffset.y + py * mapSize.height * currentZoom
+                if (i === 0) ctx.moveTo(x, y)
+                else ctx.lineTo(x, y)
+            })
+            if (selected.type === 'polygon') ctx.closePath()
+            ctx.lineJoin = 'round'
+            ctx.lineCap = 'round'
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+            ctx.lineWidth = 9
+            ctx.stroke()
+            ctx.strokeStyle = normalizeHex(selected.color) ?? '#ffffff'
+            ctx.lineWidth = 4
+            ctx.stroke()
+            ctx.restore()
+        }
 
         // TODO: rework this base drawing, very hacky for quick release...
         const map = persistentMaps?.find(p => p.id === persistentMap)
@@ -237,9 +257,17 @@ export default () => {
         setMode('boundaries')
     };
 
+    // select a zone or line, from the list or by tapping it on the map: the panel shows its details
     const openInfo = (id: string) => {
         setMode('boundary-info')
         setActiveBoundaryId(id)
+        setDrawerOpen(true)
+    }
+
+    // a tap on the map while viewing the features: select what is there; on empty map, back to the list
+    const onBoundaryTap = (id: string | null) => {
+        if (id) openInfo(id)
+        else if (mode === 'boundary-info') setMode('boundaries')
     }
 
     const openEdit = (id: string) => {
@@ -283,13 +311,6 @@ export default () => {
         GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode(), promotedFloorplan.id, true, [zone.id])
     }
 
-    const tapped = mode === 'boundaries' || mode === 'boundary-info'
-        ? boundaries.find(b => b.id === tappedId)
-        : undefined
-    const typeLabel = (b: NoGoLine | Zone) => b.type === 'polygon'
-        ? ('function' in b ? (b.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone')) : t('map.zone'))
-        : t('map.noGoLine')
-
     return (
         <div className={styles.container}>
             <div className={styles.mapArea}>
@@ -312,23 +333,10 @@ export default () => {
                         setSelectedPoint={setSelectedPoint}
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
                         boundaries={boundaries}
-                        onBoundaryTap={setTappedId}
+                        onBoundaryTap={onBoundaryTap}
                     />
                 ) : (
                     <canvas className={styles.canvas} />
-                )}
-
-                {tapped && (
-                    <div className={styles.tapCard}>
-                        <span className={styles.tapCardDot} style={{ background: normalizeHex(tapped.color) ?? undefined }} />
-                        <div className={styles.tapCardText}>
-                            <span className={styles.tapCardName}>{tapped.name || typeLabel(tapped)}</span>
-                            <span className={styles.tapCardType}>{typeLabel(tapped)}</span>
-                        </div>
-                        <button onClick={() => { openInfo(tapped.id); setTappedId(null) }}>{t('map.details')}</button>
-                        <button className={styles.tapCardPrimary} onClick={() => { openEdit(tapped.id); setTappedId(null) }}>{t('common.edit')}</button>
-                        <button className={styles.tapCardClose} onClick={() => setTappedId(null)} aria-label={t('common.cancel')}>×</button>
-                    </div>
                 )}
 
                 {mode === 'maps' && (
@@ -437,6 +445,7 @@ export default () => {
                         boundary={boundaries.find(b => b.id === activeBoundaryId)!}
                         docked={isDocked(robot)}
                         deleteBoundary={deleteBoundary}
+                        toggleEnabled={toggleNoGo}
                         editBoundary={() => {
                             setMode('boundary-edit');
                             SetReturnFromEditMode(mode)
@@ -553,6 +562,7 @@ interface BoundaryDetailsProps {
     docked: boolean
     editBoundary: (id: string) => void
     deleteBoundary: (id: string) => void
+    toggleEnabled: (boundary: NoGoLine | Zone) => void
     onCleanZone: (boundary: Zone) => void
 }
 
@@ -573,7 +583,7 @@ const BoundaryDetails = (props: BoundaryDetailsProps) => {
                     </div>
                     {(props.map && 'promoted' in props.map ? props.map.promoted : true) && (
                         <>
-                            {(props.boundary.type === 'polyline' || props.boundary.function === 'nogo') && (<Input type="switch" skipSection={true} value={props.boundary.enabled} onChange={(value) => props.boundary.enabled = value} />)}
+                            {(props.boundary.type === 'polyline' || props.boundary.function === 'nogo') && (<Input type="switch" skipSection={true} value={props.boundary.enabled} onChange={() => props.toggleEnabled(props.boundary)} />)}
                             {props.boundary.type === 'polygon' && ('function' in props.boundary ? props.boundary.function === 'cleaning' : true) && (<Button style='primary' disabled={!props.docked} text={t('map.cleanZone')} onClick={() => props.onCleanZone(props.boundary as Zone)} />)}
                         </>
                     )}

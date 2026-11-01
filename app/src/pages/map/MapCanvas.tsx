@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './map.module.scss'
 import { FaMinus, FaPlus, FaUndo, FaRegQuestionCircle } from 'react-icons/fa'
-import { MdOutlineFitScreen } from 'react-icons/md'
+import { MdOutlineFitScreen, MdStraighten } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { useTranslation } from 'react-i18next'
 import Drawer from '../../components/drawer/drawer'
@@ -73,6 +73,9 @@ export default function MapCanvas({
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
     const [helpOpen, setHelpOpen] = useState(false)
+    // rulers: always while drawing, otherwise switched on with the ruler button
+    const [showRulers, setShowRulers] = useState(false)
+    const rulersOn = mode === 'boundary-edit' || showRulers
     const { t } = useTranslation()
 
     const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep } = useMap({
@@ -284,7 +287,7 @@ export default function MapCanvas({
                 }}
             />
 
-            {mode === 'boundary-edit' && mapSize && (
+            {rulersOn && mapSize && (
                 <MapRulers zoom={zoom} offset={offset} mapSize={mapSize} mmPerPixel={mmPerPixel}
                     width={canvasBox.width} height={canvasBox.height} />
             )}
@@ -306,9 +309,11 @@ export default function MapCanvas({
                 <button onClick={() => zoomStep(DRAWING.ZOOM_STEP)} aria-label="Zoom in"><FaPlus size={16} /></button>
                 <button onClick={() => zoomStep(1 / DRAWING.ZOOM_STEP)} aria-label="Zoom out"><FaMinus size={16} /></button>
                 <button onClick={resetView} aria-label="Fit map"><MdOutlineFitScreen size={18} /></button>
-                {mode === 'boundary-edit' && (
-                    <button onClick={() => setHelpOpen(true)} aria-label={t('map.help')}><FaRegQuestionCircle size={17} /></button>
+                {mode !== 'boundary-edit' && (
+                    <button onClick={() => setShowRulers(on => !on)} aria-label={t('map.rulers')} aria-pressed={showRulers}
+                        className={showRulers ? styles.zoomButtonOn : undefined}><MdStraighten size={18} /></button>
                 )}
+                <button onClick={() => setHelpOpen(true)} aria-label={t('map.help')}><FaRegQuestionCircle size={17} /></button>
             </div>
 
             {mode === 'boundary-edit' && (
@@ -337,6 +342,11 @@ export default function MapCanvas({
                     <div className={styles.mapHelpSection}>
                         <div className={styles.mapHelpHead}>{t('map.helpMoveTitle')}</div>
                         <div className={styles.mapHelpText}>{t('map.helpMove')}</div>
+                        <div className={styles.mapHelpRow}><span className={styles.mapHelpIcon}><MdStraighten size={15} /></span><span>{t('map.helpRuler')}</span></div>
+                    </div>
+                    <div className={styles.mapHelpSection}>
+                        <div className={styles.mapHelpHead}>{t('map.helpSelectTitle')}</div>
+                        <div className={styles.mapHelpText}>{t('map.helpSelect')}</div>
                     </div>
                     <div className={styles.mapHelpSection}>
                         <div className={styles.mapHelpHead}>{t('map.helpDrawTitle')}</div>
