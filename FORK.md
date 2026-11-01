@@ -136,8 +136,7 @@ docker compose and keeps the last builds for a rollback:
 Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
 
 ## Release notes
-Every change since the last update of this page, newest first. All tested on a D7 (Gen3,
-firmware 4.5.3-189) unless noted; *Upstream* rows come from Vacuula itself (release 1.1.0).
+What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted.
 
 ### New features at a glance
 
@@ -178,6 +177,7 @@ firmware 4.5.3-189) unless noted; *Upstream* rows come from Vacuula itself (rele
 - The log says why a connection ended; a successful state poll counts as a heartbeat.
 
 ### All commits
+Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.1.0).
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
