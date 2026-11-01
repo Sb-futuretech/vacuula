@@ -149,7 +149,11 @@ export default () => {
                     label="Vacuula"
                     extraInfo={(
                         <>
-                            <span>Vacuula {serverInfo.version}</span>
+                            <span>
+                                Vacuula {serverInfo.version}
+                                {serverInfo.fork_version && ` · sb ${serverInfo.fork_version}`}
+                                {serverInfo.fork_commit && ` (${serverInfo.fork_commit})`}
+                            </span>
                             <br />
                             <span>{t('settings.serverTime', { time: serverTime, timezone: serverInfo.timezone, offset: formatUtcOffset(serverInfo.utc_offset_minutes ?? 0) })}</span>
                             <br />

@@ -78,7 +78,7 @@ fi
 
 commit="$(git rev-parse --short HEAD)"
 log "Building $IMAGE:$LIVE_TAG and $IMAGE:$commit ($(git log -1 --format='%s'))"
-$DOCKER build -f build/docker/Dockerfile -t "$IMAGE:$LIVE_TAG" -t "$IMAGE:$commit" .
+$DOCKER build -f build/docker/Dockerfile --build-arg GIT_COMMIT="$commit" -t "$IMAGE:$LIVE_TAG" -t "$IMAGE:$commit" .
 
 restart
 

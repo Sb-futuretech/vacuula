@@ -57,5 +57,9 @@ COPY server/migrations_fork ./migrations_fork
 # Built frontend
 COPY --from=frontend /app/dist ./web
 
+# fork: the commit shown next to the version (fork_version.py); last, so a new commit keeps the cache
+ARG GIT_COMMIT=""
+ENV VACUULA_FORK_COMMIT=$GIT_COMMIT
+
 # fork: move an old database's fork version to its own table, then upstream's chain, then the fork's
 CMD ["sh", "-c", "python -m vacuula_server.fork_migrations && alembic upgrade head && alembic -n fork upgrade head && vacuula-server"]

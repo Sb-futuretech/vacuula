@@ -135,6 +135,17 @@ docker compose and keeps the last builds for a rollback:
 
 Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
 
+## Versions
+The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a7274e5)`:
+- `1.1.0` is the upstream version this fork is built on. It stays upstream's, because the installer
+  and mDNS compare it.
+- `sb 1.0.0` is this fork's version, set in
+  [`fork_version.py`](server/src/vacuula_server/fork_version.py). Raise the minor number for new
+  features and the last one for fixes, and the major one when the fork moves to a new upstream
+  release. Tag the release `sb-<version>`.
+- In brackets is the commit the image was built from. `deploy.sh` passes it in; without it (for
+  example from source) it is left out.
+
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted.
 

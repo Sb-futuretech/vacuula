@@ -15,6 +15,9 @@ export const BASE_PATH = ha_ingress ? ha_ingress[0] : ""
 /** GET /api/server */
 export interface ServerInfo {
   version: string
+  /** this fork's own version and build commit (fork_version.py) */
+  fork_version?: string
+  fork_commit?: string
   min_installer_version: string
   gen3_port: number
   gen4_port: number

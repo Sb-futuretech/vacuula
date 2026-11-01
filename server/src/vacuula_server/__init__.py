@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 from vacuula_server.constants import APP_VERSION
+from vacuula_server.fork_version import FORK_COMMIT, FORK_VERSION
 from vacuula_server.db import check_db_is_up_to_date
 from vacuula_server.env import GEN3_ENABLED, GEN4_ENABLED, HA_INGRESS, MDNS_ENABLED
 import vacuula_server.gen3.init 
@@ -22,7 +23,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 def main():
-    logger.info("Starting Vacuula Server %s", APP_VERSION)
+    logger.info("Starting Vacuula Server %s (sb %s %s)", APP_VERSION, FORK_VERSION, FORK_COMMIT or "source")
     check_db_is_up_to_date()
     ensure_ssl_certificate()
     if GEN3_ENABLED:
