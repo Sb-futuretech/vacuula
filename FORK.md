@@ -172,6 +172,13 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   battery change.
 - A run's map opens full screen.
 
+**Server and database**
+- **Switch between this fork and the official server on the same database.** The fork keeps its
+  own database changes in a separate migration chain, so the official image (1.1.0 or newer) starts
+  on a database the fork has used, and the fork starts again afterwards. Its first start converts an
+  older database once. `build/docker/compose.yaml` (fork) and `docker-compose.upstream.yaml`
+  (official) are ready for it, see *Running it*.
+
 **Connection**
 - Fixed: the robot kept disconnecting after saving zones (messages split over several chunks).
 - The log says why a connection ended; a successful state poll counts as a heartbeat.
@@ -181,6 +188,8 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-01 | [`35770e6`](https://github.com/Sb-futuretech/vacuula/commit/35770e6) | Server | This fork as compose.yaml, upstream's file kept as docker-compose.upstream.yaml |
+| 2026-11-01 | [`3056659`](https://github.com/Sb-futuretech/vacuula/commit/3056659) | Database | Keep the fork's migrations in their own chain so upstream can start too |
 | 2026-11-01 | [`f415048`](https://github.com/Sb-futuretech/vacuula/commit/f415048) | Home | Thicker, stronger frame around the Next run group |
 | 2026-11-01 | [`a4ecc97`](https://github.com/Sb-futuretech/vacuula/commit/a4ecc97) | Home | Frame Mode and Cleaning together as "Next run" |
 | 2026-11-01 | [`a42d39c`](https://github.com/Sb-futuretech/vacuula/commit/a42d39c) | Map | Tapping an empty spot offers "add feature here" |
@@ -215,6 +224,9 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 | 2026-10-25 | [`dadf239`](https://github.com/Sb-futuretech/vacuula/commit/dadf239) | Upstream | Update configs release:1.1.0 |
 
 ### Known issues
+- **After the database conversion (2026-11-01), a fork build from before it does not start**: it
+  tries to create the fork's tables again. Back up the data volume before deploying, and don't roll
+  back past that build without restoring the backup.
 - **Too many zone/line points per map make the D7 drop its connection after every save.** There
   is no error reply; the robot just closes the connection and keeps doing so until the map is back
   under the limit. On one D7: 44 points over 10 zones and lines were fine; one more 2-point line (44
