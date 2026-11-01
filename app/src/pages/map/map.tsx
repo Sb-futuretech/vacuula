@@ -264,9 +264,17 @@ export default () => {
         setMode('boundaries')
     };
 
-    // gen3: the robot takes at most GEN3_MAX_ZONES zones per map, so a new zone is not offered beyond that
-    const zoneCount = boundaries.filter(b => b.type === 'polygon').length
-    const zonesFull = robot.type === RobotType.NeatoGen3 && zoneCount >= GEN3_MAX_ZONES
+    // gen3 point budget: GEN3_MAX_POINTS over all zones and lines of a map, see the constant
+    const isGen3 = robot.type === RobotType.NeatoGen3
+    const pointsOf = (list: (NoGoLine | Zone)[]) => list.reduce((n, b) => n + b.vertices.length, 0)
+    const pointsUsed = pointsOf(boundaries)
+    const pointsLeft = GEN3_MAX_POINTS - pointsUsed
+    // the feature being drawn may use what the other features leave, up to the per-feature limit
+    const editMaxPoints = isGen3
+        ? Math.max(0, Math.min(GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_MAX_POINTS - pointsOf(boundaries.filter(b => b.id !== activeBoundaryId))))
+        : undefined
+    const minPoints = (kind: BoundaryTypes) => kind === BoundaryTypes.NOGO_LINE ? 2 : 3
+    const kindBlocked = (kind: BoundaryTypes) => isGen3 && pointsLeft < minPoints(kind)
 
     // select a zone or line, from the list or by tapping it on the map: the panel shows its details
     const openInfo = (id: string) => {
@@ -342,8 +350,8 @@ export default () => {
                         // a No-Go Line stays an open line: no closing into a polygon
                         allowClose={editForm.zoneType !== BoundaryTypes.NOGO_LINE}
                         setDrawerOpen={setDrawerOpen}
-                        // Gen3 firmware silently keeps only the first 10 vertices of a boundary
-                        maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
+                        // gen3: at most 10 points per feature and GEN3_MAX_POINTS over the whole map
+                        maxPoints={editMaxPoints}
                         selectedPoint={selectedPoint}
                         setSelectedPoint={setSelectedPoint}
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
@@ -513,9 +521,9 @@ export default () => {
                             <Button text={t('map.addFeature')} style='primary' onClick={() => { setPendingCenter(null); setFeatureChooserOpen(true) }} />
                         </div>
                         {boundaries.length > 0 && <p className={styles.tapHint}>{t('map.tapHint')}</p>}
-                        {robot.type === RobotType.NeatoGen3 && (
-                            <p className={`${styles.tapHint} ${zonesFull ? styles.zoneLimitFull : ''}`}>
-                                {t(zonesFull ? 'map.zoneLimitFull' : 'map.zoneLimit', { count: zoneCount, max: GEN3_MAX_ZONES })}
+                        {isGen3 && (
+                            <p className={`${styles.tapHint} ${pointsLeft <= 0 ? styles.budgetFull : ''}`}>
+                                {t('map.pointBudget', { used: pointsUsed, max: GEN3_MAX_POINTS })}
                             </p>
                         )}
 
@@ -557,7 +565,7 @@ export default () => {
                         : [BoundaryTypes.CLEANING_ZONE, BoundaryTypes.NOGO_LINE]
                     ).map(kind => (
                         <button key={kind} className={styles.featureChoice}
-                            disabled={kind === BoundaryTypes.CLEANING_ZONE && zonesFull}
+                            disabled={kindBlocked(kind)}
                             onClick={() => {
                                 setPendingKind(kind)
                                 setFeatureChooserOpen(false)
@@ -573,8 +581,10 @@ export default () => {
                                 kind === BoundaryTypes.CLEANING_ZONE ? t('map.featureCleaningZoneDesc')
                                     : kind === BoundaryTypes.NOGO_ZONE ? t('map.featureNoGoZoneDesc') : t('map.featureNoGoLineDesc')
                             }</span>
-                            {kind === BoundaryTypes.CLEANING_ZONE && zonesFull && (
-                                <span className={styles.featureChoiceReason}>{t('map.zoneLimitReason', { max: GEN3_MAX_ZONES })}</span>
+                            {kindBlocked(kind) && (
+                                <span className={styles.featureChoiceReason}>
+                                    {t('map.pointBudgetReason', { left: Math.max(0, pointsLeft), max: GEN3_MAX_POINTS, need: minPoints(kind) })}
+                                </span>
                             )}
                         </button>
                     ))}
@@ -631,10 +641,14 @@ const BoundaryDetails = (props: BoundaryDetailsProps) => {
 }
 
 
-// Most zones the gen3 (D7, firmware 4.5.3) firmware takes on one map. astro has a "Too many
-// boundaries set" / max_boundaries_exceeded check; on a D7 a 5th zone made the robot drop the
-// connection after every save, while 4 zones plus 6 no-go lines were fine. Lines are not counted here.
-const GEN3_MAX_ZONES = 4
+// gen3 (D7, firmware 4.5.3) limits for the zones and no-go lines of one map. Tested on a D7: 42
+// points over all of them (4 zones + 6 lines) were fine; 44 (one more line) or 47 (a 5th zone, or a
+// zone filled up to 10 points) made the robot drop its connection after every save, without an error
+// reply. So the limit is the points, not the number of zones or lines; 42 is the largest total known
+// to work. astro has a "Too many boundaries set" / max_boundaries_exceeded check.
+const GEN3_MAX_POINTS = 42
+// and it keeps only the first 10 points of each zone or line
+const GEN3_MAX_POINTS_PER_BOUNDARY = 10
 
 enum BoundaryTypes {
     NOGO_LINE = 'nogo-line',
