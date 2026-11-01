@@ -139,6 +139,46 @@ Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) t
 Every change since the last update of this page, newest first. All tested on a D7 (Gen3,
 firmware 4.5.3-189) unless noted; *Upstream* rows come from Vacuula itself (release 1.1.0).
 
+### New features at a glance
+
+**Map**
+- **Rulers** along the top and left edge, in real distance (cm / m). A ruler button in the zoom
+  column switches them on; while drawing they are always on.
+- **Exact point positions:** tap a drawn point to type its X / Y in cm, see its distance to the
+  previous point, or delete it. Points can be selected on touch screens too.
+- **Tap a zone or line on the map** (or in the list) to open its details: on/off, clean the zone,
+  edit, delete. The selection is highlighted on the map; an empty spot goes back to the list.
+- **Tap an empty spot** to get *Add feature here*: pick the type and start drawing right there.
+- **Add feature asks for the type first** (Cleaning Zone, No-Go Line; Gen4 also No-Go Zone), each
+  explained. A No-Go Line can no longer turn into a zone by accident.
+- **Help button (?)** next to the zoom buttons: moving around, selecting, drawing. A small bubble
+  hints at tapping zones and lines until the first tap.
+- On phones the map opens with the feature list folded.
+
+**Home page**
+- **Mode and Cleaning framed together as *Next run*:** what is cleaned, and how.
+- **One Cleaning button** for suction and navigation, opening one sheet with every option
+  explained. Eco + Deep is shown as blocked, with the reason, instead of changing silently.
+- **Map of the last cleaning** by default (*Settings → Home page* for the mascot).
+- While cleaning, the state shows zone or map, mode and navigation.
+
+**Schedule**
+- Edit entries in place; repeating robot events grouped into one row; server-run entries can be
+  paused.
+- Mode and navigation explained under their fields; Save says what is still missing.
+
+**Statistics and runs**
+- Area per minute, battery minutes per charge per week, a battery index against each run's mode,
+  per-zone statistics, recharged runs measured by their stretches, and a battery card that marks a
+  battery change.
+- A run's map opens full screen.
+
+**Connection**
+- Fixed: the robot kept disconnecting after saving zones (messages split over several chunks).
+- The log says why a connection ended; a successful state poll counts as a heartbeat.
+
+### All commits
+
 | Date | Commit | Area | Change |
 |---|---|---|---|
 | 2026-11-01 | [`f415048`](https://github.com/Sb-futuretech/vacuula/commit/f415048) | Home | Thicker, stronger frame around the Next run group |
