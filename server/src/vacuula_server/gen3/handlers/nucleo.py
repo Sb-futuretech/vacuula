@@ -53,8 +53,9 @@ def nucleo_init(req: RouterHandler) -> None:
     connected_at = last_data = time.time()
     reason = "closed by the robot"
     assembler = MessageAssembler()
+    ended: list[str] = []
     try:
-        for chunk in iter_chunks(req.rfile):
+        for chunk in iter_chunks(req.rfile, ended):
             last_data = time.time()
             for message in assembler.feed(chunk):
                 # one odd message must not cost the connection
@@ -62,6 +63,8 @@ def nucleo_init(req: RouterHandler) -> None:
                     robot_message(serial, message)
                 except Exception:
                     logger.exception("Message from %s could not be handled: %.200s", serial, message)
+        if ended:
+            reason = ended[0]
     except TimeoutError:
         reason = f"nothing received for {sock.gettimeout():.0f} s"
     except Exception as e:

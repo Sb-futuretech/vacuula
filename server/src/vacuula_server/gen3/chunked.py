@@ -15,21 +15,26 @@ from typing import BinaryIO
 MAX_MESSAGE = 1_000_000
 
 
-def iter_chunks(rfile: BinaryIO) -> Iterator[bytes]:
-    """The payload of each chunk until the stream ends (connection closed or the last, empty chunk)."""
+def iter_chunks(rfile: BinaryIO, ended: list[str] | None = None) -> Iterator[bytes]:
+    """The payload of each chunk until the stream ends (connection closed or the last, empty chunk).
+    How it ended is appended to `ended`, so a closed connection and a finished stream can be told apart."""
+    def stop(why: str) -> None:
+        if ended is not None:
+            ended.append(why)
+
     while True:
         size_line = rfile.readline()
         if not size_line:
-            return
+            return stop("closed by the robot")
         size_field = size_line.split(b';', 1)[0].strip()  # chunk extensions follow a ';'
         if not size_field:
             continue  # a stray blank line between chunks
         size = int(size_field, 16)
         if size == 0:
-            return
+            return stop("the robot ended its stream (last chunk)")
         payload = rfile.read(size)
         if len(payload) < size:
-            return  # closed in the middle of a chunk
+            return stop(f"closed by the robot in the middle of a chunk ({len(payload)} of {size} bytes)")
         rfile.read(2)  # the \r\n closing the chunk
         yield payload
 
