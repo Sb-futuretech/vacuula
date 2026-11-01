@@ -638,3 +638,19 @@
 @media (prefers-reduced-motion: reduce) {
     .addHerePill { animation: none; }
 }
+
+// gen3 zone limit: counter under the list and the blocked choice in the Add-feature chooser
+.zoneLimitFull {
+    color: #e8b24a;
+}
+
+.featureChoice:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.featureChoiceReason {
+    font-size: 0.85rem;
+    line-height: 1.35;
+    color: #e8b24a;
+}
