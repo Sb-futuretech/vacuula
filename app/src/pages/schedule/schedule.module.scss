@@ -146,25 +146,6 @@
                 font-size: 1.2rem;
             }
         }
-
-        // tapping the text opens the entry for editing
-        .editable {
-            flex: 1;
-            min-width: 0;
-            cursor: pointer;
-        }
-
-        .editIcon {
-            font-size: 1rem;
-            opacity: 0.5;
-            vertical-align: -0.1rem;
-            margin-left: 0.3rem;
-        }
-
-        // a Pi entry switched off: kept, but not run
-        &.paused .info {
-            opacity: 0.55;
-        }
     }
 
     // A row that only holds a control (e.g. the Gen3 "Schedule" on/off switch):
@@ -332,4 +313,124 @@
     vertical-align: -0.25rem;
     margin-right: 0.3rem;
     object-fit: contain;
+}
+
+// ---- week view ------------------------------------------------------------------------------------
+// what runs next, above the week
+.nextRun,
+.details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.2rem 1.4rem;
+    border-radius: 1rem;
+    background: $surface;
+    font-size: 1.3rem;
+
+    .type {
+        font-size: 1.2rem;
+        color: $text-muted;
+    }
+}
+
+.nextRun {
+    border: 2px solid $border-strong;
+}
+
+.nextLabel {
+    font-size: 1.1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $text-muted;
+}
+
+.nextWhen {
+    font-size: 1.7rem;
+    font-weight: 700;
+}
+
+// the tapped entry, below the week
+.details {
+    border: 1px solid $border;
+}
+
+.detailsTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.detailsActions {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    padding-top: 0.4rem;
+
+    button {
+        flex: 1;
+    }
+}
+
+.trash {
+    font-size: 1.6rem;
+    padding: 0.8rem;
+    cursor: pointer;
+    color: $text-muted;
+}
+
+.linkButton {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: $accent;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+// two entries at the same time
+.warnNote {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    color: $warn-text;
+
+    svg {
+        flex-shrink: 0;
+        margin-top: 0.2rem;
+    }
+}
+
+.note.warnNote {
+    background: $warn-bg;
+}
+
+.hint {
+    font-size: 1.2rem;
+    color: $text-muted;
+    text-align: center;
+}
+
+// the drawer's day picker
+.dayChips {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.dayChip {
+    height: 4.4rem;
+    border-radius: 2.2rem;
+    border: 1px solid $border-strong;
+    background: $surface;
+    color: $text-primary;
+    font: inherit;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.dayChipOn {
+    background: $accent;
+    border-color: $accent;
+    color: $on-accent;
 }

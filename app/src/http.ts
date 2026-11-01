@@ -101,7 +101,9 @@ export interface RobotStats {
   batteryInfo?: { serial: number | null, vendor: string | null, designCapacity: number | null, totalCharges: number | null,
     timeToEmpty: number | null, level: number | null, runSeconds: number | null, at: string } | null
   batteryChanges?: { at: string, serial: number, totalCharges: number | null }[]
-  zones: { id: string, name: string, mapId: string, runs: number, lastAt: string | null, minutes: number, area: number, areaPerMinute: number | null }[]
+  zones: { id: string, name: string, mapId: string, runs: number, lastAt: string | null, minutes: number, area: number, areaPerMinute: number | null,
+    wallMinutes?: number | null }[] // wallMinutes: start to end of a finished run, recharging included
+  wholeMap?: { runs: number, minutes: number } | null // the same for a whole map run
   batteryNotMeasurable: number // recharged in between or no battery values
   reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }
   launchedFrom: Record<string, number>

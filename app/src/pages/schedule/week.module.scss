@@ -1,0 +1,215 @@
+@use '../../variables.scss' as *;
+
+// Phones: a row per day, time runs left to right. Wide screens: a column per day, time runs down.
+// Blocks and marks only carry --start / --len / --pos (fractions of the track) and --lane / --lanes.
+.week {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+
+    @media (min-width: $desktop) {
+        display: grid;
+        grid-template-columns: 4rem repeat(7, minmax(0, 1fr));
+        gap: 0.6rem;
+    }
+}
+
+.day {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    height: 4.4rem;
+
+    @media (min-width: $desktop) {
+        flex-direction: column;
+        align-items: stretch;
+        height: auto;
+        gap: 0.6rem;
+    }
+}
+
+.dayLabel {
+    width: 3.2rem;
+    flex-shrink: 0;
+    font-size: 1.3rem;
+    color: $text-muted;
+
+    @media (min-width: $desktop) {
+        width: auto;
+        height: 2.4rem;
+        line-height: 2.4rem;
+        text-align: center;
+    }
+}
+
+.today .dayLabel {
+    color: $accent;
+    font-weight: 700;
+}
+
+.track {
+    position: relative;
+    flex: 1;
+    height: 100%;
+    border-radius: 0.8rem;
+    background: $surface;
+    cursor: default;
+
+    @media (min-width: $desktop) {
+        flex: none;
+        height: 56rem;
+    }
+}
+
+.today .track {
+    background: $surface-hover;
+}
+
+// the hour labels: above the rows on phones, left of the columns on wide screens
+.axis {
+    height: 2rem;
+
+    .track {
+        background: none;
+    }
+
+    @media (min-width: $desktop) {
+        height: auto;
+    }
+}
+
+.mark {
+    position: absolute;
+    left: calc(var(--pos) * 100%);
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.1rem;
+    color: $text-muted;
+
+    @media (min-width: $desktop) {
+        left: auto;
+        right: 0.4rem;
+        top: calc(var(--pos) * 100%);
+        transform: translateY(-50%);
+    }
+}
+
+.gridLine,
+.now {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--pos) * 100%);
+    width: 1px;
+    background: $border;
+    pointer-events: none;
+
+    @media (min-width: $desktop) {
+        left: 0;
+        right: 0;
+        top: calc(var(--pos) * 100%);
+        bottom: auto;
+        width: auto;
+        height: 1px;
+    }
+}
+
+.now {
+    width: 2px;
+    background: $err;
+
+    @media (min-width: $desktop) {
+        width: auto;
+        height: 2px;
+    }
+}
+
+.block {
+    position: absolute;
+    // phones: across, lanes stacked
+    left: calc(var(--start) * 100%);
+    width: max(4.4rem, calc(var(--len) * 100%));
+    top: calc(0.4rem + var(--lane) * (100% - 0.8rem) / var(--lanes));
+    height: calc((100% - 0.8rem) / var(--lanes));
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0 0.4rem;
+    overflow: hidden;
+    white-space: nowrap;
+    border: 2px solid transparent;
+    border-radius: 0.6rem;
+    color: $bg;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    @media (min-width: $desktop) {
+        // wide screens: down, lanes side by side
+        top: calc(var(--start) * 100%);
+        height: max(2.8rem, calc(var(--len) * 100%));
+        left: calc(0.3rem + var(--lane) * (100% - 0.6rem) / var(--lanes));
+        width: calc((100% - 0.6rem) / var(--lanes));
+        align-items: flex-start;
+        padding: 0.4rem;
+        font-size: 1.2rem;
+    }
+
+    &.selected {
+        border-color: $text-primary;
+    }
+
+    // runs at the same time as another one
+    &.warn {
+        outline: 2px dashed $warn;
+        outline-offset: 1px;
+    }
+
+    // paused Pi entry, or robot entries while the robot's schedule is off
+    &.inactive {
+        opacity: 0.35;
+    }
+}
+
+.blockIcon {
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+
+.eco {
+    background: $success;
+}
+
+.normal {
+    background: $info;
+}
+
+.deep {
+    background: $violet;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.4rem;
+    padding: 0.6rem 0 0 4rem;
+    font-size: 1.2rem;
+    color: $text-muted;
+
+    @media (min-width: $desktop) {
+        grid-column: 1 / -1;
+    }
+
+    span {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    i {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 0.3rem;
+    }
+}

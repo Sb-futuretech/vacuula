@@ -58,6 +58,15 @@
         "saturday": "Sábado",
         "sunday": "Domingo"
     },
+    "daysShort": {
+        "monday": "Seg",
+        "tuesday": "Ter",
+        "wednesday": "Qua",
+        "thursday": "Qui",
+        "friday": "Sex",
+        "saturday": "Sáb",
+        "sunday": "Dom"
+    },
     "state": {
         "invalid": "Desconhecido",
         "error": "Erro",
@@ -293,7 +302,35 @@
         "wholeMap": "mapa inteiro",
         "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
         "deepNeedsNormal": "Deep só funciona com o modo Normal.",
-        "robotBadge": "Executado pelo robô"
+        "robotBadge": "Executado pelo robô",
+        "week": {
+            "next": "Próxima limpeza",
+            "noNext": "Nada planeado esta semana.",
+            "today": "Hoje",
+            "tomorrow": "Amanhã",
+            "inMinutes": "em {{count}} min",
+            "inHours": "em {{count}} h",
+            "inDays": "em {{count}} dias",
+            "about": "≈ {{minutes}} min",
+            "noEstimate": "duração ainda desconhecida",
+            "takes": "Demora cerca de {{minutes}} min, segundo as limpezas concluídas",
+            "noEstimateLong": "Duração ainda desconhecida: é calculada a partir de limpezas concluídas destas zonas (ou do mapa inteiro).",
+            "byPi": "Iniciada pelo Pi",
+            "byRobot": "Guardada no robô, funciona sem o Pi",
+            "paused": "(em pausa)",
+            "robotOff": "(o agendamento do robô está desligado)",
+            "backup": "Reserva: a entrada do robô às {{times}} só corre quando o Pi está desligado.",
+            "removeBackup": "Remover reserva",
+            "overlap": "Coincide com {{times}}: a mais tardia provavelmente é ignorada enquanto o robô ainda está fora.",
+            "formOverlap": "Coincide com {{times}}: a mais tardia provavelmente é ignorada enquanto o robô ainda está fora.",
+            "edit": "Editar",
+            "delete": "Apagar",
+            "allDays": "Editar e Apagar aplicam-se a todos os dias desta entrada: {{days}}.",
+            "tapHint": "Toque numa limpeza para a ver.",
+            "daysCount": "{{count}} dias por semana",
+            "deepLegend": "Extra Care / Deep",
+            "piLegend": "iniciada pelo Pi"
+        }
     },
     "map": {
         "heatmap": "Cobertura",

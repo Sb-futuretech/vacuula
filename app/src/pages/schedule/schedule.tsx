@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import styles from './schedule.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
 import type { GetSchedule, ScheduleEvent } from './types'
-import { FaTrash, FaServer, FaPen } from 'react-icons/fa'
+import { FaTrash, FaServer, FaExclamationTriangle } from 'react-icons/fa'
 import Input from '../../components/input/input'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
@@ -18,33 +18,16 @@ import { dayKey } from '../../i18n/days'
 import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
 import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
-import { Http, type PiScheduleEntry } from '../../http'
+import { Http, type PiScheduleEntry, type RobotStats } from '../../http'
 import { gen3CleaningModeHelp, gen3NavigationHelp } from '../../utils/modes'
 import { useMascot } from '../../mascot'
 
-// a robot event this close to a Pi entry is its fallback (server: gen3/pi_schedule.py OVERLAP_MIN)
-const OVERLAP_MIN = 15
-const minutesOf = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
+import WeekView from './weekView'
+import { buildWeek, estimateMinutes, groupEvents, hhmm, minutesOf, mondayFirst, nextRun, OVERLAP_MIN, overlapsWith, WEEK, zoneOf,
+    type RobotGroup } from './week'
+
 const NAV_KEYS: Record<number, string> = { [CleaningNavigationMode.NORMAL]: 'normal', [CleaningNavigationMode.EXTRA_CARE]: 'extraCare', [CleaningNavigationMode.DEEP]: 'deep' }
 const ZONE_SEP = '||'
-const zoneOf = (e: ScheduleEvent) => e.boundaryId ?? e.boundary?.id
-const mondayFirst = (d: number) => (d + 6) % 7
-
-// robot events with the same time, mode and zone on several days, shown and edited as one row
-interface RobotGroup { key: string, startTime: string, mode: CleaningMode, zoneId?: string, zoneName?: string, days: RobotDay[], events: ScheduleEvent[] }
-const groupEvents = (events: ScheduleEvent[]): RobotGroup[] => {
-    const groups = new Map<string, RobotGroup>()
-    for (const e of events) {
-        const key = `${e.startTime}|${e.mode}|${zoneOf(e) ?? ''}`
-        const g = groups.get(key) ?? { key, startTime: e.startTime, mode: e.mode, zoneId: zoneOf(e), zoneName: e.boundary?.name, days: [], events: [] }
-        g.days.push(e.day)
-        g.events.push(e)
-        groups.set(key, g)
-    }
-    return [...groups.values()]
-        .map(g => ({ ...g, days: [...g.days].sort((a, b) => mondayFirst(a) - mondayFirst(b)) }))
-        .sort((a, b) => mondayFirst(a.days[0]) - mondayFirst(b.days[0]) || a.startTime.localeCompare(b.startTime))
-}
 
 // what the drawer edits: nothing (a new entry), a Pi entry or a group of robot events
 type Editing = { kind: 'pi', entry: PiScheduleEntry } | { kind: 'robot', group: RobotGroup } | null
@@ -82,6 +65,12 @@ export default () => {
     const [piEntries, setPiEntries] = useState<PiScheduleEntry[]>([])
     const getPiEntries = () => { Http.getPiSchedule(robot.serial).then(res => setPiEntries(res.data)).catch(() => setPiEntries([])) }
     useEffect(getPiEntries, [robot.serial])
+    // finished runs, for how long an entry takes
+    const [stats, setStats] = useState<RobotStats>()
+    useEffect(() => { Http.getStats(robot.serial).then(res => setStats(res.data)).catch(() => setStats(undefined)) }, [robot.serial])
+    const [selected, setSelected] = useState<string | null>(null)
+    const [now, setNow] = useState(() => Date.now())
+    useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id) }, [])
     // one robot event is created per selected day
     const [days, setDays] = useState<RobotDay[]>([])
 
@@ -187,9 +176,36 @@ export default () => {
         }))
     }
 
+    const estimate = (mode: CleaningMode, navigationMode: CleaningNavigationMode, zoneIds: string[]) => estimateMinutes(stats, mode, navigationMode, zoneIds)
+    const week = useMemo(() => buildWeek(piEntries, schedule?.events ?? [], schedule?.enabled ?? false,
+        (mode, navigationMode, zoneIds) => estimateMinutes(stats, mode, navigationMode, zoneIds)), [piEntries, schedule, stats])
+
     if (!schedule) return
 
     const robotGroups = groupEvents(schedule.events ?? [])
+    // the server's clock: entries are in its time zone
+    const serverNow = new Date(now + offset * 60_000)
+    const next = nextRun(week, serverNow)
+    const selectedSlot = week.flat().find(s => s.key === selected)
+
+    const dayName = (d: number) => t(`days.${dayKey(d)}` as any)
+    const shortDay = (d: number) => t(`daysShort.${dayKey(d)}` as any)
+    const modeText = (mode: CleaningMode, nav: CleaningNavigationMode) => t(`modes.${mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any)
+        + (nav !== CleaningNavigationMode.NORMAL ? ` · ${t(`modes.${NAV_KEYS[nav] ?? 'normal'}` as any)}` : '')
+    const zonesText = (names: string[]) => names.length ? names.map(decodeRobotText).join(', ') : t('schedule.wholeMap')
+    const lengthText = (minutes: number | null) => minutes != null ? t('schedule.week.about', { minutes }) : t('schedule.week.noEstimate')
+    const inText = (minutes: number) => minutes < 60 ? t('schedule.week.inMinutes', { count: minutes })
+        : minutes < 48 * 60 ? t('schedule.week.inHours', { count: Math.round(minutes / 60) })
+            : t('schedule.week.inDays', { count: Math.round(minutes / 1440) })
+    const dayWord = (daysAhead: number, day: number) => daysAhead === 0 ? t('schedule.week.today') : daysAhead === 1 ? t('schedule.week.tomorrow') : dayName(day)
+
+    // the drawer's entry: how long it takes and what it runs into
+    const formZoneIds = scheduleForm.zones.map(value => value.split(ZONE_SEP)[1])
+    const formMinutes = estimate(scheduleForm.mode, needsPi ? scheduleForm.navigationMode : CleaningNavigationMode.NORMAL, formZoneIds)
+    const formOverlaps = scheduleForm.startTime && days.length
+        ? overlapsWith(week, days, minutesOf(scheduleForm.startTime), formMinutes, needsPi,
+            s => editing?.kind === 'pi' ? s.pi?.id === editing.entry.id : editing?.kind === 'robot' ? s.group?.key === editing.group.key : false)
+        : []
     const dayList = (list: number[]) => [...list].sort((a, b) => mondayFirst(a) - mondayFirst(b)).map(d => t(`days.${dayKey(d)}`)).join(', ')
 
     const WEEKDAYS = [RobotDay.MONDAY, RobotDay.TUESDAY, RobotDay.WEDNESDAY, RobotDay.THURSDAY, RobotDay.FRIDAY]
@@ -220,7 +236,18 @@ export default () => {
                     }} />
                 </div>
 
-                <hr style={{ width: '90%' }} />
+                <div className={styles.nextRun}>
+                    <span className={styles.nextLabel}>{t('schedule.week.next')}{next && ` · ${inText(next.minutesUntil)}`}</span>
+                    {next ? (
+                        <>
+                            <span className={styles.nextWhen}>{dayWord(next.daysAhead, next.slot.day)} {hhmm(next.slot.start)}</span>
+                            <span className={styles.type}>
+                                {zonesText(next.slot.zoneNames)} · {modeText(next.slot.mode, next.slot.navigationMode)}
+                                {next.slot.minutes != null && ` · ${t('schedule.week.about', { minutes: next.slot.minutes })}`}
+                            </span>
+                        </>
+                    ) : <span className={styles.type}>{t('schedule.week.noNext')}</span>}
+                </div>
 
                 <div className={`${styles.item} ${styles.actionItem}`} onClick={openNew}>
                     <div className={styles.info}>
@@ -229,43 +256,54 @@ export default () => {
                     </div>
                 </div>
 
-                {piEntries.map(entry => {
-                    const fallback = fallbacks(entry.days, entry.startTime)
-                    const enabled = entry.enabled ?? true
-                    return (
-                        <div key={`pi-${entry.id}`} className={`${styles.item} ${enabled ? '' : styles.paused}`}>
-                            <div className={`${styles.info} ${styles.editable}`} onClick={() => openPi(entry)}>
-                                <span><FaServer className={styles.badge} title={t('schedule.piBadge')} /> {entry.startTime} <FaPen className={styles.editIcon} />{!enabled && <span className={styles.type}> {t('schedule.piPaused')}</span>}</span>
-                                <span className={styles.type}>
-                                    {t('schedule.piSummary', {
-                                        days: dayList(entry.days),
-                                        mode: t(`modes.${entry.mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any),
-                                        navigation: t(`modes.${NAV_KEYS[entry.navigationMode] ?? 'normal'}` as any),
-                                        zones: entry.zones.length ? entry.zones.map(z => decodeRobotText(z.name)).join(', ') : t('schedule.wholeMap'),
-                                    })}
-                                </span>
-                                {fallback.length > 0 && <span className={styles.type}>{t('schedule.fallbackNote', { times: fallback.join(', ') })}</span>}
-                            </div>
-                            <Input type="switch" skipSection={true} value={enabled} onChange={() => togglePiEntry(entry)} />
-                            <FaTrash onClick={() => Http.deletePiSchedule(robot.serial, entry.id).finally(getPiEntries)} />
-                        </div>
-                    )
-                })}
+                <WeekView week={week} selected={selected} onSelect={slot => setSelected(slot?.key ?? null)}
+                    today={serverNow.getUTCDay()} nowMinutes={serverNow.getUTCHours() * 60 + serverNow.getUTCMinutes()} />
 
-                {robotGroups.map(group => {
-                    return (
-                        <div key={group.key} className={styles.item}>
-                            <div className={`${styles.info} ${styles.editable}`} onClick={() => openRobot(group)}>
-                                <span><img src={mascot.src} alt={t('schedule.robotBadge')} title={t('schedule.robotBadge')} className={styles.badge} /> {group.startTime} <FaPen className={styles.editIcon} /></span>
-                                <span className={styles.type}>
-                                    {t('schedule.gen3Summary', { day: dayList(group.days), mode: CleaningMode[group.mode] })}
-                                    {group.zoneName && ` | ${t('schedule.gen3SummaryZone', { zone: decodeRobotText(group.zoneName) })}`}
-                                </span>
-                            </div>
-                            <FaTrash onClick={() => removeEvents(group.events)} />
+                {selectedSlot ? (
+                    <div className={styles.details}>
+                        <span className={styles.detailsTitle}>
+                            {dayName(selectedSlot.day)} {hhmm(selectedSlot.start)}
+                            {selectedSlot.minutes != null && ` – ${hhmm(selectedSlot.start + selectedSlot.minutes)}`}
+                        </span>
+                        <span>{zonesText(selectedSlot.zoneNames)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
+                        <span className={styles.type}>
+                            {selectedSlot.kind === 'pi'
+                                ? <><FaServer className={styles.badge} /> {t('schedule.week.byPi')}</>
+                                : <><img src={mascot.src} alt="" className={styles.badge} /> {t('schedule.week.byRobot')}</>}
+                            {!selectedSlot.active && ` ${t(selectedSlot.kind === 'pi' ? 'schedule.week.paused' : 'schedule.week.robotOff')}`}
+                        </span>
+                        {selectedSlot.backups.length > 0 && (
+                            <span className={styles.type}>
+                                {t('schedule.week.backup', { times: selectedSlot.backups.map(e => e.startTime).join(', ') })}
+                                {' '}<button type="button" className={styles.linkButton} onClick={() => removeEvents(selectedSlot.backups)}>{t('schedule.week.removeBackup')}</button>
+                            </span>
+                        )}
+                        {selectedSlot.overlaps.length > 0 && (
+                            <span className={styles.warnNote}>
+                                <FaExclamationTriangle /> {t('schedule.week.overlap', { times: selectedSlot.overlaps.map(o => hhmm(o.start)).join(', ') })}
+                            </span>
+                        )}
+                        <div className={styles.detailsActions}>
+                            <Button text={t('schedule.week.edit')} style='secondary' onClick={() => selectedSlot.pi ? openPi(selectedSlot.pi) : selectedSlot.group && openRobot(selectedSlot.group)} />
+                            {selectedSlot.pi && (
+                                <Input type="switch" skipSection={true} value={selectedSlot.pi.enabled ?? true} onChange={() => togglePiEntry(selectedSlot.pi!)} />
+                            )}
+                            <FaTrash className={styles.trash} title={t('schedule.week.delete')}
+                                onClick={() => selectedSlot.pi
+                                    ? Http.deletePiSchedule(robot.serial, selectedSlot.pi.id).finally(getPiEntries)
+                                    : selectedSlot.group && removeEvents(selectedSlot.group.events)} />
                         </div>
-                    )
-                })}
+                        {selectedSlot.group && selectedSlot.group.days.length > 1 && (
+                            <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.group.days) })}</span>
+                        )}
+                        {selectedSlot.pi && selectedSlot.pi.days.length > 1 && (
+                            <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.pi.days) })}</span>
+                        )}
+                    </div>
+                ) : robotGroups.length + piEntries.length > 0 && (
+                    <span className={styles.hint}>{t('schedule.week.tapHint')}</span>
+                )}
+
                 {robotGroups.length === 0 && piEntries.length === 0 && (
                     <span style={{ textAlign: 'center' }}>{t('schedule.noSchedules')}</span>
                 )}
@@ -279,34 +317,19 @@ export default () => {
             >
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <Input
-                        type="select"
-                        label={t('schedule.days')}
-                        options={[
-                            { value: 'weekdays' as const, label: t('schedule.weekdaysShort') },
-                            { value: 'daily' as const, label: t('schedule.daily') },
-                            { value: 'weekend' as const, label: t('schedule.weekendShort') },
-                        ]}
-                        allowDeselect
-                        value={activePreset}
-                        onChange={(preset) => setDays(preset ? presets[preset] : [])}
-                    />
-
-                    <Input
-                        type="multi-select"
-                        skipSection={true}
-                        options={[
-                            { value: RobotDay.MONDAY, label: t('days.monday') },
-                            { value: RobotDay.TUESDAY, label: t('days.tuesday') },
-                            { value: RobotDay.WEDNESDAY, label: t('days.wednesday') },
-                            { value: RobotDay.THURSDAY, label: t('days.thursday') },
-                            { value: RobotDay.FRIDAY, label: t('days.friday') },
-                            { value: RobotDay.SATURDAY, label: t('days.saturday') },
-                            { value: RobotDay.SUNDAY, label: t('days.sunday') },
-                        ]}
-                        value={days}
-                        onChange={setDays}
-                    />
+                    <Input type="custom" label={t('schedule.days')}
+                        extraInfo={activePreset ? t(`schedule.${activePreset === 'weekdays' ? 'weekdaysShort' : activePreset === 'daily' ? 'daily' : 'weekendShort'}` as any)
+                            : days.length ? t('schedule.week.daysCount', { count: days.length }) : undefined}>
+                        <div className={styles.dayChips}>
+                            {WEEK.map(d => (
+                                <button key={d} type="button" aria-pressed={days.includes(d)} aria-label={dayName(d)}
+                                    className={`${styles.dayChip} ${days.includes(d) ? styles.dayChipOn : ''}`}
+                                    onClick={() => setDays(days.includes(d) ? days.filter(x => x !== d) : [...days, d])}>
+                                    {shortDay(d)}
+                                </button>
+                            ))}
+                        </div>
+                    </Input>
 
                     <Input
                         type="select"
@@ -345,6 +368,12 @@ export default () => {
                         extraInfo={!scheduleForm.startTime ? t('schedule.timeHint') : undefined}
                         onChange={(startTime) => updateForm(SetScheduleForm, { startTime })} />
 
+                    <span className={styles.note}>
+                        {formMinutes != null
+                            ? t('schedule.week.takes', { minutes: formMinutes }) + (scheduleForm.startTime ? ` (${scheduleForm.startTime} – ${hhmm(minutesOf(scheduleForm.startTime) + formMinutes)})` : '')
+                            : t('schedule.week.noEstimateLong')}
+                    </span>
+
                     <Input
                         type="multi-select"
                         label={t('schedule.selectZones')}
@@ -365,6 +394,12 @@ export default () => {
 
                     {editing?.kind === 'pi' && !needsPi && (
                         <span className={styles.note}>{t('schedule.movesToRobot')}</span>
+                    )}
+
+                    {formOverlaps.length > 0 && (
+                        <span className={`${styles.note} ${styles.warnNote}`}>
+                            <FaExclamationTriangle /> {t('schedule.week.formOverlap', { times: formOverlaps.map(o => `${shortDay(o.day)} ${hhmm(o.start)}`).join(', ') })}
+                        </span>
                     )}
 
                     {(days.length === 0 || !scheduleForm.startTime) && (

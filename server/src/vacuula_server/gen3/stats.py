@@ -6,6 +6,7 @@ the mode and navigation the robot reports for the run.
 """
 from __future__ import annotations
 from collections import Counter
+from statistics import median
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -19,6 +20,9 @@ from vacuula_server.server_tz import server_timezone
 
 DAYS = 28  # length of the daily history
 WEEKS = 26  # length of the weekly battery history
+# a run without a zone counts as a whole map run if it covered at least this share of the largest one
+# (spot cleans and runs stopped early are left out)
+WHOLE_MAP_SHARE = 0.6
 
 
 def _time(value: str | None) -> datetime | None:
@@ -208,13 +212,15 @@ def _zones(serial: str, runs: list[dict]) -> list[dict]:
     for run in runs:
         if not (zone := run.get("zone")) or not zone.get("id"):
             continue
-        z = zones.setdefault(zone["id"], {"name": "", "mapId": "", "runs": 0, "seconds": 0.0, "area": 0.0, "lastAt": None})
+        z = zones.setdefault(zone["id"], {"name": "", "mapId": "", "runs": 0, "seconds": 0.0, "area": 0.0, "lastAt": None, "wall": []})
         z["runs"] += 1
         z["seconds"] += run["_active"]
         z["area"] += run.get("cleaned_area") or 0
         z["lastAt"] = run.get("start_at")  # runs are oldest first
         z["name"] = zone.get("name") or z["name"]
         z["mapId"] = zone.get("mapId") or z["mapId"]
+        if run.get("status") == "complete":
+            z["wall"].append(run["_seconds"])
     names = _zone_names(serial) if zones else {}
     return [{
         "id": zone_id,
@@ -225,7 +231,22 @@ def _zones(serial: str, runs: list[dict]) -> list[dict]:
         "minutes": round(z["seconds"] / 60 / z["runs"]),
         "area": round(z["area"] / z["runs"], 1),
         "areaPerMinute": _per_minute(z["area"], z["seconds"]),
+        # start to end of a finished run, breaks and recharging included: how long it is out
+        "wallMinutes": round(median(z["wall"]) / 60) if z["wall"] else None,
     } for zone_id, z in sorted(zones.items(), key=lambda kv: kv[1]["lastAt"] or "", reverse=True)]
+
+
+def _whole_map(runs: list[dict]) -> dict | None:
+    """How long a finished whole map run takes, start to end (breaks and recharging included).
+
+    Runs from before zones were recorded have no zone either; WHOLE_MAP_SHARE keeps the small ones out.
+    """
+    plain = [r for r in runs if r.get("status") == "complete" and not (r.get("zone") or {}).get("id")]
+    largest = max((r.get("cleaned_area") or 0 for r in plain), default=0)
+    whole = [r for r in plain if largest and (r.get("cleaned_area") or 0) >= WHOLE_MAP_SHARE * largest]
+    if not whole:
+        return None
+    return {"runs": len(whole), "minutes": round(median(r["_seconds"] for r in whole) / 60)}
 
 
 def _problems(serial: str) -> list[dict]:
@@ -275,6 +296,7 @@ def gen3_stats(serial: str) -> dict:
         "batteryInfo": battery_info,
         "batteryChanges": battery_changes,
         "zones": _zones(serial, runs),
+        "wholeMap": _whole_map(runs),
         "batteryNotMeasurable": sum(_used(r) is None for r in runs),
         "reliability": {
             "runs": len(runs),

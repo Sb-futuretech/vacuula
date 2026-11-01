@@ -58,6 +58,15 @@
         "saturday": "Saturday",
         "sunday": "Sunday"
     },
+    "daysShort": {
+        "monday": "Mo",
+        "tuesday": "Tu",
+        "wednesday": "We",
+        "thursday": "Th",
+        "friday": "Fr",
+        "saturday": "Sa",
+        "sunday": "Su"
+    },
     "state": {
         "invalid": "Unknown",
         "error": "Error",
@@ -300,7 +309,35 @@
         "wholeMap": "whole map",
         "piSummary": "{{days}} | {{mode}} · {{navigation}} | {{zones}}",
         "deepNeedsNormal": "Deep only works with mode Normal.",
-        "robotBadge": "Run by the robot"
+        "robotBadge": "Run by the robot",
+        "week": {
+            "next": "Next run",
+            "noNext": "Nothing planned this week.",
+            "today": "Today",
+            "tomorrow": "Tomorrow",
+            "inMinutes": "in {{count}} min",
+            "inHours": "in {{count}} h",
+            "inDays": "in {{count}} days",
+            "about": "≈ {{minutes}} min",
+            "noEstimate": "length not known yet",
+            "takes": "Takes about {{minutes}} min, from your finished runs",
+            "noEstimateLong": "Length not known yet: it is worked out from finished runs of these zones (or of the whole map).",
+            "byPi": "Started by the Pi",
+            "byRobot": "Stored on the robot, runs without the Pi",
+            "paused": "(paused)",
+            "robotOff": "(the robot's schedule is off)",
+            "backup": "Backup: the robot's entry at {{times}} only runs when the Pi is off.",
+            "removeBackup": "Remove backup",
+            "overlap": "Runs at the same time as {{times}}: the later one is likely skipped while the robot is still out.",
+            "formOverlap": "Runs at the same time as {{times}}: the later one is likely skipped while the robot is still out.",
+            "edit": "Edit",
+            "delete": "Delete",
+            "allDays": "Edit and Delete apply to every day of this entry: {{days}}.",
+            "tapHint": "Tap a run to see it.",
+            "daysCount": "{{count}} days a week",
+            "deepLegend": "Extra Care / Deep",
+            "piLegend": "started by the Pi"
+        }
     },
     "map": {
         "heatmap": "Coverage",
