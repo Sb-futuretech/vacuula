@@ -7,7 +7,8 @@ from vacuula_server.state import robot_connections, disconnected_at
 from vacuula_server.handlers.events import notify_robots_changed
 from vacuula_server.gen3.utils import get_robot_serial
 from vacuula_server.db import get_session
-from vacuula_server.gen3.event_handler import robot_data
+from vacuula_server.gen3.event_handler import robot_message
+from vacuula_server.gen3.chunked import iter_chunks, MessageAssembler
 from vacuula_server.models.robot import Robot
 from sqlalchemy import select
 from typing import TYPE_CHECKING
@@ -51,13 +52,16 @@ def nucleo_init(req: RouterHandler) -> None:
 
     connected_at = last_data = time.time()
     reason = "closed by the robot"
+    assembler = MessageAssembler()
     try:
-        while True:
-            data = req.rfile.readline()
-            if not data:
-                break
+        for chunk in iter_chunks(req.rfile):
             last_data = time.time()
-            robot_data(serial, data)
+            for message in assembler.feed(chunk):
+                # one odd message must not cost the connection
+                try:
+                    robot_message(serial, message)
+                except Exception:
+                    logger.exception("Message from %s could not be handled: %.200s", serial, message)
     except TimeoutError:
         reason = f"nothing received for {sock.gettimeout():.0f} s"
     except Exception as e:

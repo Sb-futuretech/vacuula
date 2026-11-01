@@ -10,32 +10,20 @@ import typing
 
 logger = logging.getLogger(__name__)
 
-# per-robot temporary buffers
-# serial --> size
-robot_buffers = {}
-
-def robot_data(serial: str, data: bytes):
-    """Handle incoming data from robot"""
-
-    # create robot state if missing
-    if serial not in robot_buffers:
-        robot_buffers[serial] = int(data, 16)  # hex to int
-        return
-
-    msg_size = robot_buffers[serial]
-
-    # remove last two bytes (\r\n)
-    data = data[:-2]
-
-    if (chr(data[0]) != '{' and msg_size == 1):
+def robot_message(serial: str, data: bytes):
+    """Handle one whole message from the robot (see gen3.chunked): a heartbeat or a JSON object."""
+    data = data.strip()
+    if not data.startswith(b'{'):
         logger.debug("heartbeat from robot %s", serial)
         return
 
-
     try:
-        decoded: dict = json.loads(data.decode())
+        decoded = json.loads(data.decode())
     except Exception as e:
         logger.error("failed to parse JSON from %s: %s", serial, e)
+        return
+    if not isinstance(decoded, dict):
+        logger.warning("unexpected message from %s, ignored: %.200s", serial, data)
         return
 
     eventId = decoded.get("eventId")
@@ -76,5 +64,3 @@ def robot_data(serial: str, data: bytes):
 
     else:
         logger.error("no eventId or reqId in data from %s", serial)
-
-    del robot_buffers[serial]
