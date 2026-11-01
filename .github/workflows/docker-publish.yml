@@ -130,7 +130,7 @@ jobs:
           fi
 
           gh release create "v$VERSION" \
-            build/docker/docker-compose.yaml \
+            build/docker/docker-compose.upstream.yaml \
             --target "$GITHUB_SHA" \
             --title "v$VERSION" \
             --notes "Docker image: \`$IMAGE:$VERSION\`" \

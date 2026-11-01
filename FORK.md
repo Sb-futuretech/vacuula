@@ -98,28 +98,28 @@ Useful if you work on Gen3 support yourself:
 This fork has no published image; build it yourself. Set up the robot with the upstream
 [installer](README.md#configure-the-robot) as usual.
 
-```yaml
-# docker-compose.yaml
-services:
-  vacuula:
-    image: vacuula:sb            # the image you build below
-    network_mode: host
-    environment:
-      - GEN3_PORT=335
-      - GEN4_PORT=3443
-      - VACUULA_PORT=80          # keep the port your robot was set up with: it uploads maps to it
-      - GEN3_ENABLED=True
-      - GEN4_ENABLED=True
-      - MDNS_ENABLED=True
-      - TZ=Europe/Berlin
-      - VACUULA_TZ=Europe/Berlin
-      - LOG_LEVEL=INFO           # DEBUG shows every robot message
-    volumes:
-      - vacuula-data:/server/data
-    restart: unless-stopped
-volumes:
-  vacuula-data:
+Copy both compose files from [`build/docker`](build/docker) into one folder on your server:
+- [`compose.yaml`](build/docker/compose.yaml): this fork, image `vacuula:sb` built by `deploy.sh`.
+- [`docker-compose.upstream.yaml`](build/docker/docker-compose.upstream.yaml): upstream's original
+  file with the official image.
+
+Both use the same database, so you can switch between this fork and the official server:
+
+```bash
+docker compose up -d                                        # this fork (compose.yaml)
+docker compose -f docker-compose.upstream.yaml pull         # official image: pull first
+docker compose -f docker-compose.upstream.yaml up -d        # official server on the same data
 ```
+
+- Keep both files in the **same folder**: docker names the data volume after the folder, so a
+  compose file elsewhere starts on a new, empty database.
+- The official image has to be **1.1.0 or newer**. An older one (for example a stale local copy of
+  `latest` that was never pulled) does not know the database version and stops at startup.
+- While the official server runs, this fork's extras rest (server-run schedule entries,
+  notifications, the map tools).
+- This works since the fork keeps its own database changes in a separate migration chain (see the
+  release notes, 2026-11-01). Its first start converts an older database once; a fork build from
+  before that change does not start on a converted database, so back up the data volume first.
 
 Upstream changed the default web port from 80 to **8050** in 1.1.0-b8. If your robot was set up on
 port 80, set `VACUULA_PORT=80` explicitly, or run the installer again for the new port.

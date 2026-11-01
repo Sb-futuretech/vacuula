@@ -6,16 +6,16 @@
 #   ./deploy.sh --list          show the builds kept for rollback
 #   ./deploy.sh --rollback ID   run an earlier build again (ID from --list)
 #
-# Every build is tagged twice: IMAGE:LIVE_TAG (what docker-compose.yaml runs) and IMAGE:<commit>,
+# Every build is tagged twice: IMAGE:LIVE_TAG (what the compose file runs) and IMAGE:<commit>,
 # so an earlier build can be switched back to. The KEEP newest commit builds are kept.
 set -euo pipefail
 
 # ---- adjust to your Pi (or set them when calling: REPO_DIR=... ./deploy.sh) ------------------
 REPO_DIR="${REPO_DIR:-$HOME/vacuula}"        # git clone of the fork
-COMPOSE_DIR="${COMPOSE_DIR:-$HOME/vacuula-run}" # folder with docker-compose.yaml
+COMPOSE_DIR="${COMPOSE_DIR:-$HOME/vacuula-run}" # folder with the compose file (compose.yaml from build/docker)
 BRANCH="${BRANCH:-main}"
 IMAGE="${IMAGE:-vacuula}"
-LIVE_TAG="${LIVE_TAG:-sb}"                   # must match `image:` in docker-compose.yaml
+LIVE_TAG="${LIVE_TAG:-sb}"                   # must match `image:` in the compose file
 KEEP="${KEEP:-3}"
 DOCKER="${DOCKER:-docker}"                 # "sudo docker" if your user is not in the docker group
 # ------------------------------------------------------------------------------------------------
@@ -33,7 +33,7 @@ restart() {
         | grep -E 'Starting Vacuula Server|listening on|connected' || true)"
     printf '%s\n' "$startup"
     grep -q 'listening on http://[^ ]*:8050' <<<"$startup" \
-        && die "web app is on port 8050: set VACUULA_PORT=80 in docker-compose.yaml (the robot uploads maps to that port)"
+        && die "web app is on port 8050: set VACUULA_PORT=80 in the compose file (the robot uploads maps to that port)"
     return 0
 }
 
@@ -63,8 +63,8 @@ case "${1:-}" in
 esac
 
 [ -d "$REPO_DIR/.git" ] || die "REPO_DIR $REPO_DIR is not a git clone"
-[ -f "$COMPOSE_DIR/docker-compose.yaml" ] || [ -f "$COMPOSE_DIR/docker-compose.yml" ] \
-    || die "no docker-compose.yaml in COMPOSE_DIR $COMPOSE_DIR"
+[ -f "$COMPOSE_DIR/compose.yaml" ] || [ -f "$COMPOSE_DIR/compose.yml" ] || [ -f "$COMPOSE_DIR/docker-compose.yaml" ] \
+    || [ -f "$COMPOSE_DIR/docker-compose.yml" ] || die "no compose.yaml / docker-compose.yaml in COMPOSE_DIR $COMPOSE_DIR"
 cd "$REPO_DIR"
 
 if [ "${1:-}" != "--no-pull" ]; then

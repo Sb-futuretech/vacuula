@@ -1,0 +1,26 @@
+# This fork's server, built from this repo (see FORK.md, "Running it", and build/pi/deploy.sh).
+# Upstream's original file with the published image is docker-compose.upstream.yaml: keep both in
+# the same folder, so they share the data volume (docker names it after the folder), then
+#   docker compose up -d                                       # this fork (compose.yaml)
+#   docker compose -f docker-compose.upstream.yaml pull        # official image, pull first
+#   docker compose -f docker-compose.upstream.yaml up -d
+services:
+  vacuula:
+    image: vacuula:sb            # built by build/pi/deploy.sh (IMAGE:LIVE_TAG)
+    network_mode: host
+    environment: # edit based on your needs
+      - GEN4_PORT=3443
+      - GEN3_PORT=335
+      - VACUULA_PORT=80          # keep the port your robot was set up with: it uploads maps to it
+      - GEN3_ENABLED=True
+      - GEN4_ENABLED=True
+      - MDNS_ENABLED=True
+      - VACUULA_TZ=Europe/Berlin
+      - TZ=Europe/Berlin
+      - LOG_LEVEL=INFO           # DEBUG shows every robot message
+    volumes:
+      - vacuula-data:/server/data
+    restart: unless-stopped
+
+volumes:
+  vacuula-data:
