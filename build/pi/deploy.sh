@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
 # Update the self-built Vacuula on the Pi: pull, build the image, restart it with docker compose.
+# Run it straight from the repo; your own paths go into build/pi/deploy.env (see deploy.env.example).
 #
-#   ./deploy.sh                 pull the branch, build, restart
-#   ./deploy.sh --no-pull       build and restart what is checked out
-#   ./deploy.sh --list          show the builds kept for rollback
-#   ./deploy.sh --rollback ID   run an earlier build again (ID from --list)
+#   build/pi/deploy.sh                 pull the branch, build, restart
+#   build/pi/deploy.sh --no-pull       build and restart what is checked out
+#   build/pi/deploy.sh --list          show the builds kept for rollback
+#   build/pi/deploy.sh --rollback ID   run an earlier build again (ID from --list)
+#   BRANCH=fix/x build/pi/deploy.sh    deploy another branch (back: run it again without BRANCH)
 #
 # Every build is tagged twice: IMAGE:LIVE_TAG (what the compose file runs) and IMAGE:<commit>,
 # so an earlier build can be switched back to. The KEEP newest commit builds are kept.
 set -euo pipefail
 
-# ---- adjust to your Pi (or set them when calling: REPO_DIR=... ./deploy.sh) ------------------
-REPO_DIR="${REPO_DIR:-$HOME/vacuula}"        # git clone of the fork
+# the repo this script lives in (build/pi/ -> two levels up)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# your settings, kept out of git; values given when calling (COMPOSE_DIR=... build/pi/deploy.sh) win
+CONFIG="${DEPLOY_CONFIG:-$SCRIPT_DIR/deploy.env}"
+# shellcheck source=/dev/null
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+# ---- defaults, override them in deploy.env ------------------------------------------------------
+if [ -d "$SCRIPT_REPO/.git" ]; then REPO_DIR="${REPO_DIR:-$SCRIPT_REPO}"; else REPO_DIR="${REPO_DIR:-$HOME/vacuula}"; fi
 COMPOSE_DIR="${COMPOSE_DIR:-$HOME/vacuula-run}" # folder with the compose file (compose.yaml from build/docker)
 BRANCH="${BRANCH:-main}"
 IMAGE="${IMAGE:-vacuula}"
@@ -41,56 +52,65 @@ list_builds() {
     $DOCKER images "$IMAGE" --format '{{.Tag}}\t{{.CreatedSince}}\t{{.ID}}' | grep -v '^<none>' || true
 }
 
-case "${1:-}" in
-    --list)
-        list_builds
-        exit 0
-        ;;
-    --rollback)
-        id="${2:-}"
-        [ -n "$id" ] || die "usage: $0 --rollback <tag from --list>"
-        $DOCKER image inspect "$IMAGE:$id" >/dev/null 2>&1 || die "no image $IMAGE:$id (see $0 --list)"
-        log "Rolling back: $IMAGE:$LIVE_TAG -> $IMAGE:$id"
-        $DOCKER tag "$IMAGE:$id" "$IMAGE:$LIVE_TAG"
-        restart
-        exit 0
-        ;;
-    --no-pull|"")
-        ;;
-    *)
-        die "unknown option $1 (see the top of $0)"
-        ;;
-esac
+# Everything runs from this function, called on the last line: bash has then read the whole file,
+# so the `git pull` below may change this script while it runs.
+main() {
+    case "${1:-}" in
+        --list)
+            list_builds
+            return 0
+            ;;
+        --rollback)
+            local id="${2:-}"
+            [ -n "$id" ] || die "usage: $0 --rollback <tag from --list>"
+            $DOCKER image inspect "$IMAGE:$id" >/dev/null 2>&1 || die "no image $IMAGE:$id (see $0 --list)"
+            log "Rolling back: $IMAGE:$LIVE_TAG -> $IMAGE:$id"
+            $DOCKER tag "$IMAGE:$id" "$IMAGE:$LIVE_TAG"
+            restart
+            return 0
+            ;;
+        --no-pull|"")
+            ;;
+        *)
+            die "unknown option $1 (see the top of $0)"
+            ;;
+    esac
 
-[ -d "$REPO_DIR/.git" ] || die "REPO_DIR $REPO_DIR is not a git clone"
-[ -f "$COMPOSE_DIR/compose.yaml" ] || [ -f "$COMPOSE_DIR/compose.yml" ] || [ -f "$COMPOSE_DIR/docker-compose.yaml" ] \
-    || [ -f "$COMPOSE_DIR/docker-compose.yml" ] || die "no compose.yaml / docker-compose.yaml in COMPOSE_DIR $COMPOSE_DIR"
-cd "$REPO_DIR"
+    [ -d "$REPO_DIR/.git" ] || die "REPO_DIR $REPO_DIR is not a git clone"
+    [ -f "$COMPOSE_DIR/compose.yaml" ] || [ -f "$COMPOSE_DIR/compose.yml" ] || [ -f "$COMPOSE_DIR/docker-compose.yaml" ] \
+        || [ -f "$COMPOSE_DIR/docker-compose.yml" ] \
+        || die "no compose.yaml / docker-compose.yaml in COMPOSE_DIR $COMPOSE_DIR (set it in $CONFIG)"
+    cd "$REPO_DIR"
 
-if [ "${1:-}" != "--no-pull" ]; then
-    [ -z "$(git status --porcelain --untracked-files=no)" ] \
-        || die "local changes in $REPO_DIR, commit or discard them first (git status)"
-    log "Pulling $BRANCH"
-    git fetch origin
-    git checkout -q "$BRANCH"
-    git pull --ff-only origin "$BRANCH"
-fi
+    if [ "${1:-}" != "--no-pull" ]; then
+        [ -z "$(git status --porcelain --untracked-files=no)" ] \
+            || die "local changes in $REPO_DIR, commit or discard them first (git status)"
+        log "Pulling $BRANCH"
+        git fetch origin
+        git checkout -q "$BRANCH"
+        git pull --ff-only origin "$BRANCH"
+    fi
 
-commit="$(git rev-parse --short HEAD)"
-log "Building $IMAGE:$LIVE_TAG and $IMAGE:$commit ($(git log -1 --format='%s'))"
-$DOCKER build -f build/docker/Dockerfile -t "$IMAGE:$LIVE_TAG" -t "$IMAGE:$commit" .
+    local commit
+    commit="$(git rev-parse --short HEAD)"
+    log "Building $IMAGE:$LIVE_TAG and $IMAGE:$commit ($(git log -1 --format='%s'))"
+    $DOCKER build -f build/docker/Dockerfile -t "$IMAGE:$LIVE_TAG" -t "$IMAGE:$commit" .
 
-restart
+    restart
 
-# keep the KEEP newest commit builds (and whatever the live tag points at)
-live_id="$($DOCKER image inspect --format '{{.Id}}' "$IMAGE:$LIVE_TAG")"
-$DOCKER images "$IMAGE" --format '{{.Tag}} {{.ID}}' \
-    | { grep -Ev "^($LIVE_TAG|<none>) " || true; } \
-    | tail -n +"$((KEEP + 1))" \
-    | while read -r tag id; do
-        if [ "$($DOCKER image inspect --format '{{.Id}}' "$IMAGE:$tag")" = "$live_id" ]; then continue; fi
-        log "Removing old build $IMAGE:$tag"
-        $DOCKER image rm "$IMAGE:$tag" >/dev/null || true
-    done
+    # keep the KEEP newest commit builds (and whatever the live tag points at)
+    local live_id
+    live_id="$($DOCKER image inspect --format '{{.Id}}' "$IMAGE:$LIVE_TAG")"
+    $DOCKER images "$IMAGE" --format '{{.Tag}} {{.ID}}' \
+        | { grep -Ev "^($LIVE_TAG|<none>) " || true; } \
+        | tail -n +"$((KEEP + 1))" \
+        | while read -r tag id; do
+            if [ "$($DOCKER image inspect --format '{{.Id}}' "$IMAGE:$tag")" = "$live_id" ]; then continue; fi
+            log "Removing old build $IMAGE:$tag"
+            $DOCKER image rm "$IMAGE:$tag" >/dev/null || true
+        done
 
-log "Done: $IMAGE:$LIVE_TAG = $commit. Earlier builds: $0 --list, back: $0 --rollback <tag>"
+    log "Done: $IMAGE:$LIVE_TAG = $commit. Earlier builds: $0 --list, back: $0 --rollback <tag>"
+}
+
+main "$@"; exit

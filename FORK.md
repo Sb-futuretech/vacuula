@@ -128,12 +128,22 @@ port 80, set `VACUULA_PORT=80` explicitly, or run the installer again for the ne
 docker compose and keeps the last builds for a rollback:
 
 ```bash
-./build/pi/deploy.sh                    # pull, build, restart
-./build/pi/deploy.sh --list             # builds kept for rollback
-./build/pi/deploy.sh --rollback <tag>   # run an earlier build again
+~/vacuula/build/pi/deploy.sh                    # pull, build, restart
+~/vacuula/build/pi/deploy.sh --no-pull          # build what is checked out
+~/vacuula/build/pi/deploy.sh --list             # builds kept for rollback
+~/vacuula/build/pi/deploy.sh --rollback <tag>   # run an earlier build again
+BRANCH=fix/x ~/vacuula/build/pi/deploy.sh       # deploy another branch
 ```
 
-Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
+Run it straight from the clone; it builds the repo it lives in. Your own paths go into
+`build/pi/deploy.env`, which git ignores, so a pull never overwrites them:
+
+```bash
+cp ~/vacuula/build/pi/deploy.env.example ~/vacuula/build/pi/deploy.env
+nano ~/vacuula/build/pi/deploy.env   # COMPOSE_DIR = the folder with your compose.yaml
+```
+
+Values given when calling it (`COMPOSE_DIR=... deploy.sh`) win over `deploy.env`.
 
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted.

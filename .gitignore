@@ -220,3 +220,5 @@ __marimo__/
 server/data
 server/web
 data-dev
+# personal settings for build/pi/deploy.sh (see build/pi/deploy.env.example)
+build/pi/deploy.env
