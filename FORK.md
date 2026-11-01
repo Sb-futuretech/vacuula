@@ -147,7 +147,8 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
   example from source) it is left out.
 
 ## Release notes
-What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted.
+What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Everything
+below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
 
 ### New features at a glance
 
@@ -193,6 +194,9 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   older database once. `build/docker/compose.yaml` (fork) and `docker-compose.upstream.yaml`
   (official) are ready for it, see *Running it*.
 
+- **The fork has its own version:** the settings show `Vacuula 1.1.0 · sb 1.0.0 (commit)`, the
+  startup log too, so you can see which build runs on the Pi.
+
 **Connection**
 - Fixed: the robot kept disconnecting after saving zones (messages split over several chunks).
 - The log says why a connection ended; a successful state poll counts as a heartbeat.
@@ -202,6 +206,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-01 | [`ff2cdd6`](https://github.com/Sb-futuretech/vacuula/commit/ff2cdd6) | Server | Fork version: 'Vacuula 1.1.0 · sb 1.0.0 (commit)' in the settings and the startup log |
 | 2026-11-01 | [`e0d19e8`](https://github.com/Sb-futuretech/vacuula/commit/e0d19e8) | Statistics | Battery time to empty is minutes, hide 65535, say it is measured idle |
 | 2026-11-01 | [`35770e6`](https://github.com/Sb-futuretech/vacuula/commit/35770e6) | Server | This fork as compose.yaml, upstream's file kept as docker-compose.upstream.yaml |
 | 2026-11-01 | [`3056659`](https://github.com/Sb-futuretech/vacuula/commit/3056659) | Database | Keep the fork's migrations in their own chain so upstream can start too |
