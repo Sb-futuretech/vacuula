@@ -99,14 +99,22 @@ This fork has no published image; build it yourself. Set up the robot with the u
 [installer](README.md#configure-the-robot) as usual.
 
 Copy both compose files from [`build/docker`](build/docker) into one folder on your server:
-- [`compose.yaml`](build/docker/compose.yaml): this fork, image `vacuula:sb` built by `deploy.sh`.
+- [`compose.yaml`](build/docker/compose.yaml): this fork, image `vacuula:sb`, built from the repo
+  by `docker compose up -d --build` (or by `deploy.sh`, below).
 - [`docker-compose.upstream.yaml`](build/docker/docker-compose.upstream.yaml): upstream's original
   file with the official image.
+
+Its `build:` points at the repo, relative to the file. In another folder, tell it where the clone
+is, once, in a `.env` file next to it:
+
+```bash
+echo "VACUULA_REPO=$HOME/vacuula" > .env                    # the folder holding compose.yaml
+```
 
 Both use the same database, so you can switch between this fork and the official server:
 
 ```bash
-docker compose up -d                                        # this fork (compose.yaml)
+docker compose up -d --build                                # this fork (compose.yaml): build, start
 docker compose -f docker-compose.upstream.yaml pull         # official image: pull first
 docker compose -f docker-compose.upstream.yaml up -d        # official server on the same data
 ```
