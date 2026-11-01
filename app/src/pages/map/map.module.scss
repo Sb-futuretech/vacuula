@@ -551,3 +551,59 @@
     background: var(--accent);
     color: $bg;
 }
+
+// the help button carries the "tap a zone or line" bubble to its left
+.helpButtonWrap {
+    position: relative;
+    display: flex;
+}
+
+.tapBubble {
+    position: absolute;
+    right: calc(100% + 0.9rem);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: max-content;
+    max-width: 15rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 1rem;
+    border: 1px solid $border;
+    background: $surface;
+    color: $text-primary;
+    box-shadow: $shadow-md;
+    font-size: 0.88rem;
+    line-height: 1.3;
+    cursor: pointer;
+    animation: tapBubbleIn 0.3s ease-out both;
+
+    svg {
+        flex: 0 0 auto;
+        color: var(--accent);
+    }
+
+    // arrow pointing at the help button
+    &::after {
+        content: "";
+        position: absolute;
+        right: -0.45rem;
+        top: 50%;
+        width: 0.8rem;
+        height: 0.8rem;
+        background: $surface;
+        border-top: 1px solid $border;
+        border-right: 1px solid $border;
+        transform: translateY(-50%) rotate(45deg);
+    }
+}
+
+@keyframes tapBubbleIn {
+    from { opacity: 0; transform: translate(0.4rem, -50%); }
+    to { opacity: 1; transform: translate(0, -50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tapBubble { animation: none; }
+}

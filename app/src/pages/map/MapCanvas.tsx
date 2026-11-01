@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './map.module.scss'
 import { FaMinus, FaPlus, FaUndo, FaRegQuestionCircle } from 'react-icons/fa'
-import { MdOutlineFitScreen, MdStraighten } from 'react-icons/md'
+import { MdOutlineFitScreen, MdStraighten, MdTouchApp } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { useTranslation } from 'react-i18next'
 import Drawer from '../../components/drawer/drawer'
@@ -76,6 +76,13 @@ export default function MapCanvas({
     // rulers: always while drawing, otherwise switched on with the ruler button
     const [showRulers, setShowRulers] = useState(false)
     const rulersOn = mode === 'boundary-edit' || showRulers
+    // "tap a zone or line" bubble next to the help button: shown while viewing the features
+    // until something gets picked (on the map or in the list) or the bubble is tapped
+    const [tapHintDone, setTapHintDone] = useState(false)
+    useEffect(() => {
+        if (mode === 'boundary-info' || mode === 'boundary-edit') setTapHintDone(true)
+    }, [mode])
+    const showTapHint = !tapHintDone && mode === 'boundaries' && !!onBoundaryTap && (boundaries?.length ?? 0) > 0
     const { t } = useTranslation()
 
     const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep } = useMap({
@@ -313,7 +320,15 @@ export default function MapCanvas({
                     <button onClick={() => setShowRulers(on => !on)} aria-label={t('map.rulers')} aria-pressed={showRulers}
                         className={showRulers ? styles.zoomButtonOn : undefined}><MdStraighten size={18} /></button>
                 )}
-                <button onClick={() => setHelpOpen(true)} aria-label={t('map.help')}><FaRegQuestionCircle size={17} /></button>
+                <div className={styles.helpButtonWrap}>
+                    <button onClick={() => { setHelpOpen(true); setTapHintDone(true) }} aria-label={t('map.help')}><FaRegQuestionCircle size={17} /></button>
+                    {showTapHint && (
+                        <div className={styles.tapBubble} role="status" onClick={() => setTapHintDone(true)}>
+                            <MdTouchApp size={20} />
+                            <span>{t('map.tapBubble')}</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {mode === 'boundary-edit' && (
@@ -346,7 +361,7 @@ export default function MapCanvas({
                     </div>
                     <div className={styles.mapHelpSection}>
                         <div className={styles.mapHelpHead}>{t('map.helpSelectTitle')}</div>
-                        <div className={styles.mapHelpText}>{t('map.helpSelect')}</div>
+                        <div className={styles.mapHelpRow}><span className={styles.mapHelpIcon}><MdTouchApp size={16} /></span><span>{t('map.helpSelect')}</span></div>
                     </div>
                     <div className={styles.mapHelpSection}>
                         <div className={styles.mapHelpHead}>{t('map.helpDrawTitle')}</div>

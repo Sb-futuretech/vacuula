@@ -316,6 +316,7 @@
         "useAsFloormap": "Usar como mapa",
         "editMapDetails": "Editar detalhes do mapa",
         "addFeature": "Zona / Linha No-Go",
+        "tapBubble": "Toque numa zona ou linha para a abrir",
         "rulers": "R\u00e9guas",
         "helpRuler": "O bot\u00e3o da r\u00e9gua mostra dist\u00e2ncias no topo e \u00e0 esquerda (sempre ligado ao desenhar).",
         "helpSelectTitle": "Zonas e linhas",
