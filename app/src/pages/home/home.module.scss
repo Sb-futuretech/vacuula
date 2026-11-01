@@ -278,6 +278,7 @@
 .ctrlRow {
     display: flex;
     justify-content: center;
+    align-items: center; // the framed group is taller than the single buttons
     gap: 1rem;
     width: 100%;
 }
@@ -603,4 +604,38 @@
     font-size: 0.8rem;
     line-height: 1.35;
     color: #e8b24a;
+}
+
+// mode + cleaning: framed together, they set up the next run
+.ctrlGroup {
+    position: relative;
+    display: flex;
+    gap: 0.6rem;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0.9rem 0.5rem 0.5rem;
+    border: 1px solid $border;
+    border-radius: 1.8rem;
+}
+
+// the group's caption, sitting on its top border
+.ctrlGroupLabel {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 0 0.5rem;
+    background: $bg;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: $text-muted;
+}
+
+@media (max-width: 420px) {
+    .ctrlGroup {
+        gap: 0.4rem;
+        padding: 0.8rem 0.35rem 0.35rem;
+    }
 }

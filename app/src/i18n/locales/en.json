@@ -116,6 +116,7 @@
         "resumeCleaning": "Resume cleaning",
         "startCleaning": "Start cleaning",
         "selectMode": "Select Mode",
+        "nextRun": "Next run",
         "cleaningSuction": "Suction",
         "cleaningReasonEco": "Deep needs suction mode Normal",
         "cleaningReasonDeep": "Needs suction mode Normal",

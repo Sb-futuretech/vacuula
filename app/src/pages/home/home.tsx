@@ -365,42 +365,46 @@ export default function Home() {
                         />
                     )}
 
-                    <CtrlBtn icon={
-                        gen3__cleaningCategory === CleaningCategory.HOUSE ? <FaHouse size={22} /> :
-                            gen3__cleaningCategory === CleaningCategory.SPOT ? <BiTargetLock size={22} /> :
-                                gen3__cleaningCategory === CleaningCategory.MAP ? <HiMap size={22} /> : <TbAdjustments size={22} />
-                    } onClick={() => setCategoryDrawerOpen(true)} selection={
-                        gen3__cleaningCategory === CleaningCategory.HOUSE ? t('home.house') :
-                            gen3__cleaningCategory === CleaningCategory.SPOT ? t('home.spot') :
-                                gen3__cleaningCategory === CleaningCategory.MAP ? t('home.map') : '...'
-                    } label={t('home.btnExplain.mode')} />
+                    {/* mode and cleaning together decide how the next run goes */}
+                    <div className={styles.ctrlGroup}>
+                        <span className={styles.ctrlGroupLabel}>{t('home.nextRun')}</span>
+                        <CtrlBtn icon={
+                            gen3__cleaningCategory === CleaningCategory.HOUSE ? <FaHouse size={22} /> :
+                                gen3__cleaningCategory === CleaningCategory.SPOT ? <BiTargetLock size={22} /> :
+                                    gen3__cleaningCategory === CleaningCategory.MAP ? <HiMap size={22} /> : <TbAdjustments size={22} />
+                        } onClick={() => setCategoryDrawerOpen(true)} selection={
+                            gen3__cleaningCategory === CleaningCategory.HOUSE ? t('home.house') :
+                                gen3__cleaningCategory === CleaningCategory.SPOT ? t('home.spot') :
+                                    gen3__cleaningCategory === CleaningCategory.MAP ? t('home.map') : '...'
+                        } label={t('home.btnExplain.mode')} />
 
 
-                    {robot.type === RobotType.NeatoGen3 && (
-                        <>
-                            <CtrlBtn label={t('home.btnExplain.cleaning')} disabled={spotFixed}
-                                icon={<span style={{ display: 'flex', gap: '2px' }}>{cleanIconFor(shownMode, 18)}{navIconFor(shownNavigation, 18)}</span>}
-                                selection={`${t(cleanName(shownMode) as any)} · ${t(navName(shownNavigation) as any)}`}
-                                onClick={() => setCleaningDrawerOpen(true)} />
-                        </>
-                    )}
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <>
+                                <CtrlBtn label={t('home.btnExplain.cleaning')} disabled={spotFixed}
+                                    icon={<span style={{ display: 'flex', gap: '2px' }}>{cleanIconFor(shownMode, 18)}{navIconFor(shownNavigation, 18)}</span>}
+                                    selection={`${t(cleanName(shownMode) as any)} · ${t(navName(shownNavigation) as any)}`}
+                                    onClick={() => setCleaningDrawerOpen(true)} />
+                            </>
+                        )}
 
-                    {robot.type === RobotType.NeatoGen4 && (
-                        <>
-                            {gen4__navigationMode === Neato.Gen4.CleaningNavigationMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdCleaningServices color='var(--accent)' size={22} />} onClick={() => gen4__setNavigationMode(Neato.Gen4.CleaningNavigationMode.GENTLE)} selection={t('modes.normal')} />)}
-                            {gen4__navigationMode === Neato.Gen4.CleaningNavigationMode.GENTLE && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdOutlineHealthAndSafety color='var(--warn)' size={22} />} onClick={() => gen4__setNavigationMode(Neato.Gen4.CleaningNavigationMode.NORMAL)} selection={t('modes.gentle')} />)}
+                        {robot.type === RobotType.NeatoGen4 && (
+                            <>
+                                {gen4__navigationMode === Neato.Gen4.CleaningNavigationMode.NORMAL && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdCleaningServices color='var(--accent)' size={22} />} onClick={() => gen4__setNavigationMode(Neato.Gen4.CleaningNavigationMode.GENTLE)} selection={t('modes.normal')} />)}
+                                {gen4__navigationMode === Neato.Gen4.CleaningNavigationMode.GENTLE && (<CtrlBtn label={t('home.btnExplain.navigation')} icon={<MdOutlineHealthAndSafety color='var(--warn)' size={22} />} onClick={() => gen4__setNavigationMode(Neato.Gen4.CleaningNavigationMode.NORMAL)} selection={t('modes.gentle')} />)}
 
-                            {/* TODO: verify hardware in other gen4 robots, read more at the "isGen4D10" func */}
-                            {gen4__cleaningMode === Neato.Gen4.CleaningMode.ECO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<TbLeaf size={22} color='lime' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.TURBO)} selection={t('modes.eco')} />)}
-                            {gen4__cleaningMode === Neato.Gen4.CleaningMode.TURBO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaFan size={22} color='orange' />} onClick={() => gen4__setCleaningMode(isGen4D10(robot) ? Neato.Gen4.CleaningMode.MAX : Neato.Gen4.CleaningMode.ECO)} selection={t('modes.turbo')} />)}
-                            {isGen4D10(robot) && (
-                                <>
-                                    {gen4__cleaningMode === Neato.Gen4.CleaningMode.MAX && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaGaugeHigh size={22} color='orange' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.AUTO)} selection={t('modes.max')} />)}
-                                    {gen4__cleaningMode === Neato.Gen4.CleaningMode.AUTO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<MdMotionPhotosAuto size={22} color='purple' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.ECO)} selection={t('modes.auto')} />)}
-                                </>
-                            )}
-                        </>
-                    )}
+                                {/* TODO: verify hardware in other gen4 robots, read more at the "isGen4D10" func */}
+                                {gen4__cleaningMode === Neato.Gen4.CleaningMode.ECO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<TbLeaf size={22} color='lime' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.TURBO)} selection={t('modes.eco')} />)}
+                                {gen4__cleaningMode === Neato.Gen4.CleaningMode.TURBO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaFan size={22} color='orange' />} onClick={() => gen4__setCleaningMode(isGen4D10(robot) ? Neato.Gen4.CleaningMode.MAX : Neato.Gen4.CleaningMode.ECO)} selection={t('modes.turbo')} />)}
+                                {isGen4D10(robot) && (
+                                    <>
+                                        {gen4__cleaningMode === Neato.Gen4.CleaningMode.MAX && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<FaGaugeHigh size={22} color='orange' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.AUTO)} selection={t('modes.max')} />)}
+                                        {gen4__cleaningMode === Neato.Gen4.CleaningMode.AUTO && (<CtrlBtn label={t('home.btnExplain.cleaning')} icon={<MdMotionPhotosAuto size={22} color='purple' />} onClick={() => gen4__setCleaningMode(Neato.Gen4.CleaningMode.ECO)} selection={t('modes.auto')} />)}
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
 
                 </div>
 
