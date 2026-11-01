@@ -136,66 +136,43 @@ docker compose and keeps the last builds for a rollback:
 Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
 
 ## Release notes
-Newest first. All on a D7 (Gen3, firmware 4.5.3-189) unless noted.
+Every change since the last update of this page, newest first. All tested on a D7 (Gen3,
+firmware 4.5.3-189) unless noted; *Upstream* rows come from Vacuula itself (release 1.1.0).
 
-### 2026-11-01
-**Fixes**
-- **Robot kept disconnecting after saving zones.** The server read the robot's command connection
-  line by line and assumed every message fits one chunk. A bigger reply (e.g. after saving many
-  zones) broke that: the server dropped the robot and then rejected it again on every reconnect.
-  It now reads the chunks by their size, joins messages split over several chunks, and logs an odd
-  message instead of closing the connection.
-- The on/off switch in a zone's or line's details now saves (it only changed what was shown).
-
-**Map**
-- **Tap a zone or line on the map** (or in the list) to open its details in the panel: on/off,
-  clean the zone, edit, delete. The selected feature is highlighted on the map; tapping an empty
-  spot goes back to the list. A small bubble next to the help button points this out until the
-  first tap.
-- **Tap an empty spot** with nothing selected: an *Add feature here* button appears. It opens the
-  type chooser and starts drawing with the crosshair on that spot.
-- Rulers can be switched on with a button in the zoom column (always on while drawing); the help
-  button is always there and explains moving, selecting and drawing.
-- On phones the map opens with the feature list folded, so the map is visible.
-
-**Home page**
-- *Mode* and *Cleaning* are framed together as **Next run**.
-
-### 2026-10-31
-**Map**
-- **Add feature asks for the type first**: Cleaning Zone or No-Go Line (Gen4 also No-Go Zone), each
-  with a short explanation. A No-Go Line can no longer be closed into a zone by accident (it used
-  to be saved as a zone then).
-- **Rulers** along the top and left edge while drawing, in real distance (cm / m). **Tap a point** to
-  type its exact X/Y in cm, see its distance to the previous point, or delete it. Points can now be
-  selected on touch screens too.
-
-**Home page**
-- **One Cleaning button** for suction and navigation (both icons, e.g. *Eco · Extra Care*). It opens
-  one sheet listing every option with a description. Eco and Deep can't be combined on Gen3: the
-  blocked option is greyed out with the reason, instead of the other setting changing silently.
-- The home page shows the **map of the last cleaning** by default (*Settings → Home page* switches
-  back to the mascot).
-
-**Schedule**
-- Mode and navigation are explained under their fields; Save says what is missing (a day, a full
-  time) instead of just staying grey.
-
-### 2026-10-26 – 2026-10-28
-- **Based on upstream 1.1.0** now.
-- **Statistics:** area per minute (overall and per mode + navigation); battery over time as minutes
-  per charge per week and as an index against each run's own mode; per-zone statistics (runs, last
-  cleaned, average time and area); runs that recharged in between are measured by their cleaning
-  stretches, and runs that could not be measured are counted per week; a battery card with the
-  robot's own figures (charge cycles, time-to-empty, design capacity) that marks a battery change.
-- **Runs:** a run's map opens full screen.
-- **Schedule:** tap an entry to edit it in place; repeating robot events are grouped into one row;
-  entries run by the server can be paused. Schedule times are sent to the robot as entered (local
-  time) for now: the D7's clock handling is not understood yet, so the conversion described above
-  is off, and the offset each scheduled run implies is logged.
-- **Home page:** while cleaning, the state shows the zone or map, mode and navigation.
-- The connection log says why a robot's connection ended and how long it lasted; a successful state
-  poll counts as a heartbeat (no more *N/A* while cleaning).
+| Date | Commit | Area | Change |
+|---|---|---|---|
+| 2026-11-01 | [`f415048`](https://github.com/Sb-futuretech/vacuula/commit/f415048) | Home | Thicker, stronger frame around the Next run group |
+| 2026-11-01 | [`a4ecc97`](https://github.com/Sb-futuretech/vacuula/commit/a4ecc97) | Home | Frame Mode and Cleaning together as "Next run" |
+| 2026-11-01 | [`a42d39c`](https://github.com/Sb-futuretech/vacuula/commit/a42d39c) | Map | Tapping an empty spot offers "add feature here" |
+| 2026-11-01 | [`2d2a875`](https://github.com/Sb-futuretech/vacuula/commit/2d2a875) | Map | Tap bubble says "to see its details" |
+| 2026-11-01 | [`8298fcf`](https://github.com/Sb-futuretech/vacuula/commit/8298fcf) | Map | Open a map with the feature sheet folded (phone) |
+| 2026-11-01 | [`cbea39a`](https://github.com/Sb-futuretech/vacuula/commit/cbea39a) | Map | "tap a zone or line" bubble at the help button, touch icon in the help |
+| 2026-11-01 | [`db5f6b3`](https://github.com/Sb-futuretech/vacuula/commit/db5f6b3) | Map | One selection for map taps and the list; rulers toggle, help always |
+| 2026-11-01 | [`d0495f9`](https://github.com/Sb-futuretech/vacuula/commit/d0495f9) | Map | Tap a zone or line on the map to edit it |
+| 2026-11-01 | [`9a2e6af`](https://github.com/Sb-futuretech/vacuula/commit/9a2e6af) | Connection | Read the robot's command connection as proper HTTP chunks |
+| 2026-10-31 | [`4200bfa`](https://github.com/Sb-futuretech/vacuula/commit/4200bfa) | Map | Rulers and an editable position for drawn points |
+| 2026-10-31 | [`5ec25b4`](https://github.com/Sb-futuretech/vacuula/commit/5ec25b4) | Map | Pick the feature type before drawing (Add-feature chooser) |
+| 2026-10-31 | [`f6972f0`](https://github.com/Sb-futuretech/vacuula/commit/f6972f0) | Map | A "?" (in edit mode) below the zoom controls explains how to draw |
+| 2026-10-31 | [`7c1cda8`](https://github.com/Sb-futuretech/vacuula/commit/7c1cda8) | Home | One Cleaning button + combined suction/navigation sheet (gen3) |
+| 2026-10-31 | [`4dd802f`](https://github.com/Sb-futuretech/vacuula/commit/4dd802f) | Schedule | Explain the cleaning mode and navigation options |
+| 2026-10-31 | [`bb3f111`](https://github.com/Sb-futuretech/vacuula/commit/bb3f111) | Home | Default the home page to the last cleaning's map |
+| 2026-10-31 | [`3e91588`](https://github.com/Sb-futuretech/vacuula/commit/3e91588) | Schedule | Explain why Save is disabled, and hint the time format |
+| 2026-10-28 | [`b979106`](https://github.com/Sb-futuretech/vacuula/commit/b979106) | Statistics | Battery card from the robot's own figures, detect a new battery |
+| 2026-10-28 | [`f96a22e`](https://github.com/Sb-futuretech/vacuula/commit/f96a22e) | Statistics | Measure battery use of recharged runs by their stretches |
+| 2026-10-28 | [`619c7ec`](https://github.com/Sb-futuretech/vacuula/commit/619c7ec) | Runs | Open a run's map full screen |
+| 2026-10-28 | [`9724f0c`](https://github.com/Sb-futuretech/vacuula/commit/9724f0c) | Statistics | Show runs per week that could not be measured (recharged) |
+| 2026-10-27 | [`b8b0f8e`](https://github.com/Sb-futuretech/vacuula/commit/b8b0f8e) | Statistics | Battery over time as an index against each run's own mode |
+| 2026-10-27 | [`afcf1fc`](https://github.com/Sb-futuretech/vacuula/commit/afcf1fc) | Statistics | Battery minutes per charge per week, and per-zone statistics |
+| 2026-10-27 | [`cee1e30`](https://github.com/Sb-futuretech/vacuula/commit/cee1e30) | Statistics | Area per minute of cleaning, overall and per mode + navigation |
+| 2026-10-27 | [`3d56c1b`](https://github.com/Sb-futuretech/vacuula/commit/3d56c1b) | Schedule | Stop converting robot schedule times, only log the robot's clock |
+| 2026-10-27 | [`f20ab9a`](https://github.com/Sb-futuretech/vacuula/commit/f20ab9a) | Server | Log why a robot's command connection ends and when it is missing |
+| 2026-10-27 | [`2da517d`](https://github.com/Sb-futuretech/vacuula/commit/2da517d) | Schedule | Learn a robot's own fixed clock offset from its scheduled runs |
+| 2026-10-26 | [`8699b4b`](https://github.com/Sb-futuretech/vacuula/commit/8699b4b) | Schedule | Edit entries in place, group repeating robot events, pause Pi entries |
+| 2026-10-26 | [`358685d`](https://github.com/Sb-futuretech/vacuula/commit/358685d) | Server | Count a successful gen3 state poll as heartbeat (no more N/A while cleaning) |
+| 2026-10-26 | [`2884c15`](https://github.com/Sb-futuretech/vacuula/commit/2884c15) | Home | Show zone/map, mode and navigation of the running clean next to the state (gen3) |
+| 2026-10-25 | [`d96e3ca`](https://github.com/Sb-futuretech/vacuula/commit/d96e3ca) | Upstream | Links + how to update |
+| 2026-10-25 | [`d5573ba`](https://github.com/Sb-futuretech/vacuula/commit/d5573ba) | Upstream | Docker compose fix |
+| 2026-10-25 | [`dadf239`](https://github.com/Sb-futuretech/vacuula/commit/dadf239) | Upstream | Update configs release:1.1.0 |
 
 ### Known issues
 - **Too many zone/line points per map make the D7 drop its connection after every save.** There
