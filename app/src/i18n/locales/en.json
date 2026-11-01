@@ -323,6 +323,8 @@
         "useAsFloormap": "Use as floormap",
         "editMapDetails": "Edit map details",
         "addFeature": "Add feature",
+        "details": "Details",
+        "tapHint": "Tip: tap a zone or line on the map to edit it.",
         "pointTitle": "Point {{n}}",
         "pointFromPrevious": "{{cm}} cm from the previous point",
         "pointDelete": "Delete",

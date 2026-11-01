@@ -316,6 +316,8 @@
         "useAsFloormap": "Usar como mapa",
         "editMapDetails": "Editar detalhes do mapa",
         "addFeature": "Zona / Linha No-Go",
+        "details": "Detalhes",
+        "tapHint": "Dica: toque numa zona ou linha no mapa para a editar.",
         "pointTitle": "Ponto {{n}}",
         "pointFromPrevious": "{{cm}} cm do ponto anterior",
         "pointDelete": "Apagar",

@@ -9,8 +9,11 @@ import MapRulers from './MapRulers'
 import PointEditor from './PointEditor'
 import { DRAWING } from '../../components/map/constants'
 import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
-import type { Point, UseState } from '../../components/map/types'
-import { getCrosshairWorldCoords, getWorldCoords } from '../../components/map/utils'
+import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
+import { distToSegment, getCrosshairWorldCoords, getWorldCoords, pointInPolygon, polygonArea } from '../../components/map/utils'
+
+// how close (CSS px) a tap has to land to a no-go line to pick it
+const LINE_HIT_PX = 16
 import { useMap, type ExtraDrawFn } from '../../components/map/useMap'
 
 // [x, y] direction per arrow key; map y grows downwards
@@ -41,6 +44,8 @@ interface MapCanvasProps {
     selectedPoint: number | null // null = the last point
     setSelectedPoint: (index: number | null) => void
     mmPerPixel?: number // map resolution; gen3 maps have none (GEN3_MM_PER_CELL)
+    boundaries?: (NoGoLine | Zone)[] // the map's zones and lines, for picking one by tapping it
+    onBoundaryTap?: (id: string | null) => void // tap while viewing the features; null = nothing there
 }
 
 // Owns everything that genuinely can't exist without a selected map: the hook, the
@@ -61,7 +66,9 @@ export default function MapCanvas({
     maxPoints,
     selectedPoint,
     setSelectedPoint,
-    mmPerPixel = GEN3_MM_PER_CELL
+    mmPerPixel = GEN3_MM_PER_CELL,
+    boundaries,
+    onBoundaryTap
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
@@ -92,6 +99,36 @@ export default function MapCanvas({
     const pointAt = (x: number, y: number, reach: number) => !mapSize ? -1 : currentLinePoints.findIndex(([px, py]) =>
         Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * reach)
 
+    // the zone or line at canvas position x/y (CSS px): a nearby line first (thin, drawn on top),
+    // else the smallest zone containing the tap; null if none
+    const boundaryAt = (x: number, y: number): string | null => {
+        if (!mapSize || !boundaries) return null
+        const toScreen = ([px, py]: Point): [number, number] =>
+            [offset.x + px * mapSize.width * zoom, offset.y + py * mapSize.height * zoom]
+        let line: string | null = null
+        let lineDist = LINE_HIT_PX
+        for (const b of boundaries) {
+            if (b.type !== 'polyline') continue
+            const pts = b.vertices.map(toScreen)
+            for (let i = 1; i < pts.length; i++) {
+                const d = distToSegment([x, y], pts[i - 1], pts[i])
+                if (d < lineDist) { lineDist = d; line = b.id }
+            }
+        }
+        if (line) return line
+        let zone: string | null = null
+        let zoneArea = Infinity
+        for (const b of boundaries) {
+            if (b.type !== 'polygon') continue
+            const pts = b.vertices.map(toScreen)
+            if (!pointInPolygon([x, y], pts)) continue
+            const area = polygonArea(pts)
+            if (area < zoneArea) { zoneArea = area; zone = b.id }
+        }
+        return zone
+    }
+    const pickable = !!onBoundaryTap && (mode === 'boundaries' || mode === 'boundary-info')
+
     const deletePoint = (index: number) => {
         if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
         setCurrentLinePoints(prev => prev.filter((_, i) => i !== index))
@@ -99,7 +136,8 @@ export default function MapCanvas({
     }
 
     // Mouse (touch: see onTouchEnd): a click that did not pan the map picks the point under the
-    // cursor, or adds a new point there. Pointer events tell mouse and touch apart.
+    // cursor, or adds a new point there; while viewing the features it picks the zone or line
+    // under the cursor. Pointer events tell mouse and touch apart.
     const clickStartRef = useRef<{ x: number, y: number } | null>(null)
     const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
         clickStartRef.current = e.pointerType === 'mouse' && e.button === 0 ? { x: e.clientX, y: e.clientY } : null
@@ -107,12 +145,16 @@ export default function MapCanvas({
     const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const start = clickStartRef.current
         clickStartRef.current = null
-        if (!start || mode !== 'boundary-edit' || !mapSize) return
+        if (!start || !mapSize || (mode !== 'boundary-edit' && !pickable)) return
         if (Math.hypot(e.clientX - start.x, e.clientY - start.y) >= DRAWING.MIN_MOVEMENT) return // panned
 
         const rect = e.currentTarget.getBoundingClientRect()
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
+        if (mode !== 'boundary-edit') {
+            onBoundaryTap?.(boundaryAt(x, y))
+            return
+        }
         const hit = pointAt(x, y, 2.5)
         if (hit !== -1) {
             setSelectedPoint(hit)
@@ -197,11 +239,18 @@ export default function MapCanvas({
     }
 
     // a tap (no pan) on a drawn point selects it for the position editor; anywhere else adds a
-    // point at the crosshair as before
+    // point at the crosshair as before. While viewing the features a tap picks a zone or line.
     const onTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
         canvasHandlers.onTouchEnd(e)
-        if (mode !== 'boundary-edit' || hasMoved) return
+        if (hasMoved || (mode !== 'boundary-edit' && !pickable)) return
         const touch = e.changedTouches[0]
+        if (mode !== 'boundary-edit') {
+            if (touch) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                onBoundaryTap?.(boundaryAt(touch.clientX - rect.left, touch.clientY - rect.top))
+            }
+            return
+        }
         if (touch) {
             const rect = e.currentTarget.getBoundingClientRect()
             const hit = pointAt(touch.clientX - rect.left, touch.clientY - rect.top, 4) // fingers are less precise

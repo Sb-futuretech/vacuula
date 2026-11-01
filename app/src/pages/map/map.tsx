@@ -52,6 +52,9 @@ export default () => {
     // type and, via allowClose below, decides whether drawing can be closed into a polygon
     const [featureChooserOpen, setFeatureChooserOpen] = useState(false)
     const [pendingKind, setPendingKind] = useState<BoundaryTypes>(BoundaryTypes.NOGO_LINE)
+    // zone or line picked by tapping it on the map while viewing the features: shown in a small
+    // card over the map that leads to Edit or Details
+    const [tappedId, setTappedId] = useState<string | null>(null)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
@@ -280,6 +283,13 @@ export default () => {
         GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode(), promotedFloorplan.id, true, [zone.id])
     }
 
+    const tapped = mode === 'boundaries' || mode === 'boundary-info'
+        ? boundaries.find(b => b.id === tappedId)
+        : undefined
+    const typeLabel = (b: NoGoLine | Zone) => b.type === 'polygon'
+        ? ('function' in b ? (b.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone')) : t('map.zone'))
+        : t('map.noGoLine')
+
     return (
         <div className={styles.container}>
             <div className={styles.mapArea}>
@@ -301,9 +311,24 @@ export default () => {
                         selectedPoint={selectedPoint}
                         setSelectedPoint={setSelectedPoint}
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
+                        boundaries={boundaries}
+                        onBoundaryTap={setTappedId}
                     />
                 ) : (
                     <canvas className={styles.canvas} />
+                )}
+
+                {tapped && (
+                    <div className={styles.tapCard}>
+                        <span className={styles.tapCardDot} style={{ background: normalizeHex(tapped.color) ?? undefined }} />
+                        <div className={styles.tapCardText}>
+                            <span className={styles.tapCardName}>{tapped.name || typeLabel(tapped)}</span>
+                            <span className={styles.tapCardType}>{typeLabel(tapped)}</span>
+                        </div>
+                        <button onClick={() => { openInfo(tapped.id); setTappedId(null) }}>{t('map.details')}</button>
+                        <button className={styles.tapCardPrimary} onClick={() => { openEdit(tapped.id); setTappedId(null) }}>{t('common.edit')}</button>
+                        <button className={styles.tapCardClose} onClick={() => setTappedId(null)} aria-label={t('common.cancel')}>×</button>
+                    </div>
                 )}
 
                 {mode === 'maps' && (
@@ -461,6 +486,7 @@ export default () => {
                         <div className={styles.buttonContainer}>
                             <Button text={t('map.addFeature')} style='primary' onClick={() => setFeatureChooserOpen(true)} />
                         </div>
+                        {boundaries.length > 0 && <p className={styles.tapHint}>{t('map.tapHint')}</p>}
 
                         <div className={styles.featureList}>
                             {boundaries.map((item, i) => (

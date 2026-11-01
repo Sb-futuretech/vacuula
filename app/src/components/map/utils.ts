@@ -196,3 +196,29 @@ export function getRunBounds(
     }
     return { minX, minY, maxX, maxY }
 }
+
+type XY = [number, number]
+
+// distance from p to the segment a–b
+export function distToSegment(p: XY, a: XY, b: XY): number {
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const len2 = dx * dx + dy * dy
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2))
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy))
+}
+
+// even-odd ray casting
+export function pointInPolygon(p: XY, poly: XY[]): boolean {
+    let inside = false
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j]
+        if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) inside = !inside
+    }
+    return inside
+}
+
+export function polygonArea(poly: XY[]): number {
+    let area = 0
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) area += (poly[j][0] + poly[i][0]) * (poly[j][1] - poly[i][1])
+    return Math.abs(area / 2)
+}
