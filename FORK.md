@@ -174,8 +174,15 @@ below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
 - While cleaning, the state shows zone or map, mode and navigation.
 
 **Schedule**
-- Edit entries in place; repeating robot events grouped into one row; server-run entries can be
-  paused.
+- **Week view:** a row per day on phones, a column per day on wide screens, each run a block as long
+  as it takes, coloured by mode; Pi-run entries marked. Tap a block for its details: edit, pause,
+  delete.
+- **Next run** on top: when, where, how, and how long.
+- **Run lengths** from your finished runs (per zone and for the whole map, recharging included),
+  scaled by how fast each mode cleans.
+- **Fallback pairs** (a robot entry next to a Pi entry) show as one block with its backup;
+  **overlapping runs** are marked, and the edit sheet warns before saving.
+- Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
 - Mode and navigation explained under their fields; Save says what is still missing.
 
 **Statistics and runs**
@@ -206,6 +213,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-01 | [`bbdecca`](https://github.com/Sb-futuretech/vacuula/commit/bbdecca) | Schedule | Schedule as a week: next run, run lengths from the stored runs, fallback pairs and overlaps |
 | 2026-11-01 | [`ff2cdd6`](https://github.com/Sb-futuretech/vacuula/commit/ff2cdd6) | Server | Fork version: 'Vacuula 1.1.0 · sb 1.0.0 (commit)' in the settings and the startup log |
 | 2026-11-01 | [`e0d19e8`](https://github.com/Sb-futuretech/vacuula/commit/e0d19e8) | Statistics | Battery time to empty is minutes, hide 65535, say it is measured idle |
 | 2026-11-01 | [`35770e6`](https://github.com/Sb-futuretech/vacuula/commit/35770e6) | Server | This fork as compose.yaml, upstream's file kept as docker-compose.upstream.yaml |
