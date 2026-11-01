@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Update the self-built Vacuula on the Pi: pull, build the image, restart it with docker compose.
-# Run it straight from the repo; your own paths go into build/pi/deploy.env (see deploy.env.example).
+# Run it straight from the repo: it builds this clone and starts build/docker/compose.yaml from it.
+# Optional own settings go into build/pi/deploy.env (see deploy.env.example).
 #
 #   build/pi/deploy.sh                 pull the branch, build, restart
 #   build/pi/deploy.sh --no-pull       build and restart what is checked out
@@ -16,14 +17,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# your settings, kept out of git; values given when calling (COMPOSE_DIR=... build/pi/deploy.sh) win
+# your settings, kept out of git; values given when calling (BRANCH=... build/pi/deploy.sh) win
 CONFIG="${DEPLOY_CONFIG:-$SCRIPT_DIR/deploy.env}"
 # shellcheck source=/dev/null
 [ -f "$CONFIG" ] && . "$CONFIG"
 
 # ---- defaults, override them in deploy.env ------------------------------------------------------
 if [ -d "$SCRIPT_REPO/.git" ]; then REPO_DIR="${REPO_DIR:-$SCRIPT_REPO}"; else REPO_DIR="${REPO_DIR:-$HOME/vacuula}"; fi
-COMPOSE_DIR="${COMPOSE_DIR:-$HOME/vacuula-run}" # folder with the compose file (compose.yaml from build/docker)
+COMPOSE_FILE="${COMPOSE_FILE:-$REPO_DIR/build/docker/compose.yaml}" # its `name:` keeps the data volume
 BRANCH="${BRANCH:-main}"
 IMAGE="${IMAGE:-vacuula}"
 LIVE_TAG="${LIVE_TAG:-sb}"                   # must match `image:` in the compose file
@@ -36,11 +37,11 @@ die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 restart() {
     log "Restarting with docker compose"
-    (cd "$COMPOSE_DIR" && $DOCKER compose up -d)
+    $DOCKER compose -f "$COMPOSE_FILE" up -d
     log "Server start (waiting ${STARTUP_WAIT:-15} s)"
     sleep "${STARTUP_WAIT:-15}"
     local startup
-    startup="$(cd "$COMPOSE_DIR" && $DOCKER compose logs --since 1m 2>&1 \
+    startup="$($DOCKER compose -f "$COMPOSE_FILE" logs --since 1m 2>&1 \
         | grep -E 'Starting Vacuula Server|listening on|connected' || true)"
     printf '%s\n' "$startup"
     grep -q 'listening on http://[^ ]*:8050' <<<"$startup" \
@@ -77,9 +78,7 @@ main() {
     esac
 
     [ -d "$REPO_DIR/.git" ] || die "REPO_DIR $REPO_DIR is not a git clone"
-    [ -f "$COMPOSE_DIR/compose.yaml" ] || [ -f "$COMPOSE_DIR/compose.yml" ] || [ -f "$COMPOSE_DIR/docker-compose.yaml" ] \
-        || [ -f "$COMPOSE_DIR/docker-compose.yml" ] \
-        || die "no compose.yaml / docker-compose.yaml in COMPOSE_DIR $COMPOSE_DIR (set it in $CONFIG)"
+    [ -f "$COMPOSE_FILE" ] || die "no compose file $COMPOSE_FILE (COMPOSE_FILE in $CONFIG)"
     cd "$REPO_DIR"
 
     if [ "${1:-}" != "--no-pull" ]; then

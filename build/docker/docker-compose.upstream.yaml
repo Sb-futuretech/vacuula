@@ -1,3 +1,6 @@
+# fork: same project name as compose.yaml, so both run on the same data volume
+name: vacula
+
 services:
   vacuula:
     image: ghcr.io/vacuula/vacuula:latest # if you want a spesific version, you can change "latest" to the version number

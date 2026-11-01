@@ -1,9 +1,13 @@
 # This fork's server, built from this repo (see FORK.md, "Running it", and build/pi/deploy.sh).
-# Upstream's original file with the published image is docker-compose.upstream.yaml: keep both in
-# the same folder, so they share the data volume (docker names it after the folder), then
-#   docker compose up -d                                       # this fork (compose.yaml)
+# Upstream's original file with the published image is docker-compose.upstream.yaml. Both carry
+# the same `name:`, so they share the data volume (vacula_vacuula-data) from any folder:
+#   build/pi/deploy.sh                                         # this fork (compose.yaml)
 #   docker compose -f docker-compose.upstream.yaml pull        # official image, pull first
 #   docker compose -f docker-compose.upstream.yaml up -d
+# The project name is what docker puts in front of the volume: keep it, or the server starts on an
+# empty database.
+name: vacula
+
 services:
   vacuula:
     image: vacuula:sb            # built by build/pi/deploy.sh (IMAGE:LIVE_TAG)

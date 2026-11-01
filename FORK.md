@@ -98,7 +98,7 @@ Useful if you work on Gen3 support yourself:
 This fork has no published image; build it yourself. Set up the robot with the upstream
 [installer](README.md#configure-the-robot) as usual.
 
-Copy both compose files from [`build/docker`](build/docker) into one folder on your server:
+Both compose files live in [`build/docker`](build/docker) and are started straight from the clone:
 - [`compose.yaml`](build/docker/compose.yaml): this fork, image `vacuula:sb` built by `deploy.sh`.
 - [`docker-compose.upstream.yaml`](build/docker/docker-compose.upstream.yaml): upstream's original
   file with the official image.
@@ -106,13 +106,15 @@ Copy both compose files from [`build/docker`](build/docker) into one folder on y
 Both use the same database, so you can switch between this fork and the official server:
 
 ```bash
+cd ~/vacuula/build/docker
 docker compose up -d                                        # this fork (compose.yaml)
 docker compose -f docker-compose.upstream.yaml pull         # official image: pull first
 docker compose -f docker-compose.upstream.yaml up -d        # official server on the same data
 ```
 
-- Keep both files in the **same folder**: docker names the data volume after the folder, so a
-  compose file elsewhere starts on a new, empty database.
+- Both files set the project name `name: vacula`; docker puts it in front of the data volume
+  (`vacula_vacuula-data`), whatever folder the file is in. Change it and the server starts on a
+  new, empty database.
 - The official image has to be **1.1.0 or newer**. An older one (for example a stale local copy of
   `latest` that was never pulled) does not know the database version and stops at startup.
 - While the official server runs, this fork's extras rest (server-run schedule entries,
@@ -135,15 +137,11 @@ docker compose and keeps the last builds for a rollback:
 BRANCH=fix/x ~/vacuula/build/pi/deploy.sh       # deploy another branch
 ```
 
-Run it straight from the clone; it builds the repo it lives in. Your own paths go into
-`build/pi/deploy.env`, which git ignores, so a pull never overwrites them:
-
-```bash
-cp ~/vacuula/build/pi/deploy.env.example ~/vacuula/build/pi/deploy.env
-nano ~/vacuula/build/pi/deploy.env   # COMPOSE_DIR = the folder with your compose.yaml
-```
-
-Values given when calling it (`COMPOSE_DIR=... deploy.sh`) win over `deploy.env`.
+Run it straight from the clone: it builds the repo it lives in and starts its
+`build/docker/compose.yaml`, so nothing has to be copied or configured. Optional settings (`sudo
+docker`, another compose file, how many builds to keep) go into `build/pi/deploy.env`, which git
+ignores; see [`deploy.env.example`](build/pi/deploy.env.example). Values given when calling it
+(`BRANCH=... deploy.sh`) win over `deploy.env`.
 
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted.
