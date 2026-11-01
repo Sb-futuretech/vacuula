@@ -323,7 +323,7 @@
         "useAsFloormap": "Use as floormap",
         "editMapDetails": "Edit map details",
         "addFeature": "Add feature",
-        "tapBubble": "Tap a zone or line to open it",
+        "tapBubble": "Tap a zone or line to see its details",
         "rulers": "Rulers",
         "helpRuler": "The ruler button shows distances along the top and left edge (always on while drawing).",
         "helpSelectTitle": "Zones and lines",
