@@ -204,6 +204,14 @@ below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
 - **The fork has its own version:** the settings show `Vacuula 1.1.0 · sb 1.0.0 (commit)`, the
   startup log too, so you can see which build runs on the Pi.
 
+**Telegram**
+- **Messages to Telegram, per robot:** each robot gets its own bot and chat, so two households on
+  one server only see their own. Errors, alerts, offline and back online by default; cleaning done
+  and schedule messages can be added. Text only, no maps; the bot token stays on the server.
+- Set up in *Settings → Telegram*: create a bot with @BotFather (`/newbot`), paste its token, send
+  the bot `/start`, tap *Find my chat*, then *Send a test message*. The Pi needs to reach
+  `api.telegram.org`.
+
 **Connection**
 - Fixed: the robot kept disconnecting after saving zones (messages split over several chunks).
 - The log says why a connection ended; a successful state poll counts as a heartbeat.
@@ -213,6 +221,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-01 | [`ce8d03e`](https://github.com/Sb-futuretech/vacuula/commit/ce8d03e) | Telegram | Telegram messages per robot: own bot and chat, chosen notifications, set up in the app |
 | 2026-11-01 | [`bbdecca`](https://github.com/Sb-futuretech/vacuula/commit/bbdecca) | Schedule | Schedule as a week: next run, run lengths from the stored runs, fallback pairs and overlaps |
 | 2026-11-01 | [`ff2cdd6`](https://github.com/Sb-futuretech/vacuula/commit/ff2cdd6) | Server | Fork version: 'Vacuula 1.1.0 · sb 1.0.0 (commit)' in the settings and the startup log |
 | 2026-11-01 | [`e0d19e8`](https://github.com/Sb-futuretech/vacuula/commit/e0d19e8) | Statistics | Battery time to empty is minutes, hide 65535, say it is measured idle |
