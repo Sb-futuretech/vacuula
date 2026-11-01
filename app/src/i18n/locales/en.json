@@ -642,5 +642,31 @@
                 "invalid_event_cmd": "Invalid event command"
             }
         }
+    },
+    "telegram": {
+        "title": "Telegram",
+        "token": "Bot token",
+        "tokenHelp": "Messages for this robot go through a Telegram bot of its own. In Telegram, open @BotFather, send /newbot, follow the steps and paste the token it gives you here. It stays on the server.",
+        "tokenSaved": "Bot connected.",
+        "bot": "Bot",
+        "botHelp": "Messages come from {{bot}}. Remove it to use another bot.",
+        "removeBot": "Remove",
+        "chat": "Chat",
+        "chatHelp": "In Telegram, open {{bot}} and send /start (or add it to a group and write there), then tap Find my chat.",
+        "noChat": "none yet",
+        "findChat": "Find my chat",
+        "noChats": "Nobody wrote to {{bot}} lately. Send it /start in Telegram, then try again.",
+        "kinds": "Send me",
+        "enabled": "Messages on",
+        "test": "Send a test message",
+        "testSent": "Test message sent.",
+        "kind": {
+            "error": "Errors",
+            "alert": "Alerts",
+            "offline": "Offline",
+            "online": "Back online",
+            "run_done": "Cleaning done",
+            "schedule": "Schedule"
+        }
     }
 }

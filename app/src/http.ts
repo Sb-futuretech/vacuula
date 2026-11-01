@@ -110,6 +110,19 @@ export interface RobotStats {
   problems: { kind: 'error' | 'alert', code: string, count: number, lastAt: number }[]
 }
 
+// a robot's Telegram messages (server: telegram.py); the token itself never comes back
+export type TelegramKind = 'error' | 'alert' | 'offline' | 'online' | 'run_done' | 'schedule'
+export interface TelegramSettings {
+  botName: string | null
+  tokenSet: boolean
+  chatId: string | null
+  chatName: string | null
+  kinds: TelegramKind[]
+  enabled: boolean
+  groups: TelegramKind[]
+}
+export interface TelegramChat { id: string, name: string, type: string }
+
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
@@ -214,6 +227,23 @@ export class Http {
 
   static deletePiSchedule(serial: string, id: number) {
     return instance.delete(`/robot/${serial}/pi-schedule/${id}`)
+  }
+
+  static getTelegram(serial: string) {
+    return instance.get<TelegramSettings>(`/robot/${serial}/telegram`)
+  }
+
+  /** Every key optional; token "" removes bot and chat. Fails with `{error}` when Telegram refuses the token. */
+  static updateTelegram(serial: string, body: { token?: string, chatId?: string | null, chatName?: string | null, kinds?: TelegramKind[], enabled?: boolean }) {
+    return instance.put<TelegramSettings>(`/robot/${serial}/telegram`, JSON.stringify(body))
+  }
+
+  static findTelegramChats(serial: string) {
+    return instance.post<TelegramChat[]>(`/robot/${serial}/telegram/chats`)
+  }
+
+  static testTelegram(serial: string) {
+    return instance.post(`/robot/${serial}/telegram/test`)
   }
 
   static getStats(serial: string) {

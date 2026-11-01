@@ -53,6 +53,8 @@ COPY server/ssl/vacuula.cnf ./ssl/vacuula.cnf
 COPY server/alembic.ini ./
 COPY server/migrations ./migrations
 COPY server/migrations_fork ./migrations_fork
+# fork: the app's texts for robot error codes, for Telegram messages (telegram.py)
+COPY app/src/i18n/locales/en.json ./locales/en.json
 
 # Built frontend
 COPY --from=frontend /app/dist ./web

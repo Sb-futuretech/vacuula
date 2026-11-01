@@ -3,7 +3,7 @@ import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
 from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule
-from vacuula_server import notifications
+from vacuula_server import notifications, telegram
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
 from vacuula_server.fork_version import FORK_COMMIT, FORK_VERSION
@@ -389,6 +389,38 @@ def delete_pi_schedule(req: RouterHandler, serial: str, entry_id: str) -> None:
     """DELETE /robot/<serial>/pi-schedule/<id>"""
     if not entry_id.isdigit() or not pi_schedule.remove(serial, int(entry_id)):
         return req.send_not_found("Schedule entry not found")
+    req.send_ok()
+
+def get_telegram(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/telegram - the robot's Telegram settings (never the token, only the bot's name)"""
+    req.send_ok(telegram.settings(serial))
+
+def put_telegram(req: RouterHandler, serial: str) -> None:
+    """PUT /robot/<serial>/telegram - change them
+
+    body, every key optional: {"token": "<bot token>" ("" removes bot and chat), "chatId", "chatName",
+                               "kinds": [error | alert | offline | online | run_done | schedule], "enabled"}
+    """
+    if (data := req.read_json()) is None: return
+    if get_robot_by_serial(serial) is None:
+        return req.send_not_found("Robot not found")
+    updated, msg = telegram.update(serial, data)
+    if updated is None:
+        return req.send_bad_request(msg)
+    req.send_ok(updated)
+
+def post_telegram_chats(req: RouterHandler, serial: str) -> None:
+    """POST /robot/<serial>/telegram/chats - chats that wrote to the robot's bot lately, to pick one"""
+    chats, msg = telegram.find_chats(serial)
+    if chats is None:
+        return req.send_bad_request(msg)
+    req.send_ok(chats)
+
+def post_telegram_test(req: RouterHandler, serial: str) -> None:
+    """POST /robot/<serial>/telegram/test - send a test message to the robot's chat"""
+    ok, msg = telegram.send_test(serial)
+    if not ok:
+        return req.send_bad_request(msg)
     req.send_ok()
 
 def get_stats(req: RouterHandler, serial: str) -> None:

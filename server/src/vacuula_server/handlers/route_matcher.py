@@ -6,7 +6,7 @@ import re
 from typing import Callable, Optional, Tuple, List
 
 # general
-from .app import get_robots, get_maps, get_map, get_run, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue, post_drive_start, post_drive, post_drive_stop, get_notifications, get_stats, get_pi_schedule, post_pi_schedule, put_pi_schedule, delete_pi_schedule
+from .app import get_robots, get_maps, get_map, get_run, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue, post_drive_start, post_drive, post_drive_stop, get_notifications, get_telegram, put_telegram, post_telegram_chats, post_telegram_test, get_stats, get_pi_schedule, post_pi_schedule, put_pi_schedule, delete_pi_schedule
 from .events import get_events
 from vacuula_server.handlers.setup import get_cert, get_log, get_log_full
 
@@ -60,6 +60,10 @@ APP_ROUTES: List[Tuple[str, str, Handler]] = [
     ("POST", r"/api/robot/(.+)/zone-queue", post_zone_queue),
     ("DELETE", r"/api/robot/(.+)/zone-queue", delete_zone_queue),
     ("GET", r"/api/robot/(.+)/notifications", get_notifications),
+    ("GET", r"/api/robot/(.+)/telegram", get_telegram),
+    ("PUT", r"/api/robot/(.+)/telegram", put_telegram),
+    ("POST", r"/api/robot/(.+)/telegram/chats", post_telegram_chats),
+    ("POST", r"/api/robot/(.+)/telegram/test", post_telegram_test),
     ("GET", r"/api/robot/(.+)/stats", get_stats),
     ("GET", r"/api/robot/(.+)/pi-schedule", get_pi_schedule),
     ("POST", r"/api/robot/(.+)/pi-schedule", post_pi_schedule),

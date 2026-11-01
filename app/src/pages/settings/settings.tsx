@@ -20,6 +20,7 @@ import type { UseState } from '../../components/map/types'
 import { formatHHMM, formatUtcOffset } from '../../utils/clockTime'
 import { loadSelectedMapShape, saveSelectedMapShape, MAPSHAPES } from './mapshapes'
 import { loadHomeView, saveHomeView, HOME_VIEWS } from './homeview'
+import TelegramSettingsSection from './telegram'
 
 export default () => {
     const { t, i18n } = useTranslation()
@@ -91,6 +92,10 @@ export default () => {
                 {robot.type === RobotType.NeatoGen4 && <Gen4RobotSettings />}
                 {robot.type === RobotType.NeatoGen3 && <Gen3RobotSettings />}
             </div>
+
+            <hr style={{ width: '95%' }} />
+
+            <TelegramSettingsSection key={robot.serial} />
 
             <hr style={{ width: '95%' }} />
 

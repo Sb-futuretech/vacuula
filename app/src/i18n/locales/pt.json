@@ -622,5 +622,31 @@
                 "invalid_event_cmd": "Comando de evento inválido"
             }
         }
+    },
+    "telegram": {
+        "title": "Telegram",
+        "token": "Token do bot",
+        "tokenHelp": "As mensagens deste robô passam por um bot do Telegram próprio. No Telegram, abra o @BotFather, envie /newbot, siga os passos e cole aqui o token que ele lhe der. Fica no servidor.",
+        "tokenSaved": "Bot ligado.",
+        "bot": "Bot",
+        "botHelp": "As mensagens vêm de {{bot}}. Remova-o para usar outro bot.",
+        "removeBot": "Remover",
+        "chat": "Chat",
+        "chatHelp": "No Telegram, abra {{bot}} e envie /start (ou adicione-o a um grupo e escreva lá), depois toque em Encontrar o meu chat.",
+        "noChat": "nenhum ainda",
+        "findChat": "Encontrar o meu chat",
+        "noChats": "Ninguém escreveu a {{bot}} recentemente. Envie-lhe /start no Telegram e tente de novo.",
+        "kinds": "Enviar-me",
+        "enabled": "Mensagens ligadas",
+        "test": "Enviar mensagem de teste",
+        "testSent": "Mensagem de teste enviada.",
+        "kind": {
+            "error": "Erros",
+            "alert": "Alertas",
+            "offline": "Offline",
+            "online": "De novo online",
+            "run_done": "Limpeza concluída",
+            "schedule": "Agendamento"
+        }
     }
 }

@@ -2,7 +2,8 @@
 
 Sources: a new robot error or alert (from every state the robot sends), a finished run (its map
 upload), the robot being offline for a while and back, and the robot's own push_notifications
-request. Each new notification is stored and pushed to connected apps as a `notification` event.
+request. Each new notification is stored and pushed to connected apps as a `notification` event, and
+sent to the robot's Telegram chat if it wants that kind (telegram.py).
 """
 from __future__ import annotations
 import logging
@@ -10,6 +11,7 @@ import threading
 
 from sqlalchemy import delete, select
 
+from vacuula_server import telegram
 from vacuula_server.db import get_session
 from vacuula_server.models.notification import Notification
 from vacuula_server.state import push_to_app, robot_connections
@@ -44,6 +46,7 @@ def add(serial: str, kind: str, code: str | None = None, data: dict | None = Non
         return
     logger.info("Notification for %s: %s %s", serial, kind, code or "")
     push_to_app(serial, "notification", payload)
+    telegram.notify(serial, kind, code, data or {})
 
 
 def recent(serial: str, limit: int = 100) -> list[dict]:

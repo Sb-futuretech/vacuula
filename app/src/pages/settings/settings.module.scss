@@ -330,3 +330,49 @@
         color: $accent;
     }
 }
+// Telegram section: a value or input next to its button, the chats found, the result of an action
+.telegramRow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    button {
+        flex-shrink: 0;
+    }
+}
+
+.telegramInput {
+    flex: 1;
+    min-width: 0;
+    padding: 0.8rem 1rem;
+    border-radius: 0.8rem;
+    border: 1px solid $border-strong;
+    background: $surface;
+    color: $text-primary;
+    font: inherit;
+}
+
+.telegramValue {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+.telegramChats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding-top: 0.8rem;
+}
+
+.telegramOk {
+    color: $success;
+    font-size: 1.2rem;
+}
+
+.telegramError {
+    color: $err-text;
+    font-size: 1.2rem;
+}

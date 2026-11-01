@@ -15,7 +15,7 @@ from vacuula_server.db import DATABASE_URL, Base
 from vacuula_server.fork_migrations import FORK_VERSION_TABLE
 from vacuula_server.gen3 import data as gen3_data  # noqa: F401  (registers the tables on Base.metadata)
 from vacuula_server.gen4 import data as gen4_data  # noqa: F401  (registers the tables on Base.metadata)
-from vacuula_server.models import notification, persistent_map, robot, run  # noqa: F401  (registers the tables on Base.metadata)
+from vacuula_server.models import notification, persistent_map, robot, run, telegram  # noqa: F401  (registers the tables on Base.metadata)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
