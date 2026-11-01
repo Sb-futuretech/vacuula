@@ -52,6 +52,9 @@ export default () => {
     // type and, via allowClose below, decides whether drawing can be closed into a polygon
     const [featureChooserOpen, setFeatureChooserOpen] = useState(false)
     const [pendingKind, setPendingKind] = useState<BoundaryTypes>(BoundaryTypes.NOGO_LINE)
+    // spot picked with "add feature here": once a type is chosen the map is centred on it (crosshair)
+    const [pendingCenter, setPendingCenter] = useState<Point | null>(null)
+    const [centerOn, setCenterOn] = useState<Point | null>(null)
     const [persistentMap, setPersistentMap] = useState<string>()
 
     const [mode, setMode] = useState<MapMode>('maps')
@@ -340,6 +343,8 @@ export default () => {
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
                         boundaries={boundaries}
                         onBoundaryTap={onBoundaryTap}
+                        onAddHere={(at) => { setPendingCenter(at); setFeatureChooserOpen(true) }}
+                        centerOn={centerOn}
                     />
                 ) : (
                     <canvas className={styles.canvas} />
@@ -499,7 +504,7 @@ export default () => {
                         )}
                         <hr />
                         <div className={styles.buttonContainer}>
-                            <Button text={t('map.addFeature')} style='primary' onClick={() => setFeatureChooserOpen(true)} />
+                            <Button text={t('map.addFeature')} style='primary' onClick={() => { setPendingCenter(null); setFeatureChooserOpen(true) }} />
                         </div>
                         {boundaries.length > 0 && <p className={styles.tapHint}>{t('map.tapHint')}</p>}
 
@@ -545,6 +550,8 @@ export default () => {
                                 setPendingKind(kind)
                                 setFeatureChooserOpen(false)
                                 openEdit(uuidv4())
+                                if (pendingCenter) setCenterOn([...pendingCenter]) // a fresh value re-centres
+                                setPendingCenter(null)
                             }}>
                             <span className={styles.featureChoiceName}>{
                                 kind === BoundaryTypes.CLEANING_ZONE ? t('map.cleaningZone')

@@ -46,6 +46,8 @@ interface MapCanvasProps {
     mmPerPixel?: number // map resolution; gen3 maps have none (GEN3_MM_PER_CELL)
     boundaries?: (NoGoLine | Zone)[] // the map's zones and lines, for picking one by tapping it
     onBoundaryTap?: (id: string | null) => void // tap while viewing the features; null = nothing there
+    onAddHere?: (at: Point) => void // the "add feature here" pill offered after a tap on empty map
+    centerOn?: Point | null // a new value moves the map so this point sits under the crosshair
 }
 
 // Owns everything that genuinely can't exist without a selected map: the hook, the
@@ -68,7 +70,9 @@ export default function MapCanvas({
     setSelectedPoint,
     mmPerPixel = GEN3_MM_PER_CELL,
     boundaries,
-    onBoundaryTap
+    onBoundaryTap,
+    onAddHere,
+    centerOn
 }: MapCanvasProps) {
     // TODO: decide on how exactly i want this to work, for now just show the button if there is at least 3 points.
     const [showCloseAsPolygon, setShowCloseAsPolygon] = useState(false)
@@ -85,7 +89,7 @@ export default function MapCanvas({
     const showTapHint = !tapHintDone && mode === 'boundaries' && !!onBoundaryTap && (boundaries?.length ?? 0) > 0
     const { t } = useTranslation()
 
-    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep } = useMap({
+    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep, setOffset } = useMap({
         mapId,
         runId,
         extraDraw,
@@ -139,6 +143,30 @@ export default function MapCanvas({
     }
     const pickable = !!onBoundaryTap && (mode === 'boundaries' || mode === 'boundary-info')
 
+    // "add feature here" pill at an empty spot that was tapped while nothing was selected;
+    // gone again on the next tap, on pan/zoom and on any mode change
+    const [addHere, setAddHere] = useState<{ x: number, y: number, at: Point } | null>(null)
+    useEffect(() => setAddHere(null), [zoom, offset.x, offset.y, mode])
+
+    // a tap (no pan) while viewing the features, at canvas position x/y (CSS px)
+    const tapViewing = (x: number, y: number) => {
+        const id = boundaryAt(x, y)
+        const at = mapSize ? getWorldCoords(x, y, offset, zoom, mapSize) : null
+        const onMap = at && at[0] >= 0 && at[0] <= 1 && at[1] >= 0 && at[1] <= 1
+        setAddHere(!id && mode === 'boundaries' && onAddHere && onMap ? { x, y, at } : null)
+        onBoundaryTap?.(id)
+    }
+
+    // move the map so `centerOn` sits under the crosshair (the canvas centre)
+    useEffect(() => {
+        const canvas = canvasRef.current
+        if (!centerOn || !canvas || !mapSize) return
+        setOffset({
+            x: canvas.width / 2 - centerOn[0] * mapSize.width * zoom,
+            y: canvas.height / 2 - centerOn[1] * mapSize.height * zoom,
+        })
+    }, [centerOn])
+
     const deletePoint = (index: number) => {
         if (closedAsPolygon && currentLinePoints.length <= 3) setClosedAsPolygon(false)
         setCurrentLinePoints(prev => prev.filter((_, i) => i !== index))
@@ -162,7 +190,7 @@ export default function MapCanvas({
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
         if (mode !== 'boundary-edit') {
-            onBoundaryTap?.(boundaryAt(x, y))
+            tapViewing(x, y)
             return
         }
         const hit = pointAt(x, y, 2.5)
@@ -257,7 +285,7 @@ export default function MapCanvas({
         if (mode !== 'boundary-edit') {
             if (touch) {
                 const rect = e.currentTarget.getBoundingClientRect()
-                onBoundaryTap?.(boundaryAt(touch.clientX - rect.left, touch.clientY - rect.top))
+                tapViewing(touch.clientX - rect.left, touch.clientY - rect.top)
             }
             return
         }
@@ -310,6 +338,13 @@ export default function MapCanvas({
                     onDelete={() => deletePoint(selectedPoint)}
                     onDone={() => setSelectedPoint(null)}
                 />
+            )}
+
+            {addHere && (
+                <button className={styles.addHerePill} style={{ left: addHere.x, top: addHere.y }}
+                    onClick={() => { onAddHere?.(addHere.at); setAddHere(null) }}>
+                    <FaPlus size={12} /> {t('map.addHere')}
+                </button>
             )}
 
             <div className={styles.zoomButtons}>

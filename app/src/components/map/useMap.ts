@@ -276,6 +276,7 @@ export function useMap({
         },
         draw,
         resetView,
-        zoomStep
+        zoomStep,
+        setOffset
     }
 }
