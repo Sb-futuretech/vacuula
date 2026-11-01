@@ -189,14 +189,16 @@ export default () => {
             return
         }
 
-        const updatedBoundaries = boundaries.map(boundary =>
-            boundary.type === 'polygon'
-                ? {
-                    ...boundary,
-                    relevancy: calcRelevancy(boundary.vertices)
-                }
-                : boundary
-        );
+        // The robot keeps 4 decimals of each coordinate. Freshly drawn points have ~16, and every save
+        // resends all boundaries, so unrounded points made the message much longer for nothing.
+        const round4 = (v: number) => Math.round(v * 1e4) / 1e4
+        const roundPoint = ([x, y]: Point): Point => [round4(x), round4(y)]
+        const updatedBoundaries = boundaries.map(boundary => {
+            const vertices = boundary.vertices.map(roundPoint)
+            return boundary.type === 'polygon'
+                ? { ...boundary, vertices, relevancy: roundPoint(calcRelevancy(vertices)) }
+                : { ...boundary, vertices }
+        });
         GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries).catch(() => {
             getMapBoundaries();
         });
