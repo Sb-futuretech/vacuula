@@ -239,7 +239,7 @@
         "batteryHealthTitle": "Bateria",
         "batteryHealthHint": "como o robô indica, após a limpeza de {{date}}",
         "chargeCycles": "Ciclos de carga",
-        "timeToEmpty": "Tempo até esgotar (estimativa do robô)",
+        "timeToEmpty": "Tempo at\u00e9 esgotar, parado (estimativa do rob\u00f4)",
         "designCapacity": "Capacidade nominal",
         "runHours": "Tempo de funcionamento (total)",
         "batterySerial": "Número de série da bateria",

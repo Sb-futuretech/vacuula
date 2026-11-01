@@ -19,7 +19,9 @@ def read(serial: str) -> dict | None:
         "vendor": general.get("vendor") or debug.get("mfg_name"),
         "designCapacity": debug.get("design_capacity"),
         "totalCharges": general.get("totalCharges"),
-        "timeToEmpty": general.get("timeToEmpty"),  # seconds, the robot's estimate at the time
+        # minutes, the battery fuel gauge's estimate at the robot's draw when read (after the run,
+        # so standing); 65535 while not discharging
+        "timeToEmpty": general.get("timeToEmpty"),
         "level": general.get("level"),
         "runSeconds": debug.get("CumulativeCartridgeTimeInSecs"),
     }

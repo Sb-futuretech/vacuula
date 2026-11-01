@@ -260,7 +260,10 @@ function BatteryHealth({ info, changes }: { info: NonNullable<RobotStats['batter
     const last = changes[changes.length - 1]
     const rows: [string, string][] = []
     if (info.totalCharges != null) rows.push([t('stats.chargeCycles'), String(info.totalCharges)])
-    if (info.timeToEmpty != null) rows.push([t('stats.timeToEmpty'), t('stats.minutes', { value: Math.round(info.timeToEmpty / 60) })])
+    // minutes from the battery's fuel gauge (SBS run time to empty); 65535 = not discharging (charging)
+    if (info.timeToEmpty != null && info.timeToEmpty < 65535) rows.push([t('stats.timeToEmpty'), info.timeToEmpty < 120
+        ? t('stats.minutes', { value: info.timeToEmpty })
+        : `≈ ${Math.round(info.timeToEmpty / 60)} h`])
     if (info.designCapacity != null) rows.push([t('stats.designCapacity'), `${info.designCapacity} mAh${info.vendor ? ` · ${info.vendor}` : ''}`])
     if (info.runSeconds != null) rows.push([t('stats.runHours'), `${Math.round(info.runSeconds / 3600)} h`])
     if (info.serial != null) rows.push([t('stats.batterySerial'), String(info.serial)])

@@ -246,7 +246,7 @@
         "batteryHealthTitle": "Battery",
         "batteryHealthHint": "as the robot reports it, after the run of {{date}}",
         "chargeCycles": "Charge cycles",
-        "timeToEmpty": "Time to empty (robot's estimate)",
+        "timeToEmpty": "Time to empty, idle (robot's estimate)",
         "designCapacity": "Design capacity",
         "runHours": "Running time (total)",
         "batterySerial": "Battery serial",
