@@ -2,7 +2,7 @@
 
 This is a fork of [Vacuula](https://github.com/vacuula/vacuula) by Philip, the custom server for
 Neato robot vacuums whose cloud is gone. It follows upstream closely (currently based on
-**1.1.0-b11**) and adds features and fixes on top, mostly for **Gen3 robots**.
+**1.1.0**) and adds features and fixes on top, mostly for **Gen3 robots**.
 
 Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**. Other
 Gen3 models (D3–D6) will probably behave similarly, but have not been tested. Gen4 robots (D8–D10)
@@ -134,6 +134,80 @@ docker compose and keeps the last builds for a rollback:
 ```
 
 Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
+
+## Release notes
+Newest first. All on a D7 (Gen3, firmware 4.5.3-189) unless noted.
+
+### 2026-11-01
+**Fixes**
+- **Robot kept disconnecting after saving zones.** The server read the robot's command connection
+  line by line and assumed every message fits one chunk. A bigger reply (e.g. after saving many
+  zones) broke that: the server dropped the robot and then rejected it again on every reconnect.
+  It now reads the chunks by their size, joins messages split over several chunks, and logs an odd
+  message instead of closing the connection.
+- The on/off switch in a zone's or line's details now saves (it only changed what was shown).
+
+**Map**
+- **Tap a zone or line on the map** (or in the list) to open its details in the panel: on/off,
+  clean the zone, edit, delete. The selected feature is highlighted on the map; tapping an empty
+  spot goes back to the list. A small bubble next to the help button points this out until the
+  first tap.
+- **Tap an empty spot** with nothing selected: an *Add feature here* button appears. It opens the
+  type chooser and starts drawing with the crosshair on that spot.
+- Rulers can be switched on with a button in the zoom column (always on while drawing); the help
+  button is always there and explains moving, selecting and drawing.
+- On phones the map opens with the feature list folded, so the map is visible.
+
+**Home page**
+- *Mode* and *Cleaning* are framed together as **Next run**.
+
+### 2026-10-31
+**Map**
+- **Add feature asks for the type first**: Cleaning Zone or No-Go Line (Gen4 also No-Go Zone), each
+  with a short explanation. A No-Go Line can no longer be closed into a zone by accident (it used
+  to be saved as a zone then).
+- **Rulers** along the top and left edge while drawing, in real distance (cm / m). **Tap a point** to
+  type its exact X/Y in cm, see its distance to the previous point, or delete it. Points can now be
+  selected on touch screens too.
+
+**Home page**
+- **One Cleaning button** for suction and navigation (both icons, e.g. *Eco · Extra Care*). It opens
+  one sheet listing every option with a description. Eco and Deep can't be combined on Gen3: the
+  blocked option is greyed out with the reason, instead of the other setting changing silently.
+- The home page shows the **map of the last cleaning** by default (*Settings → Home page* switches
+  back to the mascot).
+
+**Schedule**
+- Mode and navigation are explained under their fields; Save says what is missing (a day, a full
+  time) instead of just staying grey.
+
+### 2026-10-26 – 2026-10-28
+- **Based on upstream 1.1.0** now.
+- **Statistics:** area per minute (overall and per mode + navigation); battery over time as minutes
+  per charge per week and as an index against each run's own mode; per-zone statistics (runs, last
+  cleaned, average time and area); runs that recharged in between are measured by their cleaning
+  stretches, and runs that could not be measured are counted per week; a battery card with the
+  robot's own figures (charge cycles, time-to-empty, design capacity) that marks a battery change.
+- **Runs:** a run's map opens full screen.
+- **Schedule:** tap an entry to edit it in place; repeating robot events are grouped into one row;
+  entries run by the server can be paused. Schedule times are sent to the robot as entered (local
+  time) for now: the D7's clock handling is not understood yet, so the conversion described above
+  is off, and the offset each scheduled run implies is logged.
+- **Home page:** while cleaning, the state shows the zone or map, mode and navigation.
+- The connection log says why a robot's connection ended and how long it lasted; a successful state
+  poll counts as a heartbeat (no more *N/A* while cleaning).
+
+### Known issues
+- **Too many zone/line points per map make the D7 drop its connection after every save.** There
+  is no error reply; the robot just closes the connection and keeps doing so until the map is back
+  under the limit. On one D7: 44 points over 10 zones and lines were fine; one more 2-point line (44
+  points, 11 features) or a 5th zone (47 points, 10 features) were not. The best guess so far is
+  *points + number of zones and lines ≤ 54*. To recover, delete the last point or feature and save.
+- **The map scale is not verified.** Gen3 maps carry no resolution; the app assumes 40 mm per map
+  cell. A door measured on one D7 suggests the rulers read short, so check them against a known
+  distance before relying on them.
+- Narrow no-go "corridors" (e.g. around a ramp) can make the area behind them unreachable: the
+  robot keeps a margin to no-go lines like to walls.
 
 ## License
 Same as upstream: [AGPL-3.0](LICENSE). All credit for Vacuula itself goes to Philip and the upstream
