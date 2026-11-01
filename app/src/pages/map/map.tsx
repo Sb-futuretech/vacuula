@@ -144,6 +144,8 @@ export default () => {
         if (!persistentMap) return
         getMapBoundaries();
         setMode('boundaries')
+        // phone: start with the sheet folded so the map is visible; the list is a drag/tap away
+        setDrawerOpen(false)
     }, [persistentMap])
 
     const updatePersistentMap = (data: { name: string, enabled: boolean }, mapToChange?: string) => {
@@ -267,7 +269,10 @@ export default () => {
     // a tap on the map while viewing the features: select what is there; on empty map, back to the list
     const onBoundaryTap = (id: string | null) => {
         if (id) openInfo(id)
-        else if (mode === 'boundary-info') setMode('boundaries')
+        else if (mode === 'boundary-info') {
+            setMode('boundaries')
+            setDrawerOpen(false)
+        }
     }
 
     const openEdit = (id: string) => {
@@ -281,6 +286,7 @@ export default () => {
         if (mode === 'boundaries') {
             setPersistentMap(undefined);
             setMode('maps')
+            setDrawerOpen(true) // the map list lives in the sheet
         } else if (mode === 'map-edit' || mode === 'boundary-info') {
             setMode('boundaries')
         }
