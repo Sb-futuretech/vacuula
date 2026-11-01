@@ -171,6 +171,9 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   per-zone statistics, recharged runs measured by their stretches, and a battery card that marks a
   battery change.
 - A run's map opens full screen.
+- Battery card: *time to empty* in the right unit (the battery reports minutes; it read as
+  seconds before, e.g. 7 h as "7 min"), hidden while charging, and labelled *idle* since it is
+  read with the robot standing after the run.
 
 **Server and database**
 - **Switch between this fork and the official server on the same database.** The fork keeps its
@@ -188,6 +191,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-01 | [`e0d19e8`](https://github.com/Sb-futuretech/vacuula/commit/e0d19e8) | Statistics | Battery time to empty is minutes, hide 65535, say it is measured idle |
 | 2026-11-01 | [`35770e6`](https://github.com/Sb-futuretech/vacuula/commit/35770e6) | Server | This fork as compose.yaml, upstream's file kept as docker-compose.upstream.yaml |
 | 2026-11-01 | [`3056659`](https://github.com/Sb-futuretech/vacuula/commit/3056659) | Database | Keep the fork's migrations in their own chain so upstream can start too |
 | 2026-11-01 | [`f415048`](https://github.com/Sb-futuretech/vacuula/commit/f415048) | Home | Thicker, stronger frame around the Next run group |
