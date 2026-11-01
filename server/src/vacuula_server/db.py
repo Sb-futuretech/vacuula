@@ -14,6 +14,7 @@ from sqlalchemy import create_engine
 import typing
 
 from vacuula_server.constants import ALEMBIC_INI, DB_PATH
+from vacuula_server.fork_migrations import FORK_VERSION_TABLE, fork_script
 if typing.TYPE_CHECKING:
     from vacuula_server.handlers.router import RouterHandler
 
@@ -73,14 +74,24 @@ def check_db_is_up_to_date() -> None:
     script = ScriptDirectory.from_config(config)
     head_revisions = set(script.get_heads())
 
+    fork_heads = set(fork_script().get_heads())
+
     engine = create_engine(DATABASE_URL)
     with engine.connect() as conn:
         context = MigrationContext.configure(conn)
         current_revisions = set(context.get_current_heads())
+        fork_context = MigrationContext.configure(conn, opts={"version_table": FORK_VERSION_TABLE})
+        fork_current = set(fork_context.get_current_heads())
 
     if current_revisions != head_revisions:
         raise RuntimeError(
             f"Database is not up to date. Current: {current_revisions or 'none'}, "
             f"expected: {head_revisions}. Run `alembic upgrade head`."
+        )
+    # this fork's own chain, recorded apart from upstream's (see fork_migrations)
+    if fork_current != fork_heads:
+        raise RuntimeError(
+            f"Database is not up to date with this fork. Current: {fork_current or 'none'}, "
+            f"expected: {fork_heads}. Run `alembic -n fork upgrade head`."
         )
 

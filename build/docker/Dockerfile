@@ -52,8 +52,10 @@ COPY --from=python-build /server/.venv ./.venv
 COPY server/ssl/vacuula.cnf ./ssl/vacuula.cnf
 COPY server/alembic.ini ./
 COPY server/migrations ./migrations
+COPY server/migrations_fork ./migrations_fork
 
 # Built frontend
 COPY --from=frontend /app/dist ./web
 
-CMD ["sh", "-c", "alembic upgrade head && vacuula-server"]
+# fork: move an old database's fork version to its own table, then upstream's chain, then the fork's
+CMD ["sh", "-c", "python -m vacuula_server.fork_migrations && alembic upgrade head && alembic -n fork upgrade head && vacuula-server"]

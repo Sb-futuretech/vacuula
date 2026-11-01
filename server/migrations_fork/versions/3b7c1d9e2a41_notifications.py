@@ -1,7 +1,7 @@
 """[fork] notifications
 
 Revision ID: 3b7c1d9e2a41
-Revises: 5fe01baecb7b
+Revises: (first of this fork's own chain; runs after upstream's migrations, built on 5fe01baecb7b)
 Create Date: 2026-10-25 10:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '3b7c1d9e2a41'
-down_revision: Union[str, Sequence[str], None] = '5fe01baecb7b'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
