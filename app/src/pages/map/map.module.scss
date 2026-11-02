@@ -638,3 +638,37 @@
 @media (prefers-reduced-motion: reduce) {
     .addHerePill { animation: none; }
 }
+
+// gen3 byte budget: bar and text under the feature list, and why a choice or Save is blocked
+.budget {
+    margin-top: 0.6rem;
+}
+
+.budgetBar {
+    height: 0.6rem;
+    border-radius: 0.3rem;
+    background: $surface-hover;
+    overflow: hidden;
+
+    i {
+        display: block;
+        height: 100%;
+        background: $accent;
+    }
+
+    .budgetFull {
+        background: #e8b24a;
+    }
+}
+
+.featureChoice:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.featureChoiceReason {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.35;
+    color: #e8b24a;
+}
