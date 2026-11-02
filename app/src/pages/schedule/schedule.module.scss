@@ -1,5 +1,8 @@
 @use '../../variables.scss' as *;
 
+// keep in sync with SCHEDULE_WIDE in schedule.tsx
+$schedule-wide: 1400px;
+
 // Canvas element
 .canvas {
     display: block;
@@ -13,7 +16,30 @@
     position: relative;
     width: 100%;
     height: 100%;
+    // like the home page: the page scrolls itself, so the details under the week can be reached
+    overflow-y: auto;
     @include desktop-page;
+
+    // wide windows: week on the left, details or the form in a column on the right (like the map
+    // page). Narrower desktops keep them under the week: the 40rem column would squeeze the week.
+    @media (min-width: $schedule-wide) {
+        display: flex;
+        overflow: hidden;
+        max-width: 120rem;
+    }
+}
+
+.side {
+    width: 40rem;
+    flex-shrink: 0;
+    height: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-left: 1px solid $border;
 }
 
 .drawerSection {
@@ -120,6 +146,33 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1.5rem;
+
+    // wide screens with the week view: the three cards side by side, the week below fits the window
+    &.withWeek {
+        @media (min-width: $desktop) {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+
+            &>* {
+                grid-column: 1 / -1;
+            }
+
+            &>.staticItem,
+            &>.nextRun,
+            &>.actionItem {
+                grid-column: auto;
+            }
+        }
+
+        @media (min-width: $schedule-wide) {
+            align-content: start;
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+    }
 
     .item {
         display: flex;

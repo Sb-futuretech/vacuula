@@ -57,7 +57,8 @@
 
     @media (min-width: $desktop) {
         flex: none;
-        height: 56rem;
+        // the window minus the top bar, the cards above and the legend below
+        height: clamp(32rem, calc(100dvh - 32rem), 56rem);
     }
 }
 

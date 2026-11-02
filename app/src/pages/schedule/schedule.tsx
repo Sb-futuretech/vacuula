@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './schedule.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
@@ -9,6 +9,7 @@ import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useRobot } from '../../context/useRobot'
+import { useMediaQuery } from '../../utils/useIsDesktop'
 import { RobotDay } from '../../types/neato/gen3/api'
 import { RobotType } from '../../types'
 import Scheudle_gen4 from './scheudle_gen4'
@@ -31,6 +32,9 @@ const ZONE_SEP = '||'
 
 // what the drawer edits: nothing (a new entry), a Pi entry or a group of robot events
 type Editing = { kind: 'pi', entry: PiScheduleEntry } | { kind: 'robot', group: RobotGroup } | null
+
+// wide enough for the details column on the right; keep in sync with $schedule-wide in schedule.module.scss
+const SCHEDULE_WIDE = '(min-width: 1400px)'
 
 export default () => {
     const { t } = useTranslation()
@@ -69,6 +73,10 @@ export default () => {
     const [stats, setStats] = useState<RobotStats>()
     useEffect(() => { Http.getStats(robot.serial).then(res => setStats(res.data)).catch(() => setStats(undefined)) }, [robot.serial])
     const [selected, setSelected] = useState<string | null>(null)
+    // the details of a tapped entry open under the week: bring them into view
+    const detailsRef = useRef<HTMLDivElement>(null)
+    const sideColumn = useMediaQuery(SCHEDULE_WIDE)
+    useEffect(() => { detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [selected])
     const [now, setNow] = useState(() => Date.now())
     useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id) }, [])
     // one robot event is created per selected day
@@ -218,10 +226,56 @@ export default () => {
     const activePreset = (Object.keys(presets) as (keyof typeof presets)[])
         .find(k => presets[k].length === days.length && presets[k].every(d => days.includes(d)))
 
+    // the tapped entry's details: under the week, or in a column on the right in wide windows
+    const details = selectedSlot ? (
+        <div className={styles.details} ref={detailsRef}>
+            <span className={styles.detailsTitle}>
+                {dayName(selectedSlot.day)} {hhmm(selectedSlot.start)}
+                {selectedSlot.minutes != null && ` – ${hhmm(selectedSlot.start + selectedSlot.minutes)}`}
+            </span>
+            <span>{zonesText(selectedSlot.zoneNames)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
+            <span className={styles.type}>
+                {selectedSlot.kind === 'pi'
+                    ? <><FaServer className={styles.badge} /> {t('schedule.week.byPi')}</>
+                    : <><img src={mascot.src} alt="" className={styles.badge} /> {t('schedule.week.byRobot')}</>}
+                {!selectedSlot.active && ` ${t(selectedSlot.kind === 'pi' ? 'schedule.week.paused' : 'schedule.week.robotOff')}`}
+            </span>
+            {selectedSlot.backups.length > 0 && (
+                <span className={styles.type}>
+                    {t('schedule.week.backup', { times: selectedSlot.backups.map(e => e.startTime).join(', ') })}
+                    {' '}<button type="button" className={styles.linkButton} onClick={() => removeEvents(selectedSlot.backups)}>{t('schedule.week.removeBackup')}</button>
+                </span>
+            )}
+            {selectedSlot.overlaps.length > 0 && (
+                <span className={styles.warnNote}>
+                    <FaExclamationTriangle /> {t('schedule.week.overlap', { times: selectedSlot.overlaps.map(o => hhmm(o.start)).join(', ') })}
+                </span>
+            )}
+            <div className={styles.detailsActions}>
+                <Button text={t('schedule.week.edit')} style='secondary' onClick={() => selectedSlot.pi ? openPi(selectedSlot.pi) : selectedSlot.group && openRobot(selectedSlot.group)} />
+                {selectedSlot.pi && (
+                    <Input type="switch" skipSection={true} value={selectedSlot.pi.enabled ?? true} onChange={() => togglePiEntry(selectedSlot.pi!)} />
+                )}
+                <FaTrash className={styles.trash} title={t('schedule.week.delete')}
+                    onClick={() => selectedSlot.pi
+                        ? Http.deletePiSchedule(robot.serial, selectedSlot.pi.id).finally(getPiEntries)
+                        : selectedSlot.group && removeEvents(selectedSlot.group.events)} />
+            </div>
+            {selectedSlot.group && selectedSlot.group.days.length > 1 && (
+                <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.group.days) })}</span>
+            )}
+            {selectedSlot.pi && selectedSlot.pi.days.length > 1 && (
+                <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.pi.days) })}</span>
+            )}
+        </div>
+    ) : robotGroups.length + piEntries.length > 0 && (
+        <span className={styles.hint}>{t('schedule.week.tapHint')}</span>
+    )
+
     return (
         <div className={styles.container}>
 
-            <div className={styles.featureList}>
+            <div className={`${styles.featureList} ${styles.withWeek}`}>
                 <div className={`${styles.item} ${styles.staticItem}`}>
                     <div className={styles.info}>
                         <span>{t('schedule.schedule')}</span>
@@ -259,58 +313,20 @@ export default () => {
                 <WeekView week={week} selected={selected} onSelect={slot => setSelected(slot?.key ?? null)}
                     today={serverNow.getUTCDay()} nowMinutes={serverNow.getUTCHours() * 60 + serverNow.getUTCMinutes()} />
 
-                {selectedSlot ? (
-                    <div className={styles.details}>
-                        <span className={styles.detailsTitle}>
-                            {dayName(selectedSlot.day)} {hhmm(selectedSlot.start)}
-                            {selectedSlot.minutes != null && ` – ${hhmm(selectedSlot.start + selectedSlot.minutes)}`}
-                        </span>
-                        <span>{zonesText(selectedSlot.zoneNames)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
-                        <span className={styles.type}>
-                            {selectedSlot.kind === 'pi'
-                                ? <><FaServer className={styles.badge} /> {t('schedule.week.byPi')}</>
-                                : <><img src={mascot.src} alt="" className={styles.badge} /> {t('schedule.week.byRobot')}</>}
-                            {!selectedSlot.active && ` ${t(selectedSlot.kind === 'pi' ? 'schedule.week.paused' : 'schedule.week.robotOff')}`}
-                        </span>
-                        {selectedSlot.backups.length > 0 && (
-                            <span className={styles.type}>
-                                {t('schedule.week.backup', { times: selectedSlot.backups.map(e => e.startTime).join(', ') })}
-                                {' '}<button type="button" className={styles.linkButton} onClick={() => removeEvents(selectedSlot.backups)}>{t('schedule.week.removeBackup')}</button>
-                            </span>
-                        )}
-                        {selectedSlot.overlaps.length > 0 && (
-                            <span className={styles.warnNote}>
-                                <FaExclamationTriangle /> {t('schedule.week.overlap', { times: selectedSlot.overlaps.map(o => hhmm(o.start)).join(', ') })}
-                            </span>
-                        )}
-                        <div className={styles.detailsActions}>
-                            <Button text={t('schedule.week.edit')} style='secondary' onClick={() => selectedSlot.pi ? openPi(selectedSlot.pi) : selectedSlot.group && openRobot(selectedSlot.group)} />
-                            {selectedSlot.pi && (
-                                <Input type="switch" skipSection={true} value={selectedSlot.pi.enabled ?? true} onChange={() => togglePiEntry(selectedSlot.pi!)} />
-                            )}
-                            <FaTrash className={styles.trash} title={t('schedule.week.delete')}
-                                onClick={() => selectedSlot.pi
-                                    ? Http.deletePiSchedule(robot.serial, selectedSlot.pi.id).finally(getPiEntries)
-                                    : selectedSlot.group && removeEvents(selectedSlot.group.events)} />
-                        </div>
-                        {selectedSlot.group && selectedSlot.group.days.length > 1 && (
-                            <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.group.days) })}</span>
-                        )}
-                        {selectedSlot.pi && selectedSlot.pi.days.length > 1 && (
-                            <span className={styles.type}>{t('schedule.week.allDays', { days: dayList(selectedSlot.pi.days) })}</span>
-                        )}
-                    </div>
-                ) : robotGroups.length + piEntries.length > 0 && (
-                    <span className={styles.hint}>{t('schedule.week.tapHint')}</span>
-                )}
+                {!sideColumn && details}
 
                 {robotGroups.length === 0 && piEntries.length === 0 && (
                     <span style={{ textAlign: 'center' }}>{t('schedule.noSchedules')}</span>
                 )}
             </div>
-            <Drawer
+            {sideColumn && !drawerOpen && <aside className={styles.side}>{details}</aside>}
+            {/* wide windows: the form takes the right column while it is open */}
+            {(!sideColumn || drawerOpen) && <Drawer
+                sidePanel={sideColumn}
                 open={drawerOpen}
                 handle={false}
+                showBackButton={sideColumn}
+                onBackButtonClick={() => setDrawerOpen(false)}
                 onOpenChange={setDrawerOpen}
                 openHeightPercent={70}
                 title={t(editing ? 'schedule.editEvent' : 'schedule.addEvent')}
@@ -408,7 +424,7 @@ export default () => {
                     <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={saveEvents} />
                 </div>
 
-            </Drawer>
+            </Drawer>}
 
         </div>
     )
