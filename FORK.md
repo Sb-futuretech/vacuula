@@ -75,6 +75,18 @@ Useful if you work on Gen3 support yourself:
   `category`, spot size and `boundaryIds` are dropped silently, and `setSchedule` still answers `ok`. `getSchedule` right after `setSchedule`
   can return the old list for a few seconds.
 - The mapping run (`startPersistentMapExploration`) vacuums: it runs as a house clean.
+- Zones and no-go lines (`setMapBoundaries`, measured with `build/pi/d7_boundary_test.py` on the
+  branch `test/d7-boundary-limit`):
+  - At most **10 points per zone or line.** An 11th is dropped silently, and the answer is still
+    `ok`.
+  - The robot answers a save with all boundaries of the map. If that answer would be longer than
+    **2044 bytes** (2044 worked, 2045 did not), it sends nothing and closes the connection.
+  - The answer is compact JSON without the zones' `relevancy`, with a space after `"data":`,
+    `"boundaries":` and `"vertices":`. Coordinates are rounded to 4 decimals without trailing
+    zeros; names are raw UTF-8 (umlauts take 2 bytes). A line with 2 points and a 4-letter name
+    takes about 156 bytes, every further point 16.
+  - Zone points too close together (about 0.007 of the map) give `bad_request`, and nothing is
+    saved. Zones saved without `relevancy` give `bad_request` too.
 - Mode combinations (checked with `build/pi/d7_mode_test.py`): spot cleaning accepts everything
   but always runs Eco with normal navigation; zone cleaning takes every combination except Eco +
   Deep (`invalid_entry`, the same as for house cleaning).
@@ -165,6 +177,8 @@ below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
 - **Help button (?)** next to the zoom buttons: moving around, selecting, drawing. A small bubble
   hints at tapping zones and lines until the first tap.
 - On phones the map opens with the feature list folded.
+- Gen3: point coordinates are rounded to 4 decimals before saving, exactly as the robot stores
+  them, so what the map shows is what the robot keeps.
 
 **Home page**
 - **Mode and Cleaning framed together as *Next run*:** what is cleaned, and how.
@@ -184,6 +198,8 @@ below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
   **overlapping runs** are marked, and the edit sheet warns before saving.
 - Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
 - Mode and navigation explained under their fields; Save says what is still missing.
+- **On desktop the week fits the window:** the three cards sit side by side above it. In windows
+  1400 px and wider, a tapped entry's details and the edit form open in a column on the right.
 
 **Statistics and runs**
 - Area per minute, battery minutes per charge per week, a battery index against each run's mode,
@@ -221,6 +237,8 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-02 | [`b920769`](https://github.com/Sb-futuretech/vacuula/commit/b920769) | Schedule | Schedule on desktop: week fits the window, details and form in a right column |
+| 2026-11-02 | [`9e571b3`](https://github.com/Sb-futuretech/vacuula/commit/9e571b3) | Map | Round gen3 boundary coordinates to 4 decimals before saving |
 | 2026-11-01 | [`ce8d03e`](https://github.com/Sb-futuretech/vacuula/commit/ce8d03e) | Telegram | Telegram messages per robot: own bot and chat, chosen notifications, set up in the app |
 | 2026-11-01 | [`bbdecca`](https://github.com/Sb-futuretech/vacuula/commit/bbdecca) | Schedule | Schedule as a week: next run, run lengths from the stored runs, fallback pairs and overlaps |
 | 2026-11-01 | [`ff2cdd6`](https://github.com/Sb-futuretech/vacuula/commit/ff2cdd6) | Server | Fork version: 'Vacuula 1.1.0 · sb 1.0.0 (commit)' in the settings and the startup log |
@@ -264,11 +282,11 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 - **After the database conversion (2026-11-01), a fork build from before it does not start**: it
   tries to create the fork's tables again. Back up the data volume before deploying, and don't roll
   back past that build without restoring the backup.
-- **Too many zone/line points per map make the D7 drop its connection after every save.** There
+- **Too many zones and lines per map make the D7 drop its connection after every save.** There
   is no error reply; the robot just closes the connection and keeps doing so until the map is back
-  under the limit. On one D7: 44 points over 10 zones and lines were fine; one more 2-point line (44
-  points, 11 features) or a 5th zone (47 points, 10 features) were not. The best guess so far is
-  *points + number of zones and lines ≤ 54*. To recover, delete the last point or feature and save.
+  under the limit. The limit is the size of the robot's reply, not a number of points (see *What
+  we learned about the D7*); the app does not show it yet. To recover, delete a point or feature
+  and save.
 - **The map scale is not verified.** Gen3 maps carry no resolution; the app assumes 40 mm per map
   cell. A door measured on one D7 suggests the rulers read short, so check them against a known
   distance before relying on them.
