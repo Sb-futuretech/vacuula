@@ -159,8 +159,11 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
   example from source) it is left out.
 
 ## Release notes
-What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Everything
-below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
+What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
+(see *Versions*; the commit table marks where each one starts):
+- **sb 1.1.0** (2026-11-02): schedule as a week, Telegram messages, the byte budget for zones and
+  lines, rounded coordinates, and the schedule on desktop.
+- **sb 1.0.0** (2026-11-01): the fork's first numbered version, everything before.
 
 ### New features at a glance
 
@@ -179,6 +182,11 @@ below is **sb 1.0.0**, the fork's first numbered version (see *Versions*).
 - On phones the map opens with the feature list folded.
 - Gen3: point coordinates are rounded to 4 decimals before saving, exactly as the robot stores
   them, so what the map shows is what the robot keeps.
+- **D7 memory bar** under the feature list: how many of the 2044 bytes the robot can answer with
+  are used, and room for about how many more short lines. Drawing stops at 10 points per feature
+  or where the bytes run out; Save and the Add-feature choices are blocked, with the reason, when
+  a feature would not fit (a long name counts too). So a map can no longer get too big for the
+  robot by accident.
 
 **Home page**
 - **Mode and Cleaning framed together as *Next run*:** what is cleaned, and how.
@@ -237,10 +245,13 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-02 | [`sb-1.1.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.1.0) | Release | **sb 1.1.0** |
+| 2026-11-02 | [`d4adedc`](https://github.com/Sb-futuretech/vacuula/commit/d4adedc) | Map | Gen3 byte budget for zones and lines, instead of guessing at counts |
 | 2026-11-02 | [`b920769`](https://github.com/Sb-futuretech/vacuula/commit/b920769) | Schedule | Schedule on desktop: week fits the window, details and form in a right column |
 | 2026-11-02 | [`9e571b3`](https://github.com/Sb-futuretech/vacuula/commit/9e571b3) | Map | Round gen3 boundary coordinates to 4 decimals before saving |
 | 2026-11-01 | [`ce8d03e`](https://github.com/Sb-futuretech/vacuula/commit/ce8d03e) | Telegram | Telegram messages per robot: own bot and chat, chosen notifications, set up in the app |
 | 2026-11-01 | [`bbdecca`](https://github.com/Sb-futuretech/vacuula/commit/bbdecca) | Schedule | Schedule as a week: next run, run lengths from the stored runs, fallback pairs and overlaps |
+| 2026-11-01 | [`sb-1.0.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.0.0) | Release | **sb 1.0.0** |
 | 2026-11-01 | [`ff2cdd6`](https://github.com/Sb-futuretech/vacuula/commit/ff2cdd6) | Server | Fork version: 'Vacuula 1.1.0 · sb 1.0.0 (commit)' in the settings and the startup log |
 | 2026-11-01 | [`e0d19e8`](https://github.com/Sb-futuretech/vacuula/commit/e0d19e8) | Statistics | Battery time to empty is minutes, hide 65535, say it is measured idle |
 | 2026-11-01 | [`35770e6`](https://github.com/Sb-futuretech/vacuula/commit/35770e6) | Server | This fork as compose.yaml, upstream's file kept as docker-compose.upstream.yaml |
@@ -285,8 +296,8 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 - **Too many zones and lines per map make the D7 drop its connection after every save.** There
   is no error reply; the robot just closes the connection and keeps doing so until the map is back
   under the limit. The limit is the size of the robot's reply, not a number of points (see *What
-  we learned about the D7*); the app does not show it yet. To recover, delete a point or feature
-  and save.
+  we learned about the D7*). Since sb 1.1.0 the app keeps new edits within it; a map made too big
+  elsewhere (another app, an older build) still has to be fixed by deleting a point or feature.
 - **The map scale is not verified.** Gen3 maps carry no resolution; the app assumes 40 mm per map
   cell. A door measured on one D7 suggests the rulers read short, so check them against a known
   distance before relying on them.
