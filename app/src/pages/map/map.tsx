@@ -21,6 +21,7 @@ import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types
 import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, HEATMAP_ALPHAS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
+import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
 import { isDocked } from '../../components/topbar/robotInfo'
@@ -190,14 +191,13 @@ export default () => {
         }
 
         // The robot keeps each coordinate rounded to 4 decimals (0.40996 -> 0.41) and drops the rest,
-        // so send it exactly that: what the app shows is then what the robot stores.
-        const round4 = (v: number) => Math.round(v * 1e4) / 1e4
-        const roundPoint = ([x, y]: Point): Point => [round4(x), round4(y)]
-        const updatedBoundaries = boundaries.map(boundary => {
-            const vertices = boundary.vertices.map(roundPoint)
-            return boundary.type === 'polygon'
-                ? { ...boundary, vertices, relevancy: roundPoint(calcRelevancy(vertices)) }
-                : { ...boundary, vertices }
+        // so send it exactly that: what the app shows is then what the robot stores. Only the fields
+        // it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer exactly.
+        const updatedBoundaries = boundaries.map(({ id, name, color, type, vertices, enabled }) => {
+            const rounded = vertices.map(roundPoint)
+            return type === 'polygon'
+                ? { id, name, color, type, vertices: rounded, enabled, relevancy: roundPoint(calcRelevancy(rounded)) }
+                : { id, name, color, type, vertices: rounded, enabled }
         });
         GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries).catch(() => {
             getMapBoundaries();
@@ -236,7 +236,29 @@ export default () => {
         setClosedAsPolygon(existingBoundary?.type === 'polygon')
     }, [mode])
 
+    // gen3 byte budget: the robot's answer to a save must stay within GEN3_REPLY_LIMIT, see gen3Budget.ts
+    const isGen3 = robot.type === RobotType.NeatoGen3
+    const bytesUsed = isGen3 ? gen3ReplyBytes(boundaries) : 0
+    const bytesLeft = GEN3_REPLY_LIMIT - bytesUsed
+    // the feature being drawn, as it would be saved
+    const draftBytes = isGen3 && mode === 'boundary-edit'
+        ? gen3ReplyBytes(upsertPreserveOrder(boundaries, {
+            id: activeBoundaryId ?? '', name: editForm.name, color: editForm.color, enabled: true,
+            type: closedAsPolygon ? 'polygon' as const : 'polyline' as const, vertices: currentLinePoints,
+        }))
+        : 0
+    const draftTooBig = draftBytes > GEN3_REPLY_LIMIT
+    // more points only while their bytes still fit, and never more than 10 per feature
+    const editMaxPoints = isGen3
+        ? Math.max(0, Math.min(GEN3_MAX_POINTS_PER_BOUNDARY,
+            currentLinePoints.length + Math.floor((GEN3_REPLY_LIMIT - draftBytes) / GEN3_POINT_BYTES)))
+        : undefined
+    const minFeatureBytes = (kind: BoundaryTypes) => kind === BoundaryTypes.NOGO_LINE
+        ? gen3FeatureBytes('polyline', 2) : gen3FeatureBytes('polygon', 3)
+    const kindBlocked = (kind: BoundaryTypes) => isGen3 && minFeatureBytes(kind) > bytesLeft
+
     const saveEditBoundary = () => {
+        if (draftTooBig) return
         setMode(returnFromEditMode);
         const id = activeBoundaryId ?? uuidv4();
         const updated = {
@@ -338,8 +360,8 @@ export default () => {
                         // a No-Go Line stays an open line: no closing into a polygon
                         allowClose={editForm.zoneType !== BoundaryTypes.NOGO_LINE}
                         setDrawerOpen={setDrawerOpen}
-                        // Gen3 firmware silently keeps only the first 10 vertices of a boundary
-                        maxPoints={robot.type === RobotType.NeatoGen3 ? 10 : undefined}
+                        // gen3: at most 10 points per feature, and only as many as the byte budget leaves
+                        maxPoints={editMaxPoints}
                         selectedPoint={selectedPoint}
                         setSelectedPoint={setSelectedPoint}
                         mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
@@ -449,6 +471,7 @@ export default () => {
                             setMode(returnFromEditMode)
                         }}
                         supportsZoneType={robot.type === RobotType.NeatoGen4}
+                        tooBig={draftTooBig ? { bytes: draftBytes, max: GEN3_REPLY_LIMIT } : undefined}
                     />
                 )}
 
@@ -509,6 +532,18 @@ export default () => {
                             <Button text={t('map.addFeature')} style='primary' onClick={() => { setPendingCenter(null); setFeatureChooserOpen(true) }} />
                         </div>
                         {boundaries.length > 0 && <p className={styles.tapHint}>{t('map.tapHint')}</p>}
+                        {isGen3 && (
+                            <div className={styles.budget}>
+                                <div className={styles.budgetBar}>
+                                    <i className={bytesLeft < gen3FeatureBytes('polyline', 2) ? styles.budgetFull : ''}
+                                        style={{ width: `${Math.min(100, bytesUsed / GEN3_REPLY_LIMIT * 100)}%` }} />
+                                </div>
+                                <p className={styles.tapHint}>
+                                    {t('map.byteBudget', { used: bytesUsed, max: GEN3_REPLY_LIMIT })}
+                                    {' '}{t('map.byteBudgetLines', { count: Math.max(0, Math.floor(bytesLeft / gen3FeatureBytes('polyline', 2))) })}
+                                </p>
+                            </div>
+                        )}
 
                         <div className={styles.featureList}>
                             {boundaries.map((item, i) => (
@@ -548,6 +583,7 @@ export default () => {
                         : [BoundaryTypes.CLEANING_ZONE, BoundaryTypes.NOGO_LINE]
                     ).map(kind => (
                         <button key={kind} className={styles.featureChoice}
+                            disabled={kindBlocked(kind)}
                             onClick={() => {
                                 setPendingKind(kind)
                                 setFeatureChooserOpen(false)
@@ -563,6 +599,11 @@ export default () => {
                                 kind === BoundaryTypes.CLEANING_ZONE ? t('map.featureCleaningZoneDesc')
                                     : kind === BoundaryTypes.NOGO_ZONE ? t('map.featureNoGoZoneDesc') : t('map.featureNoGoLineDesc')
                             }</span>
+                            {kindBlocked(kind) && (
+                                <span className={styles.featureChoiceReason}>
+                                    {t('map.byteBudgetReason', { left: Math.max(0, bytesLeft), need: minFeatureBytes(kind) })}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -637,6 +678,8 @@ interface EditBoundaryDetailsProps {
     cancel: () => void
     setDrawerOpen: (open: boolean) => void;
     supportsZoneType: boolean
+    // gen3: the map would be too big for the robot with this feature as it is
+    tooBig?: { bytes: number, max: number }
 }
 
 const EditBoundaryDetails = (props: EditBoundaryDetailsProps) => {
@@ -688,9 +731,12 @@ const EditBoundaryDetails = (props: EditBoundaryDetailsProps) => {
             </div>
 
 
+            {props.tooBig && (
+                <p className={styles.featureChoiceReason}>{t('map.byteBudgetTooBig', props.tooBig)}</p>
+            )}
             <div className={styles.editBoundaryActionButtons}>
                 <Button text={t('common.cancel')} style='fail' onClick={() => props.cancel()} />
-                <Button text={t('common.save')} style='success' onClick={() => props.save()} />
+                <Button text={t('common.save')} style='success' disabled={!!props.tooBig} onClick={() => props.save()} />
             </div>
         </div>
     )
