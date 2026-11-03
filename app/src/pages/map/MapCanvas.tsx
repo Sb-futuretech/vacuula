@@ -26,7 +26,7 @@ const ARROW_DIRECTIONS: Record<string, [number, number]> = {
 
 // Single source of truth for the page's mode union — map.tsx imports this rather
 // than declaring its own copy.
-export type MapMode = 'maps' | 'map-edit' | 'boundaries' | 'boundary-info' | 'boundary-edit'
+export type MapMode = 'map-edit' | 'boundaries' | 'boundary-info' | 'boundary-edit'
 
 interface MapCanvasProps {
     mapId: string   // required, no `?` — this component simply doesn't exist without a map

@@ -250,16 +250,98 @@
     }
 }
 
-.selectMap {
+// no map to show: none explored yet, or the robot is exploring the first one
+.emptyState {
     position: absolute;
-    height: 100%;
-    width: 100%;
-    top: 0;
+    inset: 0;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    background-color: $overlay-bg;
-    color: $text-primary
+    gap: 1.2rem;
+    padding: 2rem;
+    text-align: center;
+    color: $text-primary;
+
+    h2 {
+        margin: 0;
+        font-size: 1.8rem;
+    }
+
+    p {
+        margin: 0;
+        max-width: 36rem;
+        color: $text-muted;
+        line-height: 1.5;
+    }
+}
+
+// top left over the map: the chip to switch maps, and notes about exploring or naming a new map
+.mapBar {
+    position: absolute;
+    top: 1.2rem;
+    left: 1.2rem;
+    right: 6rem; // the zoom buttons
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+    pointer-events: none;
+
+    > * {
+        pointer-events: auto;
+    }
+}
+
+.mapChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: 100%;
+    padding: 0.8rem 1.4rem;
+    border: 1px solid $border-strong;
+    border-radius: 2rem;
+    background: $surface;
+    color: $text-primary;
+    font: inherit;
+    font-size: 1.4rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: $shadow-md;
+    cursor: pointer;
+}
+
+.mapNote {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    max-width: 32rem;
+    padding: 1rem 1.2rem;
+    border-radius: 1rem;
+    background: $surface;
+    color: $text-primary;
+    font-size: 1.3rem;
+    box-shadow: $shadow-md;
+}
+
+// the map list in the chip's sheet
+.featureList .currentMap {
+    outline: 2px solid $accent;
+}
+
+.olderMaps {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    summary {
+        padding: 0.6rem 0;
+        color: $text-muted;
+        cursor: pointer;
+    }
 }
 
 .dropdownContainer {

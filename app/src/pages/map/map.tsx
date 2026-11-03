@@ -3,6 +3,7 @@ import styles from './map.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
 import Input from '../../components/input/input'
+import { FaChevronDown } from 'react-icons/fa'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
@@ -25,6 +26,7 @@ import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3F
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
 import { isDocked } from '../../components/topbar/robotInfo'
+import { BasicState, resolveRobotState } from '../../utils/state'
 import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
 
@@ -58,7 +60,7 @@ export default () => {
     const [centerOn, setCenterOn] = useState<Point | null>(null)
     const [persistentMap, setPersistentMap] = useState<string>()
 
-    const [mode, setMode] = useState<MapMode>('maps')
+    const [mode, setMode] = useState<MapMode>('boundaries')
     useEffect(() => setSelectedPoint(null), [mode])
     const [returnFromEditMode, SetReturnFromEditMode] = useState<'boundaries' | 'boundary-info'>('boundaries')
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
@@ -68,6 +70,56 @@ export default () => {
 
     const { data: persistentMaps, refresh: updatePersistentMaps } = usePersistentMaps()
     const getPromotedFloorplan = useGetPromotedFloorplan()
+
+    // the map shown: picked with the chip on top; the tab opens on the last one picked, else an active one
+    const [switcherOpen, setSwitcherOpen] = useState(false)
+    const currentMap = persistentMaps?.find(m => m.id === persistentMap)
+    const isActive = (m: NonNullable<typeof persistentMaps>[number]) => 'enabled' in m ? m.enabled : !!m.promoted
+    const lastMapKey = `map.last.${robot.serial}`
+    const chooseMap = (id: string) => {
+        setPersistentMap(id)
+        setSwitcherOpen(false)
+        try { localStorage.setItem(lastMapKey, id) } catch { /* private mode: just not remembered */ }
+    }
+    useEffect(() => {
+        if (!persistentMaps?.length || currentMap) return
+        let last: string | null = null
+        try { last = localStorage.getItem(lastMapKey) } catch { /* private mode */ }
+        setPersistentMap((persistentMaps.find(m => m.id === last) ?? persistentMaps.find(isActive) ?? persistentMaps[0]).id)
+    }, [persistentMaps])
+
+    // exploring a new map: confirm first (the robot vacuums the whole home on the way); when it is done,
+    // the new map is fetched, shown, and asks for a name
+    const [exploreConfirmOpen, setExploreConfirmOpen] = useState(false)
+    const exploring = [BasicState.EXPLORING_MAP, BasicState.ACQUIRING_PERSISTENT_MAP_IDS, BasicState.CREATING_UPLOADING_MAP,
+        BasicState.SUSPENDED_EXPLORATION].includes(resolveRobotState(robot))
+    const mapsBeforeExplore = useRef<string[] | null>(null)
+    const [newMapId, setNewMapId] = useState<string>()
+    const [newMapName, setNewMapName] = useState('')
+    useEffect(() => {
+        if (exploring) {
+            if (persistentMaps && !mapsBeforeExplore.current) mapsBeforeExplore.current = persistentMaps.map(m => m.id)
+        } else if (mapsBeforeExplore.current) {
+            // the upload can take a moment after the robot is done
+            const timers = [0, 10_000, 30_000].map(ms => setTimeout(updatePersistentMaps, ms))
+            return () => timers.forEach(clearTimeout)
+        }
+    }, [exploring, persistentMaps])
+    useEffect(() => {
+        const before = mapsBeforeExplore.current
+        const fresh = !exploring && before && persistentMaps?.find(m => !before.includes(m.id))
+        if (!fresh) return
+        mapsBeforeExplore.current = null
+        chooseMap(fresh.id)
+        setNewMapId(fresh.id)
+        setNewMapName('')
+    }, [persistentMaps, exploring])
+    const startExplore = () => {
+        setExploreConfirmOpen(false)
+        setSwitcherOpen(false)
+        if (robot.type === RobotType.NeatoGen4) GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode())
+        else GEN3_COMMANDS.startPersistentMapExploration(robot.serial)
+    }
 
     // TODO: the dock marker should be moved to the usemap thing 
     const [dockReady, setDockReady] = useState(false)
@@ -310,18 +362,11 @@ export default () => {
     }
 
     const handleBackBtn = () => {
-        if (mode === 'boundaries') {
-            setPersistentMap(undefined);
-            setMode('maps')
-            setDrawerOpen(true) // the map list lives in the sheet
-        } else if (mode === 'map-edit' || mode === 'boundary-info') {
-            setMode('boundaries')
-        }
+        if (mode === 'map-edit' || mode === 'boundary-info') setMode('boundaries')
     }
 
     const getTitle = () => {
         switch (mode) {
-            case 'maps': return t('map.maps')
             case 'boundaries':
             case 'map-edit':
                 return t('map.mapTitle', { name: persistentMaps?.find(p => p.id === persistentMap)?.name ?? '' })
@@ -331,6 +376,20 @@ export default () => {
                 return t('map.editBoundary')
         }
     }
+
+    const mapRow = (map: NonNullable<typeof persistentMaps>[number]) => (
+        <div key={map.id} className={`${styles.item} ${map.id === persistentMap ? styles.currentMap : ''}`} onClick={() => chooseMap(map.id)}>
+            <div className={styles.info}>
+                <span>{map.name}</span>
+                <span className={styles.type}>{new Date('created_at' in map ? map.created_at : map.id).toLocaleDateString()}</span>
+            </div>
+            <div onClick={e => e.stopPropagation()}>
+                {'enabled' in map
+                    ? <Input type="switch" skipSection={true} value={map.enabled} onChange={() => updatePersistentMap({ name: map.name, enabled: !map.enabled }, map.id)} />
+                    : <PromoteDemoteBtn robot={robot} map={map} onSuccess={updatePersistentMaps} />}
+            </div>
+        </div>
+    )
 
     // TODO: user should be able to customize what modes etc
     const cleanZone = async (zone: Zone) => {
@@ -374,9 +433,33 @@ export default () => {
                     <canvas className={styles.canvas} />
                 )}
 
-                {mode === 'maps' && (
-                    <div className={styles.selectMap}>
-                        <span>{t('map.selectMap')}</span>
+                {!persistentMap && persistentMaps && (
+                    <div className={styles.emptyState}>
+                        {exploring ? <p>{t('map.exploring')}</p> : persistentMaps.length === 0 && <>
+                            <h2>{t('map.noMapsTitle')}</h2>
+                            <p>{robot.type === RobotType.NeatoGen4 ? t('map.gen4SelectMapGuide') : t('map.noMaps')}</p>
+                            <Button text={t('map.exploreNewMap')} style='primary' disabled={!isDocked(robot)} onClick={() => setExploreConfirmOpen(true)} />
+                            {!isDocked(robot) && <p>{t('map.cannotExploreNewMap')}</p>}
+                        </>}
+                    </div>
+                )}
+
+                {persistentMap && mode !== 'boundary-edit' && (
+                    <div className={styles.mapBar}>
+                        <button className={styles.mapChip} onClick={() => setSwitcherOpen(true)}>
+                            {currentMap?.name || t('map.chooseMap')} <FaChevronDown size={12} />
+                        </button>
+                        {exploring && <span className={styles.mapNote}>{t('map.exploring')}</span>}
+                        {newMapId === persistentMap && (
+                            <div className={styles.mapNote}>
+                                <span>{t('map.newMapName')}</span>
+                                <Input type="text" skipSection={true} value={newMapName} onChange={setNewMapName} />
+                                <Button text={t('common.save')} style='success' disabled={!newMapName.trim()} onClick={() => {
+                                    updatePersistentMap({ name: newMapName.trim(), enabled: currentMap && 'enabled' in currentMap ? currentMap.enabled : true })
+                                    setNewMapId(undefined)
+                                }} />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -385,49 +468,12 @@ export default () => {
                 sidePanel
                 open={drawerOpen}
                 handle={true}
-                showBackButton={['map-edit', 'boundaries', 'boundary-info'].includes(mode)}
+                showBackButton={['map-edit', 'boundary-info'].includes(mode)}
                 onBackButtonClick={handleBackBtn}
                 onOpenChange={setDrawerOpen}
                 openHeightPercent={mode === 'boundary-edit' ? 60 : mode === 'boundary-info' ? 30 : 70}
                 title={getTitle()}
             >
-                {mode === 'maps' && (
-                    <div className={styles.featureList}>
-                        {persistentMaps?.map((item, i) => (
-                            <div key={i} className={styles.item} onClick={() => setPersistentMap(item.id)}>
-                                <div className={styles.info}>
-                                    <span>{item.name}</span>
-                                    <span className={styles.type}>{new Date('created_at' in item ? item.created_at : item.id).toLocaleString()}</span>
-                                </div>
-                                {'enabled' in item ? (
-                                    <Input type="switch" skipSection={true} value={item.enabled} onChange={() => {
-                                        updatePersistentMap({ name: item.name, enabled: !item.enabled }, item.id);
-                                    }} />
-                                ) : (
-                                    <PromoteDemoteBtn robot={robot} map={item} onSuccess={updatePersistentMaps} />
-                                )}
-                            </div>
-                        ))}
-                        {persistentMaps?.length === 0 && (
-                            <>
-                                <span style={{ textAlign: 'center' }}>{t('map.noMaps')}</span>
-                                {robot.type === RobotType.NeatoGen4 && (
-                                    <span style={{ textAlign: 'center' }}>{t('map.gen4SelectMapGuide')}</span>
-                                )}
-                            </>
-                        )}
-                        <hr style={{ width: '90%' }} />
-                        <div className={`${styles.item} ${styles.actionItem} ${isDocked(robot) ? '' : styles.disabled}`} onClick={() => robot.type === RobotType.NeatoGen4
-                            ? GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode())
-                            : GEN3_COMMANDS.startPersistentMapExploration(robot.serial)}>
-                            <div className={styles.info}>
-                                <span>{t('map.newMap')}</span>
-                                <span className={styles.type}>{isDocked(robot) ? t('map.exploreNewMap') : t('map.cannotExploreNewMap')}</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {mode === 'map-edit' && mapEditform && persistentMap && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <Input
@@ -447,7 +493,7 @@ export default () => {
                                 <div style={{ padding: '1rem 0' }}>
                                     <Button text={t('map.stopUsingAsFloormap')} style='fail' onClick={() =>
                                         Http.postUnuseMapAsFloorPlan(robot.serial, persistentMap).then(() => {
-                                            setMode('maps')
+                                            setMode('boundaries')
                                             updatePersistentMaps()
                                         })} />
                                 </div>
@@ -569,11 +615,36 @@ export default () => {
 
                     </div>
                 )}
-                {robot.type === RobotType.NeatoGen4 && ['boundaries', 'maps'].includes(mode) && (
+                {robot.type === RobotType.NeatoGen4 && mode === 'boundaries' && (
                     <span style={{ width: '90%', display: 'flex', margin: 'auto auto 0 auto', paddingTop: '1rem', opacity: 0.5, textAlign: 'center', fontSize: '1.3rem' }}>
                         {t('map.gen4UpdateBugHint')}
                     </span>
                 )}
+            </Drawer>
+
+            <Drawer open={switcherOpen} handle={false} onOpenChange={setSwitcherOpen} title={t('map.chooseMap')}
+                footer={<>
+                    <Button text={t('map.exploreNewMap')} style='primary' disabled={!isDocked(robot) || exploring} onClick={() => setExploreConfirmOpen(true)} />
+                    {!isDocked(robot) && !exploring && <p className={styles.tapHint}>{t('map.cannotExploreNewMap')}</p>}
+                </>}>
+                <div className={styles.featureList}>
+                    <p className={styles.tapHint}>{t('map.mapsHint')}</p>
+                    {persistentMaps?.filter(isActive).map(mapRow)}
+                    {!!persistentMaps?.some(m => !isActive(m)) && (
+                        <details className={styles.olderMaps}>
+                            <summary>{t('map.mapsOff', { count: persistentMaps.filter(m => !isActive(m)).length })}</summary>
+                            {persistentMaps.filter(m => !isActive(m)).map(mapRow)}
+                        </details>
+                    )}
+                </div>
+            </Drawer>
+
+            <Drawer open={exploreConfirmOpen} handle={false} onOpenChange={setExploreConfirmOpen} title={t('map.exploreTitle')}
+                footer={<div className={styles.editBoundaryActionButtons}>
+                    <Button text={t('common.cancel')} style='fail' onClick={() => setExploreConfirmOpen(false)} />
+                    <Button text={t('map.exploreStart')} style='success' disabled={!isDocked(robot)} onClick={startExplore} />
+                </div>}>
+                <p>{t('map.exploreText')}</p>
             </Drawer>
 
             <Drawer open={featureChooserOpen} handle={false} onOpenChange={setFeatureChooserOpen} title={t('map.chooseFeature')}>
