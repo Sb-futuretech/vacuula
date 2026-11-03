@@ -134,6 +134,7 @@
     bottom: 0;
     left: 50%;
     width: min(64rem, 100%);
+    max-height: calc(100vh - 4rem); // older Safari without dvh
     max-height: calc(100dvh - 4rem);
     display: flex;
     flex-direction: column;

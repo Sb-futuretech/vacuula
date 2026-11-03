@@ -30,6 +30,8 @@ interface DrawerProps {
 const HANDLE_HEIGHT = 60
 // a modal sheet pulled down further than this closes
 const CLOSE_DRAG = 80
+// open modal sheets; while there is one, the app behind them is inert (no focus, no keys, no clicks)
+let openModals = 0
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
@@ -46,9 +48,21 @@ export default function Drawer(props: DrawerProps) {
     const movedRef = useRef(false)
 
     // modal sheet: content stays mounted until the closing slide has ended; dragOffset follows the finger
-    const [mounted, setMounted] = useState(props.open)
+    const [mounted, setMounted] = useState(false)
     const [dragOffset, setDragOffset] = useState<number | null>(null)
-    useEffect(() => { if (props.open) setMounted(true) }, [props.open])
+    const sheetRef = useRef<HTMLDivElement>(null)
+    const isModal = !props.handle && !isPanel
+    useEffect(() => {
+        if (!isModal || !props.open) return
+        sheetRef.current?.focus()
+        const root = document.getElementById('root')
+        openModals += 1
+        if (root) root.inert = true
+        return () => {
+            openModals -= 1
+            if (root && openModals === 0) root.inert = false
+        }
+    }, [isModal, props.open])
 
     // Pointer events cover mouse, touch and pen in every modern browser
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -138,33 +152,43 @@ export default function Drawer(props: DrawerProps) {
         </div>
     )
 
-    if (!props.handle) {
+    if (isModal) {
         const close = () => props.onOpenChange?.(false)
+        const shown = props.open || mounted
         return createPortal(
             <div className={`${styles.modal} ${props.open ? styles.open : ''}`}>
                 <div className={styles.backdrop} onClick={close} />
-                <div className={styles.sheet} role="dialog" aria-modal="true" aria-hidden={!props.open}
+                <div ref={sheetRef} tabIndex={-1} className={styles.sheet} role="dialog" aria-modal="true" aria-hidden={!props.open}
                     style={dragOffset ? { transform: `translate(-50%, ${dragOffset}px)`, transition: 'none' } : undefined}
-                    onTransitionEnd={e => { if (e.target === e.currentTarget && !props.open) setMounted(false) }}>
+                    onKeyDown={e => { if (e.key === 'Escape') close() }}
+                    onTransitionEnd={e => { if (e.target === e.currentTarget) setMounted(props.open) }}>
                     <div className={styles.drawerHandle}
-                        onPointerDown={e => { dragStartYRef.current = e.clientY; movedRef.current = false; setDragOffset(0) }}
+                        onPointerDown={e => {
+                            if (e.button !== 0) return // a right click is no tap
+                            dragStartYRef.current = e.clientY
+                            movedRef.current = false
+                            setDragOffset(0)
+                        }}
                         onPointerMove={e => {
-                            if (dragOffset === null) return
+                            if (dragOffset === null || !(e.buttons & 1)) return // hovering, not dragging
                             const down = Math.max(0, e.clientY - dragStartYRef.current)
                             if (down > 5 && !movedRef.current) { movedRef.current = true; e.currentTarget.setPointerCapture(e.pointerId) }
                             if (movedRef.current) setDragOffset(down)
                         }}
                         onPointerUp={() => {
+                            if (dragOffset === null) return
                             const tapped = !movedRef.current
                             if (tapped || (dragOffset ?? 0) > CLOSE_DRAG) close()
                             setDragOffset(null)
                         }}
-                        onPointerCancel={() => setDragOffset(null)}>
+                        onPointerCancel={() => setDragOffset(null)}
+                        // released outside the title without dragging: no tap, nothing to follow
+                        onPointerLeave={() => { if (!movedRef.current) setDragOffset(null) }}>
                         {backButton}
                         {title}
                     </div>
-                    <div className={styles.drawerContent}>{mounted && props.children}</div>
-                    {props.footer && mounted && <div className={styles.footer}>{props.footer}</div>}
+                    <div className={styles.drawerContent}>{shown && props.children}</div>
+                    {props.footer && shown && <div className={styles.footer}>{props.footer}</div>}
                 </div>
             </div>,
             document.body)

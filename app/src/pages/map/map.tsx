@@ -27,11 +27,17 @@ import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3F
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
 import { isDocked } from '../../components/topbar/robotInfo'
-import { BasicState, resolveRobotState } from '../../utils/state'
 import { useIsDesktop } from '../../utils/useIsDesktop'
 import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
 
+
+// gen3 robot actions of an exploration (exploring, paused, getting map ids, uploading the map)
+const EXPLORE_ACTIONS = [Neato.Gen3.RobotAction.EXPLORING_MAP, Neato.Gen3.RobotAction.SUSPENDED_EXPLORATION,
+    Neato.Gen3.RobotAction.ACQUIRING_PERSISTENT_MAP_IDS, Neato.Gen3.RobotAction.CREATING_UPLOADING_MAP]
+// serial -> map ids when an exploration was first seen; kept outside the page so leaving the map tab
+// during an exploration still finds the new map afterwards
+const mapsBeforeExplore = new Map<string, string[]>()
 
 export default () => {
     const { t } = useTranslation()
@@ -93,25 +99,25 @@ export default () => {
     // exploring a new map: confirm first (the robot vacuums the whole home on the way); when it is done,
     // the new map is fetched, shown, and asks for a name
     const [exploreConfirmOpen, setExploreConfirmOpen] = useState(false)
-    const exploring = [BasicState.EXPLORING_MAP, BasicState.ACQUIRING_PERSISTENT_MAP_IDS, BasicState.CREATING_UPLOADING_MAP,
-        BasicState.SUSPENDED_EXPLORATION].includes(resolveRobotState(robot))
-    const mapsBeforeExplore = useRef<string[] | null>(null)
+    // gen3 only, by the robot's action (its state is PAUSED or ERROR while an exploration is paused or
+    // stuck); a gen4 explores with a normal cleaning, and its map is marked in the run history
+    const exploring = robot.type === RobotType.NeatoGen3 && EXPLORE_ACTIONS.includes(robot.action)
     const [newMapId, setNewMapId] = useState<string>()
     const [newMapName, setNewMapName] = useState('')
     useEffect(() => {
-        if (exploring) {
-            if (persistentMaps && !mapsBeforeExplore.current) mapsBeforeExplore.current = persistentMaps.map(m => m.id)
-        } else if (mapsBeforeExplore.current) {
-            // the upload can take a moment after the robot is done
-            const timers = [0, 10_000, 30_000].map(ms => setTimeout(updatePersistentMaps, ms))
-            return () => timers.forEach(clearTimeout)
-        }
+        if (exploring && persistentMaps && !mapsBeforeExplore.has(robot.serial)) mapsBeforeExplore.set(robot.serial, persistentMaps.map(m => m.id))
     }, [exploring, persistentMaps])
     useEffect(() => {
-        const before = mapsBeforeExplore.current
+        if (exploring || !mapsBeforeExplore.has(robot.serial)) return
+        // done: fetch the maps; the upload can take a moment after the robot has finished
+        const timers = [0, 10_000, 30_000].map(ms => setTimeout(updatePersistentMaps, ms))
+        return () => timers.forEach(clearTimeout)
+    }, [exploring])
+    useEffect(() => {
+        const before = mapsBeforeExplore.get(robot.serial)
         const fresh = !exploring && before && persistentMaps?.find(m => !before.includes(m.id))
         if (!fresh) return
-        mapsBeforeExplore.current = null
+        mapsBeforeExplore.delete(robot.serial)
         chooseMap(fresh.id)
         setNewMapId(fresh.id)
         setNewMapName('')
@@ -119,8 +125,9 @@ export default () => {
     const startExplore = () => {
         setExploreConfirmOpen(false)
         setSwitcherOpen(false)
-        if (robot.type === RobotType.NeatoGen4) GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode())
-        else GEN3_COMMANDS.startPersistentMapExploration(robot.serial)
+        withFeedback<unknown>(robot.type === RobotType.NeatoGen4
+            ? GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode())
+            : GEN3_COMMANDS.startPersistentMapExploration(robot.serial), 'common.started')
     }
 
     // TODO: the dock marker should be moved to the usemap thing 
@@ -172,7 +179,7 @@ export default () => {
         }
 
         // TODO: rework this base drawing, very hacky for quick release...
-        const map = persistentMaps?.find(p => p.id === persistentMap)
+        const map = currentMap
         const baseData = map?.base
         const NO_BASE = 2147483647
         // Gen4: base = [x_mm, y_mm, dir_deg] in the map frame. Gen3 stores an
@@ -195,7 +202,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, persistentMaps, persistentMap, dockReady, heatmap])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -215,14 +222,19 @@ export default () => {
         })
     }
 
+    // an answer for a map that is no longer shown (switched meanwhile) is dropped: taken as the
+    // shown map's boundaries it would be saved to that map
+    const shownMapRef = useRef(persistentMap)
+    useEffect(() => { shownMapRef.current = persistentMap }, [persistentMap])
     const getMapBoundaries = () => {
-        if (!persistentMap) return
+        const mapId = persistentMap
+        if (!mapId) return
         skipNextPostRef.current = true
+        const show = (list: (NoGoLine | Zone)[]) => { if (shownMapRef.current === mapId) setBoundaries(list) }
         if (robot.type === RobotType.NeatoGen4) {
-            Http.getBoundaries(robot.serial, persistentMap).then(res => setBoundaries(res.data))
+            Http.getBoundaries(robot.serial, mapId).then(res => show(res.data))
         } else {
-            // GEN3_COMMANDS.getMapBoundaries(robot.serial, persistentMap).then(res => setBoundaries(res.data.data.boundaries))
-            fetchGen3MapBoundaries(robot.serial, persistentMap).then(b => setBoundaries([...b]))
+            fetchGen3MapBoundaries(robot.serial, mapId).then(b => show([...b]))
         }
     }
 
@@ -233,14 +245,13 @@ export default () => {
             return
         }
         if (robot.type === RobotType.NeatoGen4) {
-            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries)).then(() => {
+            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries).then(() => {
                 getMapBoundaries();
-                const map = persistentMaps?.find(p => p.id === persistentMap)
                 // If the map is promoted, promote it again
-                if (map && 'promoted' in map && map.promoted) {
-                    Http.promoteFloorplan(robot.serial, map.id).then(() => updatePersistentMaps());
+                if (currentMap && 'promoted' in currentMap && currentMap.promoted) {
+                    return Http.promoteFloorplan(robot.serial, currentMap.id).then(() => updatePersistentMaps());
                 }
-            });
+            }));
             return
         }
 
@@ -262,7 +273,7 @@ export default () => {
     useEffect(() => {
         if (mode === 'boundaries') setActiveBoundaryId(undefined)
         if (mode === 'map-edit') {
-            const pmap = persistentMaps?.find(p => p.id === persistentMap)
+            const pmap = currentMap
             if (!pmap) return;
             setMapEditForm({
                 name: pmap.name,
@@ -377,7 +388,7 @@ export default () => {
         switch (mode) {
             case 'boundaries':
             case 'map-edit':
-                return t('map.mapTitle', { name: persistentMaps?.find(p => p.id === persistentMap)?.name ?? '' })
+                return t('map.mapTitle', { name: currentMap?.name ?? '' })
             case 'boundary-info': return ' '
             case 'boundary-edit':
                 return t('map.editBoundary')
@@ -430,7 +441,7 @@ export default () => {
                         maxPoints={editMaxPoints}
                         selectedPoint={selectedPoint}
                         setSelectedPoint={setSelectedPoint}
-                        mmPerPixel={(persistentMaps?.find(p => p.id === persistentMap) as Floorplan | undefined)?.resolution}
+                        mmPerPixel={(currentMap as Floorplan | undefined)?.resolution}
                         boundaries={boundaries}
                         onBoundaryTap={onBoundaryTap}
                         onAddHere={(at) => { setPendingCenter(at); setFeatureChooserOpen(true) }}
@@ -451,7 +462,7 @@ export default () => {
                     </div>
                 )}
 
-                {mode === 'boundary-edit' && (
+                {mode === 'boundary-edit' && selectedPoint === null && (
                     <div className={styles.mapBar}>
                         <div className={styles.drawBar}>
                             <strong>{editForm.zoneType === BoundaryTypes.NOGO_LINE ? t('map.noGoLine')
@@ -500,7 +511,7 @@ export default () => {
                 )}
             </div>
 
-            <Drawer
+            {persistentMap && <Drawer
                 sidePanel
                 open={drawerOpen}
                 handle={true}
@@ -524,11 +535,11 @@ export default () => {
                             updatePersistentMap(mapEditform);
                         }} />
                         {robot.type === RobotType.NeatoGen4 &&
-                            (persistentMaps?.find(p => p.id === persistentMap) as Floorplan)?.in_maps_list &&
-                            !(persistentMaps?.find(p => p.id === persistentMap) as Floorplan)?.promoted && (
+                            (currentMap as Floorplan | undefined)?.in_maps_list &&
+                            !(currentMap as Floorplan | undefined)?.promoted && (
                                 <div style={{ padding: '1rem 0' }}>
                                     <Button text={t('map.stopUsingAsFloormap')} style='fail' onClick={() =>
-                                        Http.postUnuseMapAsFloorPlan(robot.serial, persistentMap).then(() => {
+                                        withFeedback(Http.postUnuseMapAsFloorPlan(robot.serial, persistentMap)).then(() => {
                                             setMode('boundaries')
                                             updatePersistentMaps()
                                         })} />
@@ -559,7 +570,7 @@ export default () => {
 
                 {mode === 'boundary-info' && activeBoundaryId && (
                     <BoundaryDetails
-                        map={persistentMaps?.find(p => p.id === persistentMap)}
+                        map={currentMap}
                         boundary={boundaries.find(b => b.id === activeBoundaryId)!}
                         docked={isDocked(robot)}
                         deleteBoundary={deleteBoundary}
@@ -576,9 +587,9 @@ export default () => {
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
                             {robot.type === RobotType.NeatoGen4 ? (
-                                <PromoteDemoteBtn robot={robot} map={persistentMaps?.find(p => p.id === persistentMap) as Floorplan} onSuccess={updatePersistentMaps} />
+                                currentMap && <PromoteDemoteBtn robot={robot} map={currentMap as Floorplan} onSuccess={updatePersistentMaps} />
                             ) : (
-                                <span>{(persistentMaps?.find(p => p.id === persistentMap) as Neato.Gen3.PersistentMap)?.enabled ? t('common.enabled') : t('common.disabled')}</span>
+                                <span>{(currentMap as Neato.Gen3.PersistentMap | undefined)?.enabled ? t('common.enabled') : t('common.disabled')}</span>
                             )}
 
                             <Button text={t('map.editMapDetails')} style='primary' onClick={() => setMode('map-edit')} />
@@ -639,7 +650,7 @@ export default () => {
                                             }
                                         </span>
                                     </div>
-                                    {('promoted' in (persistentMaps?.find(p => p.id === persistentMap) as Floorplan) ? (persistentMaps?.find(p => p.id === persistentMap) as Floorplan).promoted : true) && (
+                                    {(!currentMap || !('promoted' in currentMap) || currentMap.promoted) && (
                                         <>
                                             {(item.type === 'polyline' || item.function === 'nogo') && (<Input type="switch" skipSection={true} value={item.enabled} onChange={() => toggleNoGo(item)} />)}
                                             {item.type === 'polygon' && ('function' in item ? item.function === 'cleaning' : true) && (<Button style='primary' disabled={!isDocked(robot)} text={t('map.cleanZone')} onClick={() => cleanZone(item)} />)}
@@ -656,7 +667,7 @@ export default () => {
                         {t('map.gen4UpdateBugHint')}
                     </span>
                 )}
-            </Drawer>
+            </Drawer>}
 
             <Drawer open={switcherOpen} handle={false} onOpenChange={setSwitcherOpen} title={t('map.chooseMap')}
                 footer={<>
@@ -680,7 +691,7 @@ export default () => {
                     <Button text={t('common.cancel')} style='fail' onClick={() => setExploreConfirmOpen(false)} />
                     <Button text={t('map.exploreStart')} style='success' disabled={!isDocked(robot)} onClick={startExplore} />
                 </div>}>
-                <p>{t('map.exploreText')}</p>
+                <p>{t('map.exploreText')} {robot.type === RobotType.NeatoGen4 ? t('map.gen4SelectMapGuide') : t('map.exploreDone')}</p>
             </Drawer>
 
             <Drawer open={featureChooserOpen} handle={false} onOpenChange={setFeatureChooserOpen} title={t('map.chooseFeature')}>
@@ -857,7 +868,7 @@ interface PromoteDemoteBtnProps {
 const PromoteDemoteBtn = ({ robot, map, onSuccess }: PromoteDemoteBtnProps) => {
     const { t } = useTranslation()
     return <Button text={map.promoted ? t('map.demote') : t('map.promote')} onClick={() => {
-        if (map.promoted) Http.demoteFloorplan(robot.serial, map.id).finally(() => onSuccess())
-        else Http.promoteFloorplan(robot.serial, map.id).finally(() => onSuccess());
+        withFeedback(map.promoted ? Http.demoteFloorplan(robot.serial, map.id) : Http.promoteFloorplan(robot.serial, map.id))
+            .finally(() => onSuccess())
     }} style={map.promoted ? 'fail' : 'success'} />
 }

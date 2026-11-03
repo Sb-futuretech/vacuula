@@ -1,6 +1,9 @@
 {
     "String-version": "3",
     "common": {
+        "notSavedServer": "Not saved: the server could not be reached.",
+        "notSavedOffline": "Not saved: the robot is not connected.",
+        "started": "Started",
         "saved": "Saved",
         "notSavedNoAnswer": "Not saved: the robot did not answer.",
         "notSavedRefused": "Not saved: the robot refused it.",
@@ -358,7 +361,8 @@
         "mapsHint": "Switched-on maps are the ones the robot uses; their zones can be picked in the schedule.",
         "mapsOff": "Switched off ({{count}})",
         "exploreTitle": "Explore a new map?",
-        "exploreText": "The robot drives through the whole home and vacuums on the way. Open the doors to the rooms that should be on the map. The new map shows up here when it is done.",
+        "exploreText": "The robot drives through the whole home and vacuums on the way. Open the doors to the rooms that should be on the map.",
+        "exploreDone": "The new map shows up here when it is done.",
         "exploreStart": "Start",
         "exploring": "The robot is exploring a new map. It shows up here when it is done.",
         "newMapName": "New map: give it a name",

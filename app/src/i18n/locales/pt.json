@@ -1,6 +1,9 @@
 {
     "String-version": "0",
     "common": {
+        "notSavedServer": "N\u00e3o guardado: o servidor n\u00e3o respondeu.",
+        "notSavedOffline": "N\u00e3o guardado: o rob\u00f4 n\u00e3o est\u00e1 ligado.",
+        "started": "Iniciado",
         "saved": "Guardado",
         "notSavedNoAnswer": "N\u00e3o guardado: o rob\u00f4 n\u00e3o respondeu.",
         "notSavedRefused": "N\u00e3o guardado: o rob\u00f4 recusou.",
@@ -351,7 +354,8 @@
         "mapsHint": "Os mapas ligados s\u00e3o os que o rob\u00f4 usa; as suas zonas podem ser escolhidas no agendamento.",
         "mapsOff": "Desligados ({{count}})",
         "exploreTitle": "Explorar um novo mapa?",
-        "exploreText": "O rob\u00f4 percorre a casa toda e aspira pelo caminho. Abra as portas das divis\u00f5es que devem ficar no mapa. O novo mapa aparece aqui quando terminar.",
+        "exploreText": "O rob\u00f4 percorre a casa toda e aspira pelo caminho. Abra as portas das divis\u00f5es que devem ficar no mapa.",
+        "exploreDone": "O novo mapa aparece aqui quando terminar.",
         "exploreStart": "Iniciar",
         "exploring": "O rob\u00f4 est\u00e1 a explorar um novo mapa. Aparece aqui quando terminar.",
         "newMapName": "Novo mapa: d\u00ea-lhe um nome",

@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { dayKey } from '../../i18n/days'
 import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
-import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
+import { fetchAllGen3Boundaries, getCachedZones, isGen3MapCached } from '../../loaders/gen3Boundaries'
 import { Http, type PiScheduleEntry, type RobotStats } from '../../http'
 import { gen3CleaningModeHelp, gen3NavigationHelp } from '../../utils/modes'
 import { useMascot } from '../../mascot'
@@ -154,23 +154,22 @@ export default () => {
                     return { mapId, boundaryId, name: zoneOptions.find(o => o.value === value)?.label ?? '' }
                 }),
             }
-            const saved = withFeedback<unknown>(editing?.kind === 'pi'
+            const saved: Promise<unknown> = editing?.kind === 'pi'
                 ? Http.updatePiSchedule(robot.serial, editing.entry.id, { ...entry, enabled: editing.entry.enabled ?? true })
-                : Http.addPiSchedule(robot.serial, entry))
-            saved.then(() => {
-                // a robot entry that became a Pi entry: only removed once the Pi has it
-                if (editedRobotEvents.length) GEN3_COMMANDS.setSchedule(robot.serial, robotEvents).finally(() => getSchedule())
-            }).finally(getPiEntries)
+                : Http.addPiSchedule(robot.serial, entry)
+            // one message for both steps: a robot entry that became a Pi entry is only removed once the Pi has it
+            withFeedback(saved.then(() => editedRobotEvents.length ? GEN3_COMMANDS.setSchedule(robot.serial, robotEvents) : undefined))
+                .finally(() => { getPiEntries(); if (editedRobotEvents.length) getSchedule() })
             return
         }
         const zone = scheduleForm.zones[0]?.split(ZONE_SEP)[1]
         const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = robotEvents.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
-        withFeedback(GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept])).then(() => {
-            // a Pi entry that the robot can keep now: only removed once the robot has it
-            if (editing?.kind === 'pi') Http.deletePiSchedule(robot.serial, editing.entry.id).finally(getPiEntries)
-        }).finally(() => getSchedule())
+        // one message for both steps: a Pi entry that the robot can keep now is only removed once the robot has it
+        withFeedback<unknown>(GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept])
+            .then(() => editing?.kind === 'pi' ? Http.deletePiSchedule(robot.serial, editing.entry.id) : undefined))
+            .finally(() => { getSchedule(); if (editing?.kind === 'pi') getPiEntries() })
     }
 
     const togglePiEntry = (entry: PiScheduleEntry) => {
@@ -201,10 +200,14 @@ export default () => {
     const shortDay = (d: number) => t(`daysShort.${dayKey(d)}` as any)
     const modeText = (mode: CleaningMode, nav: CleaningNavigationMode) => t(`modes.${mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any)
         + (nav !== CleaningNavigationMode.NORMAL ? ` · ${t(`modes.${NAV_KEYS[nav] ?? 'normal'}` as any)}` : '')
-    // names from the map as it is now; the name an entry was saved with only if the zone is not found
+    // names from the maps as they are now. Until every map's zones are loaded, a zone not found yet keeps
+    // the name it was saved with; once they are, it is gone from the maps: "unknown zone".
     const zoneNameById = new Map((persistentMaps ?? []).flatMap(m => getCachedZones(robot.serial, m.id).map(z => [z.id, z.name] as const)))
-    const zonesText = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.length
-        ? zoneIds.map((id, i) => decodeRobotText(zoneNameById.get(id) || zoneNames[i] || t('schedule.week.unknownZone'))).join(', ')
+    const allZonesLoaded = (persistentMaps ?? []).every(m => isGen3MapCached(robot.serial, m.id))
+    const zoneNamesOf = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.map((id, i) =>
+        decodeRobotText(zoneNameById.get(id) ?? ((!allZonesLoaded && zoneNames[i]) || t('schedule.week.unknownZone'))))
+    const zonesText = (slot: { zoneIds: string[], zoneNames: string[] }) => slot.zoneIds.length
+        ? zoneNamesOf(slot).join(', ')
         : t('schedule.wholeMap')
     const lengthText = (minutes: number | null) => minutes != null ? t('schedule.week.about', { minutes }) : t('schedule.week.noEstimate')
     const inText = (minutes: number) => minutes < 60 ? t('schedule.week.inMinutes', { count: minutes })
@@ -315,7 +318,8 @@ export default () => {
                     </div>
                 </div>
 
-                <WeekView week={week} selected={selected} onSelect={slot => setSelected(slot?.key ?? null)}
+                {/* names as shown in the details, also for the blocks' screen-reader labels */}
+                <WeekView week={week.map(day => day.map(slot => ({ ...slot, zoneNames: zoneNamesOf(slot) })))} selected={selected} onSelect={slot => setSelected(slot?.key ?? null)}
                     today={serverNow.getUTCDay()} nowMinutes={serverNow.getUTCHours() * 60 + serverNow.getUTCMinutes()} />
 
                 {!sideColumn && details}

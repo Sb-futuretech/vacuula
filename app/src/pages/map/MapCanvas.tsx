@@ -258,8 +258,9 @@ export default function MapCanvas({
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement
-            // typing in a form field (e.g. the zone name) must not move points or zoom
-            if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+            // typing in a form field (e.g. the zone name) or using an open sheet must not move points or zoom
+            if (e.metaKey || e.ctrlKey || target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+                || target.closest('[role="dialog"]')) return
             if ((mode === 'boundary-edit' && handleDrawingKey(e)) || handleZoomKey(e)) e.preventDefault()
         }
         window.addEventListener('keydown', onKeyDown)

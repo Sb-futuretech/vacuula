@@ -37,5 +37,7 @@ export async function fetchAllGen3Boundaries(serial: string, maps: { id: string 
     }
 }
 
+export const isGen3MapCached = (serial: string, mapId: string) => !!gen3Boundaries[k(serial, mapId)]
+
 export const getCachedZones = (serial: string, mapId: string): Zone[] =>
     (gen3Boundaries[k(serial, mapId)] ?? []).filter((b): b is Zone => b.type === 'polygon')

@@ -172,7 +172,9 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 **Whole app**
 - **Saved or not:** every change sent to the robot or the Pi (zones and lines, maps, schedule)
   shows a short *Saved*, or why not: the robot did not answer (the D7 dropping a save no longer
-  goes unnoticed) or refused it.
+  goes unnoticed), refused it, is not connected, or the server could not be reached. A change
+  made in two steps (e.g. a schedule entry moving from the robot to the Pi) says *Saved* only once
+  both are done.
 - **Sheets** (cleaning options, schedule form, run details, add feature, help) open over the whole
   app with the page behind dimmed. They are as tall as their content, only their content scrolls,
   and Save stays visible at the bottom. Close them by tapping outside or pulling the title down.
@@ -181,8 +183,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - **Opens on a map:** the one picked last, else a switched-on one, with its name as a chip on top.
   The chip switches maps: switched-on maps first, the others folded away, the switch explained.
 - **Exploring a new map** asks first (the robot vacuums the whole home on the way), says so while
-  it runs, and asks for a name when the new map is in. With no map at all the tab starts with it.
-  Not yet tried on a real exploration.
+  it runs, and asks for a name when the new map is in (Gen3; on Gen4 the map is still marked in
+  the run history). With no map at all the tab starts with it. Not yet tried on a real exploration.
 - **Drawing with a bar on top:** what is drawn, its points (n/10), the robot's memory, Cancel and
   Done. The map keeps its full height; name and colour come after Done.
 - **Rulers** along the top and left edge, in real distance (cm / m). A ruler button in the zoom
@@ -221,8 +223,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - **Fallback pairs** (a robot entry next to a Pi entry) show as one block with its backup;
   **overlapping runs** are marked, and the edit sheet warns before saving.
 - Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
-- Zone names come from the map as it is now; a zone that is no longer on it shows as
-  *unknown zone*.
+- Zone names come from the maps as they are now. Once all maps are loaded, a zone that is no
+  longer on any of them shows as *unknown zone*.
 - Mode and navigation explained under their fields; Save says what is still missing.
 - **On desktop the week fits the window:** the three cards sit side by side above it. In windows
   1400 px and wider, a tapped entry's details and the edit form open in a column on the right.

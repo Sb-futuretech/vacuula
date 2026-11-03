@@ -264,8 +264,9 @@
 // top left over the map: the chip to switch maps, and notes about exploring or naming a new map
 .mapBar {
     position: absolute;
-    top: 1.2rem;
-    left: 1.2rem;
+    // clear of the rulers (MapRulers RULER_PX), on while drawing
+    top: calc(22px + 0.6rem);
+    left: calc(22px + 0.6rem);
     right: 6rem; // the zoom buttons
     z-index: 3;
     display: flex;
