@@ -1,0 +1,804 @@
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+.container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.mapArea {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .container {
+    display: flex;
+  }
+}
+.drawerSection {
+  margin-bottom: 16px;
+}
+.drawerSection:last-child {
+  margin-bottom: 0;
+}
+
+.actionButtons {
+  display: flex;
+  position: absolute;
+  justify-content: center;
+  align-items: center;
+  gap: 4rem;
+  width: 100%;
+  bottom: 10rem;
+}
+.actionButtons > div {
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, background-color 0.15s ease-out;
+}
+.actionButtons > div:hover:not(:disabled):not(.disabled) {
+  box-shadow: 0 0 12px var(--accent-ring);
+}
+.actionButtons > div:active:not(:disabled):not(.disabled) {
+  transform: scale(0.92);
+  opacity: 0.7;
+  box-shadow: inset 0 0 10px var(--accent-glow);
+}
+.actionButtons > div:disabled, .actionButtons > div.disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+.actionButtons > div:hover:not(:disabled):not(.disabled) {
+  box-shadow: var(--shadow-md), 0 0 12px var(--accent-ring);
+}
+.actionButtons .btngroup {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+.actionButtons .add {
+  background: var(--accent);
+  padding: 3rem;
+}
+.actionButtons .cancel {
+  background: var(--err-bg);
+}
+.actionButtons .undo,
+.actionButtons .closePolygon {
+  background: var(--surface);
+}
+.actionButtons .disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.editBoundaryDetails {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.editBoundaryActionButtons {
+  display: flex;
+  justify-content: space-around;
+  gap: 2rem;
+}
+.editBoundaryActionButtons button {
+  width: 45%;
+}
+
+.boundaryDetails {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.boundaryDetails .zoneActions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+.boundaryDetails .zoneActions button {
+  width: 100%;
+}
+
+.buttonContainer {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding-bottom: 1rem;
+}
+.buttonContainer button {
+  margin-left: auto;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.featureList .item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out, transform 0.15s ease-out;
+}
+.featureList .item:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 10px var(--accent-ring);
+}
+.featureList .item:active {
+  transform: scale(0.985);
+  background: var(--accent-surface);
+}
+.featureList .item .info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.featureList .item .info span:first-child {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.featureList .item .info .type {
+  font-size: 1.2rem;
+}
+.featureList .actionItem {
+  justify-content: center;
+  text-align: center;
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, background-color 0.15s ease-out;
+}
+.featureList .actionItem:hover:not(:disabled):not(.disabled) {
+  box-shadow: 0 0 12px var(--accent-ring);
+  border-color: var(--accent);
+}
+.featureList .actionItem:active:not(:disabled):not(.disabled) {
+  transform: scale(0.92);
+  opacity: 0.7;
+  box-shadow: inset 0 0 10px var(--accent-glow);
+}
+.featureList .actionItem:disabled, .featureList .actionItem.disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+.featureList .actionItem:hover, .featureList .actionItem:active {
+  background: var(--accent-soft);
+}
+.featureList .actionItem.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.mapSelectorWrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mapSelector {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mapLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.zoomButtons {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.zoomButtons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1.2rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, background-color 0.15s ease-out;
+}
+.zoomButtons button:hover:not(:disabled):not(.disabled) {
+  box-shadow: 0 0 12px var(--accent-ring);
+  border-color: var(--accent);
+}
+.zoomButtons button:active:not(:disabled):not(.disabled) {
+  transform: scale(0.92);
+  opacity: 0.7;
+  box-shadow: inset 0 0 10px var(--accent-glow);
+}
+.zoomButtons button:disabled, .zoomButtons button.disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.emptyState {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text);
+}
+.emptyState h2 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+.emptyState p {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.mapBar {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+  right: 6rem;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+  pointer-events: none;
+}
+.mapBar > * {
+  pointer-events: auto;
+}
+
+.mapChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 100%;
+  padding: 0.8rem 1.4rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 2rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.mapNote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  max-width: 32rem;
+  padding: 1rem 1.2rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.3rem;
+  box-shadow: var(--shadow-md);
+}
+
+.featureList .currentMap {
+  outline: 2px solid var(--accent);
+}
+
+.olderMaps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.olderMaps summary {
+  padding: 0.6rem 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.dropdownContainer {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.mapDropdown {
+  width: 100%;
+  padding: 0.8rem 1.2rem;
+  padding-right: 2.5rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: 0.8rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  transition: all 0.2s ease;
+}
+.mapDropdown:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+.mapDropdown:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.mapDropdown option {
+  background: var(--bg);
+  color: var(--text);
+  padding: 0.5rem;
+}
+
+.dropdownArrow {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.mapControlButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.iconButton {
+  padding: 0.8rem 1rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 0.8rem;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, background-color 0.15s ease-out;
+}
+.iconButton:hover:not(:disabled):not(.disabled) {
+  box-shadow: 0 0 12px var(--accent-ring);
+  border-color: var(--accent);
+}
+.iconButton:active:not(:disabled):not(.disabled) {
+  transform: scale(0.92);
+  opacity: 0.7;
+  box-shadow: inset 0 0 10px var(--accent-glow);
+}
+.iconButton:disabled, .iconButton.disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+.iconButton:hover:not(:disabled):not(.disabled) {
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+.iconButton.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-top: 1.2rem;
+}
+
+.heatmapLegend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+}
+.heatmapLegend i {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.3rem;
+  background: var(--accent);
+}
+.heatmapLegend i.never {
+  margin-left: 1rem;
+  background: #ff5a5a;
+  opacity: 0.5;
+}
+
+.heatmapInfo {
+  font-size: 1.2rem;
+  color: var(--text-dim);
+}
+
+.mapHelp {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+  padding: 0.5rem 1rem 1.5rem;
+  overflow-y: auto;
+}
+
+.mapHelpSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.mapHelpHead {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.mapHelpText {
+  opacity: 0.72;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mapHelpRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.mapHelpIcon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  margin-top: 1px;
+}
+
+.featureChooser {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem 1.5rem;
+}
+
+.featureChoice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+.featureChoice:active {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.featureChoiceName {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.featureChoiceDesc {
+  opacity: 0.7;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.rulerTop,
+.rulerLeft {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 2;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+}
+.rulerTop line,
+.rulerLeft line {
+  stroke: currentColor;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+.rulerTop text,
+.rulerLeft text {
+  fill: currentColor;
+  fill-opacity: 0.85;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pointEditor {
+  position: absolute;
+  top: calc(22px + 0.6rem);
+  left: calc(22px + 0.6rem);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  min-width: 13rem;
+  max-width: calc(100% - 7rem);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.pointEditorTitle {
+  font-weight: 600;
+}
+
+.pointEditorFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+.pointEditorFields label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pointEditorFields input {
+  width: 4.8rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.pointEditorHint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.pointEditorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.pointEditorActions button {
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tapHint {
+  margin: 0.4rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.zoomButtons button.zoomButtonOn {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.helpButtonWrap {
+  position: relative;
+  display: flex;
+}
+
+.tapBubble {
+  position: absolute;
+  right: calc(100% + 0.9rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  max-width: 15rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  font-size: 0.88rem;
+  line-height: 1.3;
+  cursor: pointer;
+  animation: tapBubbleIn 0.3s ease-out both;
+}
+.tapBubble svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.tapBubble::after {
+  content: "";
+  position: absolute;
+  right: -0.45rem;
+  top: 50%;
+  width: 0.8rem;
+  height: 0.8rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+@keyframes tapBubbleIn {
+  from {
+    opacity: 0;
+    transform: translate(0.4rem, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tapBubble {
+    animation: none;
+  }
+}
+.addHerePill {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  animation: addHereIn 0.18s ease-out both;
+}
+
+@keyframes addHereIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 6px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 14px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .addHerePill {
+    animation: none;
+  }
+}
+.budget {
+  margin-top: 0.6rem;
+}
+
+.budgetBar {
+  height: 0.6rem;
+  border-radius: 0.3rem;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.budgetBar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.budgetBar .budgetFull {
+  background: #e8b24a;
+}
+
+.featureChoice:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.featureChoiceReason {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: #e8b24a;
+}
+
+.drawBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.2rem;
+  padding: 1rem 1.2rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.3rem;
+  box-shadow: var(--shadow-md);
+}
+.drawBar strong {
+  font-size: 1.4rem;
+}
+
+.drawLimit {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+.drawBytes {
+  width: 6rem;
+  height: 0.6rem;
+  border-radius: 0.3rem;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.drawBytes i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.drawBytes.full i {
+  background: #e8b24a;
+}
+
+.drawButtons {
+  display: flex;
+  gap: 0.8rem;
+  margin-left: auto;
+}

@@ -10,6 +10,7 @@ import { GEN3_COMMANDS } from '../../http/gen3'
 import { CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useRobot } from '../../context/useRobot'
 import { useMediaQuery } from '../../utils/useIsDesktop'
+import { withFeedback } from '../../components/toast/toast'
 import { RobotDay } from '../../types/neato/gen3/api'
 import { RobotType } from '../../types'
 import Scheudle_gen4 from './scheudle_gen4'
@@ -107,7 +108,7 @@ export default () => {
 
     const removeEvents = (events: ScheduleEvent[]) => {
         if (!schedule) return;
-        GEN3_COMMANDS.setSchedule(robot.serial, schedule.events.filter(e => !events.includes(e))).finally(() => getSchedule())
+        withFeedback(GEN3_COMMANDS.setSchedule(robot.serial, schedule.events.filter(e => !events.includes(e)))).finally(() => getSchedule())
     }
 
     const openNew = () => {
@@ -153,9 +154,9 @@ export default () => {
                     return { mapId, boundaryId, name: zoneOptions.find(o => o.value === value)?.label ?? '' }
                 }),
             }
-            const saved = editing?.kind === 'pi'
+            const saved = withFeedback<unknown>(editing?.kind === 'pi'
                 ? Http.updatePiSchedule(robot.serial, editing.entry.id, { ...entry, enabled: editing.entry.enabled ?? true })
-                : Http.addPiSchedule(robot.serial, entry)
+                : Http.addPiSchedule(robot.serial, entry))
             saved.then(() => {
                 // a robot entry that became a Pi entry: only removed once the Pi has it
                 if (editedRobotEvents.length) GEN3_COMMANDS.setSchedule(robot.serial, robotEvents).finally(() => getSchedule())
@@ -166,7 +167,7 @@ export default () => {
         const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = robotEvents.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
-        GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept]).then(() => {
+        withFeedback(GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept])).then(() => {
             // a Pi entry that the robot can keep now: only removed once the robot has it
             if (editing?.kind === 'pi') Http.deletePiSchedule(robot.serial, editing.entry.id).finally(getPiEntries)
         }).finally(() => getSchedule())
@@ -174,7 +175,7 @@ export default () => {
 
     const togglePiEntry = (entry: PiScheduleEntry) => {
         const { id, ...rest } = entry
-        Http.updatePiSchedule(robot.serial, id, { ...rest, enabled: !(entry.enabled ?? true) }).finally(getPiEntries)
+        withFeedback(Http.updatePiSchedule(robot.serial, id, { ...rest, enabled: !(entry.enabled ?? true) })).finally(getPiEntries)
     }
 
     const updateForm = <T extends object>(update: UseState<T>, patch: Partial<T>) => {
@@ -262,7 +263,7 @@ export default () => {
                 )}
                 <FaTrash className={styles.trash} title={t('schedule.week.delete')}
                     onClick={() => selectedSlot.pi
-                        ? Http.deletePiSchedule(robot.serial, selectedSlot.pi.id).finally(getPiEntries)
+                        ? withFeedback(Http.deletePiSchedule(robot.serial, selectedSlot.pi.id)).finally(getPiEntries)
                         : selectedSlot.group && removeEvents(selectedSlot.group.events)} />
             </div>
             {selectedSlot.group && selectedSlot.group.days.length > 1 && (
@@ -290,7 +291,7 @@ export default () => {
                     <Input type="switch" skipSection={true} value={schedule.enabled} onChange={() => {
                         let cmd = GEN3_COMMANDS.enableSchedule;
                         if (schedule.enabled) cmd = GEN3_COMMANDS.disableSchedule;
-                        cmd(robot.serial).then(() => getSchedule());
+                        withFeedback(cmd(robot.serial)).then(() => getSchedule());
                     }} />
                 </div>
 

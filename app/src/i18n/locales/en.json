@@ -1,6 +1,10 @@
 {
     "String-version": "3",
     "common": {
+        "saved": "Saved",
+        "notSavedNoAnswer": "Not saved: the robot did not answer.",
+        "notSavedRefused": "Not saved: the robot refused it.",
+        "notSaved": "Not saved.",
         "save": "Save",
         "cancel": "Cancel",
         "delete": "Delete",
@@ -349,7 +353,6 @@
         "heatmapNever": "never",
         "heatmapCount": "{{runs}} runs on this map",
         "mapTitle": "Map: {{name}}",
-        "dragUpToFinish": "Drag up to finish",
         "editBoundary": "Edit boundary",
         "chooseMap": "Choose map",
         "mapsHint": "Switched-on maps are the ones the robot uses; their zones can be picked in the schedule.",
@@ -360,6 +363,8 @@
         "exploring": "The robot is exploring a new map. It shows up here when it is done.",
         "newMapName": "New map: give it a name",
         "noMapsTitle": "No map yet",
+        "drawPoints": "{{count}}/{{max}} points",
+        "drawDone": "Done",
         "noMaps": "You don't have any explored maps yet, start an exploration to draw boundaries!",
         "gen4SelectMapGuide": "After you have done an exploration, go to the history tab, select your run and mark map as floorplan!",
         "exploreNewMap": "Explore new map",

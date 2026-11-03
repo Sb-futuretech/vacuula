@@ -85,21 +85,6 @@
         opacity: 0.5;
         pointer-events: none;
     }
-
-    .pointCount {
-        position: absolute;
-        bottom: calc(100% + 1rem);
-        padding: 0.3rem 1rem;
-        border-radius: 1rem;
-        background: $surface;
-        font-size: 1.1rem;
-        font-weight: 600;
-
-        &.limit {
-            background: $warn-bg;
-            color: $warn-text;
-        }
-    }
 }
 
 .editBoundaryDetails {
@@ -753,4 +738,51 @@
     font-size: 0.85rem;
     line-height: 1.35;
     color: #e8b24a;
+}
+
+// while drawing: what is drawn, its points and the robot's memory, Cancel and Done
+.drawBar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem 1.2rem;
+    padding: 1rem 1.2rem;
+    border-radius: 1rem;
+    background: $surface;
+    color: $text-primary;
+    font-size: 1.3rem;
+    box-shadow: $shadow-md;
+
+    strong {
+        font-size: 1.4rem;
+    }
+}
+
+.drawLimit {
+    color: $warn-text;
+    font-weight: 600;
+}
+
+.drawBytes {
+    width: 6rem;
+    height: 0.6rem;
+    border-radius: 0.3rem;
+    background: $surface-hover;
+    overflow: hidden;
+
+    i {
+        display: block;
+        height: 100%;
+        background: $accent;
+    }
+
+    &.full i {
+        background: #e8b24a;
+    }
+}
+
+.drawButtons {
+    display: flex;
+    gap: 0.8rem;
+    margin-left: auto;
 }

@@ -11,10 +11,12 @@ import Settings from "./pages/settings/settings"
 import Drive from "./pages/drive/drive"
 import { RequireRobot } from "./components/require/requireRobot"
 import { RequireRobots } from "./components/require/requireRobots"
+import Toaster from "./components/toast/toaster"
 
 const App = () => (
     <div className={styles.app}>
         <AppLoadingIndicator />
+        <Toaster />
         <RequireRobots>
             <div className={styles.topbar}>
                 <Topbar />

@@ -4,6 +4,7 @@ import Drawer from '../../components/drawer/drawer'
 
 import Input from '../../components/input/input'
 import { FaChevronDown } from 'react-icons/fa'
+import { withFeedback } from '../../components/toast/toast'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
@@ -27,6 +28,7 @@ import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/
 import ColorPicker from '../../components/colorPicker/ColorPicker'
 import { isDocked } from '../../components/topbar/robotInfo'
 import { BasicState, resolveRobotState } from '../../utils/state'
+import { useIsDesktop } from '../../utils/useIsDesktop'
 import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
 
@@ -207,7 +209,7 @@ export default () => {
     const updatePersistentMap = (data: { name: string, enabled: boolean }, mapToChange?: string) => {
         const map = mapToChange || persistentMap;
         if (!map) return;
-        Http.updatePersistentMap(robot.serial, map, data).finally(() => {
+        withFeedback(Http.updatePersistentMap(robot.serial, map, data)).finally(() => {
             updatePersistentMaps()
             if (persistentMap) setMode('boundaries')
         })
@@ -231,7 +233,7 @@ export default () => {
             return
         }
         if (robot.type === RobotType.NeatoGen4) {
-            Http.postBoundaries(robot.serial, persistentMap, boundaries).then(() => {
+            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries)).then(() => {
                 getMapBoundaries();
                 const map = persistentMaps?.find(p => p.id === persistentMap)
                 // If the map is promoted, promote it again
@@ -251,7 +253,7 @@ export default () => {
                 ? { id, name, color, type, vertices: rounded, enabled, relevancy: roundPoint(calcRelevancy(rounded)) }
                 : { id, name, color, type, vertices: rounded, enabled }
         });
-        GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries).catch(() => {
+        withFeedback(GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries)).catch(() => {
             getMapBoundaries();
         });
     }, [boundaries]);
@@ -286,6 +288,7 @@ export default () => {
         });
         setCurrentLinePoints(existingBoundary?.vertices || [])
         setClosedAsPolygon(existingBoundary?.type === 'polygon')
+        setDrawerOpen(false) // draw first; Done opens name and colour
     }, [mode])
 
     // gen3 byte budget: the robot's answer to a save must stay within GEN3_REPLY_LIMIT, see gen3Budget.ts
@@ -308,6 +311,11 @@ export default () => {
     const minFeatureBytes = (kind: BoundaryTypes) => kind === BoundaryTypes.NOGO_LINE
         ? gen3FeatureBytes('polyline', 2) : gen3FeatureBytes('polygon', 3)
     const kindBlocked = (kind: BoundaryTypes) => isGen3 && minFeatureBytes(kind) > bytesLeft
+
+    // Done: a line needs 2 points, a zone 3 (Done closes it)
+    const isDesktop = useIsDesktop()
+    const isZoneKind = editForm.zoneType !== BoundaryTypes.NOGO_LINE
+    const canFinish = closedAsPolygon || currentLinePoints.length >= (isZoneKind ? 3 : 2)
 
     const saveEditBoundary = () => {
         if (draftTooBig) return
@@ -372,7 +380,6 @@ export default () => {
                 return t('map.mapTitle', { name: persistentMaps?.find(p => p.id === persistentMap)?.name ?? '' })
             case 'boundary-info': return ' '
             case 'boundary-edit':
-                if (!drawerOpen) return t('map.dragUpToFinish')
                 return t('map.editBoundary')
         }
     }
@@ -441,6 +448,35 @@ export default () => {
                             <Button text={t('map.exploreNewMap')} style='primary' disabled={!isDocked(robot)} onClick={() => setExploreConfirmOpen(true)} />
                             {!isDocked(robot) && <p>{t('map.cannotExploreNewMap')}</p>}
                         </>}
+                    </div>
+                )}
+
+                {mode === 'boundary-edit' && (
+                    <div className={styles.mapBar}>
+                        <div className={styles.drawBar}>
+                            <strong>{editForm.zoneType === BoundaryTypes.NOGO_LINE ? t('map.noGoLine')
+                                : editForm.zoneType === BoundaryTypes.NOGO_ZONE ? t('map.noGoZone') : t('map.cleaningZone')}</strong>
+                            {editMaxPoints !== undefined && (
+                                <span className={currentLinePoints.length >= editMaxPoints ? styles.drawLimit : ''}>
+                                    {t('map.drawPoints', { count: currentLinePoints.length, max: editMaxPoints })}
+                                </span>
+                            )}
+                            {isGen3 && (
+                                <span className={`${styles.drawBytes} ${GEN3_REPLY_LIMIT - draftBytes < GEN3_POINT_BYTES ? styles.full : ''}`}
+                                    title={t('map.byteBudget', { used: draftBytes, max: GEN3_REPLY_LIMIT })}>
+                                    <i style={{ width: `${Math.min(100, draftBytes / GEN3_REPLY_LIMIT * 100)}%` }} />
+                                </span>
+                            )}
+                            <div className={styles.drawButtons}>
+                                <Button text={t('common.cancel')} style='fail' onClick={() => setMode(returnFromEditMode)} />
+                                {!isDesktop && (
+                                    <Button text={t('map.drawDone')} style='success' disabled={!canFinish} onClick={() => {
+                                        if (isZoneKind) setClosedAsPolygon(true)
+                                        setDrawerOpen(true)
+                                    }} />
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 

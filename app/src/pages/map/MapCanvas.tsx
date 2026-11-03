@@ -368,11 +368,6 @@ export default function MapCanvas({
 
             {mode === 'boundary-edit' && (
                 <div className={styles.actionButtons}>
-                    {maxPoints !== undefined && (
-                        <span className={`${styles.pointCount} ${atPointLimit ? styles.limit : ''}`}>
-                            {currentLinePoints.length}/{maxPoints}
-                        </span>
-                    )}
                     <div onClick={undo} className={styles.undo}>
                         <FaUndo size={20} color="var(--text)" />
                     </div>
