@@ -161,13 +161,30 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
+- *Not released yet* (since sb 1.1.0): sheets over the whole app, *Saved* / *Not saved* messages,
+  the map tab opening on a map with a chip to switch, guided exploring, drawing with a bar on top.
 - **sb 1.1.0** (2026-11-02): schedule as a week, Telegram messages, the byte budget for zones and
   lines, rounded coordinates, and the schedule on desktop.
 - **sb 1.0.0** (2026-11-01): the fork's first numbered version, everything before.
 
 ### New features at a glance
 
+**Whole app**
+- **Saved or not:** every change sent to the robot or the Pi (zones and lines, maps, schedule)
+  shows a short *Saved*, or why not: the robot did not answer (the D7 dropping a save no longer
+  goes unnoticed) or refused it.
+- **Sheets** (cleaning options, schedule form, run details, add feature, help) open over the whole
+  app with the page behind dimmed. They are as tall as their content, only their content scrolls,
+  and Save stays visible at the bottom. Close them by tapping outside or pulling the title down.
+
 **Map**
+- **Opens on a map:** the one picked last, else a switched-on one, with its name as a chip on top.
+  The chip switches maps: switched-on maps first, the others folded away, the switch explained.
+- **Exploring a new map** asks first (the robot vacuums the whole home on the way), says so while
+  it runs, and asks for a name when the new map is in. With no map at all the tab starts with it.
+  Not yet tried on a real exploration.
+- **Drawing with a bar on top:** what is drawn, its points (n/10), the robot's memory, Cancel and
+  Done. The map keeps its full height; name and colour come after Done.
 - **Rulers** along the top and left edge, in real distance (cm / m). A ruler button in the zoom
   column switches them on; while drawing they are always on.
 - **Exact point positions:** tap a drawn point to type its X / Y in cm, see its distance to the
@@ -179,7 +196,6 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   explained. A No-Go Line can no longer turn into a zone by accident.
 - **Help button (?)** next to the zoom buttons: moving around, selecting, drawing. A small bubble
   hints at tapping zones and lines until the first tap.
-- On phones the map opens with the feature list folded.
 - Gen3: point coordinates are rounded to 4 decimals before saving, exactly as the robot stores
   them, so what the map shows is what the robot keeps.
 - **D7 memory bar** under the feature list: how many of the 2044 bytes the robot can answer with
@@ -205,6 +221,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - **Fallback pairs** (a robot entry next to a Pi entry) show as one block with its backup;
   **overlapping runs** are marked, and the edit sheet warns before saving.
 - Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
+- Zone names come from the map as it is now; a zone that is no longer on it shows as
+  *unknown zone*.
 - Mode and navigation explained under their fields; Save says what is still missing.
 - **On desktop the week fits the window:** the three cards sit side by side above it. In windows
   1400 px and wider, a tapped entry's details and the edit form open in a column on the right.
@@ -245,6 +263,9 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-03 | [`6e2a9f4`](https://github.com/Sb-futuretech/vacuula/commit/6e2a9f4) | App, Map | Say whether a change was saved, and draw with a bar instead of a folded sheet |
+| 2026-11-03 | [`934a2fd`](https://github.com/Sb-futuretech/vacuula/commit/934a2fd) | Map | Map tab opens on a map, with a chip to switch maps and a guided exploration |
+| 2026-11-03 | [`577ecf5`](https://github.com/Sb-futuretech/vacuula/commit/577ecf5) | App | Sheets over the whole app, as tall as their content, with a fixed footer |
 | 2026-11-02 | [`sb-1.1.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.1.0) | Release | **sb 1.1.0** |
 | 2026-11-02 | [`d4adedc`](https://github.com/Sb-futuretech/vacuula/commit/d4adedc) | Map | Gen3 byte budget for zones and lines, instead of guessing at counts |
 | 2026-11-02 | [`b920769`](https://github.com/Sb-futuretech/vacuula/commit/b920769) | Schedule | Schedule on desktop: week fits the window, details and form in a right column |
