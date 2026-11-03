@@ -200,7 +200,11 @@ export default () => {
     const shortDay = (d: number) => t(`daysShort.${dayKey(d)}` as any)
     const modeText = (mode: CleaningMode, nav: CleaningNavigationMode) => t(`modes.${mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any)
         + (nav !== CleaningNavigationMode.NORMAL ? ` · ${t(`modes.${NAV_KEYS[nav] ?? 'normal'}` as any)}` : '')
-    const zonesText = (names: string[]) => names.length ? names.map(decodeRobotText).join(', ') : t('schedule.wholeMap')
+    // names from the map as it is now; the name an entry was saved with only if the zone is not found
+    const zoneNameById = new Map((persistentMaps ?? []).flatMap(m => getCachedZones(robot.serial, m.id).map(z => [z.id, z.name] as const)))
+    const zonesText = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.length
+        ? zoneIds.map((id, i) => decodeRobotText(zoneNameById.get(id) || zoneNames[i] || t('schedule.week.unknownZone'))).join(', ')
+        : t('schedule.wholeMap')
     const lengthText = (minutes: number | null) => minutes != null ? t('schedule.week.about', { minutes }) : t('schedule.week.noEstimate')
     const inText = (minutes: number) => minutes < 60 ? t('schedule.week.inMinutes', { count: minutes })
         : minutes < 48 * 60 ? t('schedule.week.inHours', { count: Math.round(minutes / 60) })
@@ -233,7 +237,7 @@ export default () => {
                 {dayName(selectedSlot.day)} {hhmm(selectedSlot.start)}
                 {selectedSlot.minutes != null && ` – ${hhmm(selectedSlot.start + selectedSlot.minutes)}`}
             </span>
-            <span>{zonesText(selectedSlot.zoneNames)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
+            <span>{zonesText(selectedSlot)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
             <span className={styles.type}>
                 {selectedSlot.kind === 'pi'
                     ? <><FaServer className={styles.badge} /> {t('schedule.week.byPi')}</>
@@ -296,7 +300,7 @@ export default () => {
                         <>
                             <span className={styles.nextWhen}>{dayWord(next.daysAhead, next.slot.day)} {hhmm(next.slot.start)}</span>
                             <span className={styles.type}>
-                                {zonesText(next.slot.zoneNames)} · {modeText(next.slot.mode, next.slot.navigationMode)}
+                                {zonesText(next.slot)} · {modeText(next.slot.mode, next.slot.navigationMode)}
                                 {next.slot.minutes != null && ` · ${t('schedule.week.about', { minutes: next.slot.minutes })}`}
                             </span>
                         </>
@@ -328,8 +332,13 @@ export default () => {
                 showBackButton={sideColumn}
                 onBackButtonClick={() => setDrawerOpen(false)}
                 onOpenChange={setDrawerOpen}
-                openHeightPercent={70}
                 title={t(editing ? 'schedule.editEvent' : 'schedule.addEvent')}
+                footer={<>
+                    {(days.length === 0 || !scheduleForm.startTime) && (
+                        <span className={styles.note}>{t('schedule.saveHint')}</span>
+                    )}
+                    <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={saveEvents} />
+                </>}
             >
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -417,11 +426,6 @@ export default () => {
                             <FaExclamationTriangle /> {t('schedule.week.formOverlap', { times: formOverlaps.map(o => `${shortDay(o.day)} ${hhmm(o.start)}`).join(', ') })}
                         </span>
                     )}
-
-                    {(days.length === 0 || !scheduleForm.startTime) && (
-                        <span className={styles.note}>{t('schedule.saveHint')}</span>
-                    )}
-                    <Button text={t('common.save')} style='success' disabled={days.length === 0 || !scheduleForm.startTime} onClick={saveEvents} />
                 </div>
 
             </Drawer>}

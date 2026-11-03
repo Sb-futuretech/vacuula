@@ -311,6 +311,7 @@
         "deepNeedsNormal": "Deep only works with mode Normal.",
         "robotBadge": "Run by the robot",
         "week": {
+            "unknownZone": "unknown zone",
             "next": "Next run",
             "noNext": "Nothing planned this week.",
             "today": "Today",

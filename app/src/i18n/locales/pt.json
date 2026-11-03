@@ -304,6 +304,7 @@
         "deepNeedsNormal": "Deep só funciona com o modo Normal.",
         "robotBadge": "Executado pelo robô",
         "week": {
+            "unknownZone": "zona desconhecida",
             "next": "Próxima limpeza",
             "noNext": "Nada planeado esta semana.",
             "today": "Hoje",

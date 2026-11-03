@@ -576,7 +576,7 @@ export default () => {
                 )}
             </Drawer>
 
-            <Drawer open={featureChooserOpen} handle={false} onOpenChange={setFeatureChooserOpen} openHeightPercent={robot.type === RobotType.NeatoGen4 ? 60 : 48} title={t('map.chooseFeature')}>
+            <Drawer open={featureChooserOpen} handle={false} onOpenChange={setFeatureChooserOpen} title={t('map.chooseFeature')}>
                 <div className={styles.featureChooser}>
                     {(robot.type === RobotType.NeatoGen4
                         ? [BoundaryTypes.CLEANING_ZONE, BoundaryTypes.NOGO_ZONE, BoundaryTypes.NOGO_LINE]

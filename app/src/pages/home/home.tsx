@@ -511,7 +511,7 @@ export default function Home() {
 
             </div>
 
-            <Drawer open={categoryDrawerOpen} handle={false} onOpenChange={(open) => setCategoryDrawerOpen(open)} openHeightPercent={gen3__cleaningCategory === CleaningCategory.MAP ? 70 : 40} title={t('home.selectMode')}>
+            <Drawer open={categoryDrawerOpen} handle={false} onOpenChange={(open) => setCategoryDrawerOpen(open)} title={t('home.selectMode')}>
                 <div className={styles.drawerContent}>
                     {/* Category Selection */}
 
@@ -623,7 +623,7 @@ export default function Home() {
 
             </Drawer>
 
-            <Drawer open={cleaningDrawerOpen} handle={false} onOpenChange={setCleaningDrawerOpen} openHeightPercent={78} title={t('home.btnExplain.cleaning')}>
+            <Drawer open={cleaningDrawerOpen} handle={false} onOpenChange={setCleaningDrawerOpen} title={t('home.btnExplain.cleaning')}>
                 <div className={styles.drawerContent}>
                     <div className={styles.pickSection}>{t('home.cleaningSuction')}</div>
                     {CLEAN_OPTIONS.map(o => {

@@ -119,7 +119,6 @@ export default () => {
                 open={drawerOpen}
                 handle={false}
                 onOpenChange={setDrawerOpen}
-                openHeightPercent={70}
                 title={selectedCleaning && new Date('timing' in selectedCleaning ? selectedCleaning.timing.start : selectedCleaning.run.start_at).toLocaleString()}
             >
 

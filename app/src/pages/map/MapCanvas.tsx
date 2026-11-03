@@ -387,7 +387,7 @@ export default function MapCanvas({
                 </div>
             )}
 
-            <Drawer open={helpOpen} handle={false} onOpenChange={setHelpOpen} openHeightPercent={72} title={t('map.helpTitle')}>
+            <Drawer open={helpOpen} handle={false} onOpenChange={setHelpOpen} title={t('map.helpTitle')}>
                 <div className={styles.mapHelp}>
                     <div className={styles.mapHelpSection}>
                         <div className={styles.mapHelpHead}>{t('map.helpMoveTitle')}</div>

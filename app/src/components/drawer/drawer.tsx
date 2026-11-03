@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import styles from './drawer.module.scss'
 import { FaArrowLeft } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
@@ -6,12 +7,17 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 
 
 
+// Two kinds:
+// - handle: a sheet that stays at the bottom of its page with a handle to drag it up (the map)
+// - no handle: a modal sheet over the whole app with a dimmed backdrop. It is as tall as its content
+//   (at most nearly the screen), only its content scrolls, and `footer` stays visible below it.
 interface DrawerProps {
-    handle: boolean // should the handle be visible when closed
+    handle: boolean
     open: boolean,
-    openHeightPercent: number
+    openHeightPercent?: number // handle sheets only: how far they open
     onOpenChange?: (open: boolean) => void,
     children?: React.ReactNode,
+    footer?: React.ReactNode
     title?: string,
 
     showBackButton?: boolean
@@ -22,11 +28,13 @@ interface DrawerProps {
 }
 
 const HANDLE_HEIGHT = 60
+// a modal sheet pulled down further than this closes
+const CLOSE_DRAG = 80
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
     const isPanel = useIsDesktop() && !!props.sidePanel
-    const [drawerHeight, setDrawerHeight] = useState(props.handle ? HANDLE_HEIGHT : 0)
+    const [drawerHeight, setDrawerHeight] = useState(HANDLE_HEIGHT)
     const [isDraggingDrawer, setIsDraggingDrawer] = useState(false)
 
     // Per-gesture values, inside the event handlers
@@ -36,6 +44,11 @@ export default function Drawer(props: DrawerProps) {
     const lastYRef = useRef(0)
     const lastDeltaRef = useRef(0)
     const movedRef = useRef(false)
+
+    // modal sheet: content stays mounted until the closing slide has ended; dragOffset follows the finger
+    const [mounted, setMounted] = useState(props.open)
+    const [dragOffset, setDragOffset] = useState<number | null>(null)
+    useEffect(() => { if (props.open) setMounted(true) }, [props.open])
 
     // Pointer events cover mouse, touch and pen in every modern browser
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -83,11 +96,11 @@ export default function Drawer(props: DrawerProps) {
     }
 
     const openDrawer = () => {
-        setDrawerHeight(window.innerHeight * (props.openHeightPercent / 100));
+        setDrawerHeight(window.innerHeight * ((props.openHeightPercent ?? 70) / 100));
         props.onOpenChange?.(true);
     }
     const closeDrawer = () => {
-        setDrawerHeight(props.handle ? HANDLE_HEIGHT : 0);
+        setDrawerHeight(HANDLE_HEIGHT);
         props.onOpenChange?.(false);
     }
     const isDrawerOpen = () => drawerHeight > 100;
@@ -99,10 +112,8 @@ export default function Drawer(props: DrawerProps) {
 
     useEffect(() => {
         if (isDraggingDrawer) return
-        setDrawerHeight(props.open ? window.innerHeight * (props.openHeightPercent / 100) : (props.handle ? HANDLE_HEIGHT : 0))
+        setDrawerHeight(props.open ? window.innerHeight * ((props.openHeightPercent ?? 70) / 100) : HANDLE_HEIGHT)
     }, [props.openHeightPercent])
-
-    // if (!props.handle && !props.open) return null
 
     const backButton = props.showBackButton && (props.open || isPanel) && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
         e.stopPropagation()
@@ -123,8 +134,41 @@ export default function Drawer(props: DrawerProps) {
             <div className={styles.drawerContent}>
                 {props.children}
             </div>
+            {props.footer && <div className={styles.footer}>{props.footer}</div>}
         </div>
     )
+
+    if (!props.handle) {
+        const close = () => props.onOpenChange?.(false)
+        return createPortal(
+            <div className={`${styles.modal} ${props.open ? styles.open : ''}`}>
+                <div className={styles.backdrop} onClick={close} />
+                <div className={styles.sheet} role="dialog" aria-modal="true" aria-hidden={!props.open}
+                    style={dragOffset ? { transform: `translate(-50%, ${dragOffset}px)`, transition: 'none' } : undefined}
+                    onTransitionEnd={e => { if (e.target === e.currentTarget && !props.open) setMounted(false) }}>
+                    <div className={styles.drawerHandle}
+                        onPointerDown={e => { dragStartYRef.current = e.clientY; movedRef.current = false; setDragOffset(0) }}
+                        onPointerMove={e => {
+                            if (dragOffset === null) return
+                            const down = Math.max(0, e.clientY - dragStartYRef.current)
+                            if (down > 5 && !movedRef.current) { movedRef.current = true; e.currentTarget.setPointerCapture(e.pointerId) }
+                            if (movedRef.current) setDragOffset(down)
+                        }}
+                        onPointerUp={() => {
+                            const tapped = !movedRef.current
+                            if (tapped || (dragOffset ?? 0) > CLOSE_DRAG) close()
+                            setDragOffset(null)
+                        }}
+                        onPointerCancel={() => setDragOffset(null)}>
+                        {backButton}
+                        {title}
+                    </div>
+                    <div className={styles.drawerContent}>{mounted && props.children}</div>
+                    {props.footer && mounted && <div className={styles.footer}>{props.footer}</div>}
+                </div>
+            </div>,
+            document.body)
+    }
 
     return (
         <div
@@ -132,21 +176,19 @@ export default function Drawer(props: DrawerProps) {
             style={{
                 height: `${drawerHeight}px`,
                 transition: isDraggingDrawer ? 'none' : 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                borderTop: (props.handle || props.open) ? '2px solid var(--border-strong)' : ''
+                borderTop: '2px solid var(--border-strong)'
             }}>
 
-            {(props.handle || props.open) && (
-                <div
-                    className={styles.drawerHandle}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
-                    onClick={handleClick}>
-                    {backButton}
-                    {title}
-                </div>
-            )}
+            <div
+                className={styles.drawerHandle}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onClick={handleClick}>
+                {backButton}
+                {title}
+            </div>
 
             {drawerHeight > 100 && (
                 <div className={styles.drawerContent}>
