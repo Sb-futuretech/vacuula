@@ -269,6 +269,9 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-04 | [`80f07fb`](https://github.com/Sb-futuretech/vacuula/commit/80f07fb) | App, Map, Schedule | Map switch and failed loads can't overwrite zones; schedule works with the robot offline |
+| 2026-11-04 | [`b8c02e4`](https://github.com/Sb-futuretech/vacuula/commit/b8c02e4) | App, Map | Review fixes: saves after a failed load, exploring state, focus, two-step messages |
+| 2026-11-03 | [`6c89241`](https://github.com/Sb-futuretech/vacuula/commit/6c89241) | App, Map | Review fixes: toast styles, exploring refetch loop, stale map loads, sheet keys and focus |
 | 2026-11-03 | [`6e2a9f4`](https://github.com/Sb-futuretech/vacuula/commit/6e2a9f4) | App, Map | Say whether a change was saved, and draw with a bar instead of a folded sheet |
 | 2026-11-03 | [`934a2fd`](https://github.com/Sb-futuretech/vacuula/commit/934a2fd) | Map | Map tab opens on a map, with a chip to switch maps and a guided exploration |
 | 2026-11-03 | [`577ecf5`](https://github.com/Sb-futuretech/vacuula/commit/577ecf5) | App | Sheets over the whole app, as tall as their content, with a fixed footer |
