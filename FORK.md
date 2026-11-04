@@ -161,8 +161,9 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
-- *Not released yet* (since sb 1.1.0): sheets over the whole app, *Saved* / *Not saved* messages,
-  the map tab opening on a map with a chip to switch, guided exploring, drawing with a bar on top.
+- **sb 1.2.0** (2026-11-04): sheets over the whole app, *Saved* / *Not saved* messages, the map tab
+  opening on a map with a chip to switch, guided exploring, drawing with a bar on top, and the
+  schedule working with the robot offline.
 - **sb 1.1.0** (2026-11-02): schedule as a week, Telegram messages, the byte budget for zones and
   lines, rounded coordinates, and the schedule on desktop.
 - **sb 1.0.0** (2026-11-01): the fork's first numbered version, everything before.
@@ -269,6 +270,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-04 | [`sb-1.2.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.2.0) | Release | **sb 1.2.0** |
 | 2026-11-04 | [`80f07fb`](https://github.com/Sb-futuretech/vacuula/commit/80f07fb) | App, Map, Schedule | Map switch and failed loads can't overwrite zones; schedule works with the robot offline |
 | 2026-11-04 | [`b8c02e4`](https://github.com/Sb-futuretech/vacuula/commit/b8c02e4) | App, Map | Review fixes: saves after a failed load, exploring state, focus, two-step messages |
 | 2026-11-03 | [`6c89241`](https://github.com/Sb-futuretech/vacuula/commit/6c89241) | App, Map | Review fixes: toast styles, exploring refetch loop, stale map loads, sheet keys and focus |
