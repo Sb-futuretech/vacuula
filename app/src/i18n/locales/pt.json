@@ -1,6 +1,7 @@
 {
     "String-version": "0",
     "common": {
+        "retry": "Tentar de novo",
         "notSaved": "N\u00e3o guardado",
         "notStarted": "N\u00e3o iniciado",
         "reasonServer": "o servidor n\u00e3o respondeu",
@@ -274,6 +275,7 @@
         "mapping": "Mapeamento"
     },
     "schedule": {
+        "robotScheduleUnavailable": "N\u00e3o \u00e9 poss\u00edvel ler agora o agendamento do pr\u00f3prio rob\u00f4 (rob\u00f4 desligado?). As entradas do Pi continuam a funcionar.",
         "schedule": "Agendamento",
         "newSchedule": "Novo agendamento",
         "addOneMore": "Adicionar mais um agendamento",
@@ -365,6 +367,9 @@
         "noMapsTitle": "Ainda sem mapa",
         "drawPoints": "{{count}}/{{max}} pontos",
         "drawDone": "Concluir",
+        "boundariesFailed": "N\u00e3o foi poss\u00edvel carregar as zonas e linhas deste mapa, por isso n\u00e3o podem ser alteradas agora.",
+        "notOnRobot": "Guardado no Vacuula, mas ainda n\u00e3o no rob\u00f4",
+        "mapsFailed": "N\u00e3o foi poss\u00edvel carregar os mapas.",
         "noMaps": "Ainda não tem mapas explorados, inicie uma exploração para criar um mapa!",
         "gen4SelectMapGuide": "Depois de explorar um novo mapa, aceda ao separador do histórico, selecione essa exploração e clique em \"Usar como mapa\"!",
         "exploreNewMap": "Explorar novo mapa",

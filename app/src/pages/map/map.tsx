@@ -29,7 +29,7 @@ import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/
 import ColorPicker from '../../components/colorPicker/ColorPicker'
 import { isDocked } from '../../components/topbar/robotInfo'
 import { useIsDesktop } from '../../utils/useIsDesktop'
-import { fetchGen3MapBoundaries } from '../../loaders/gen3Boundaries'
+import { fetchGen3MapBoundaries, setCachedGen3Boundaries } from '../../loaders/gen3Boundaries'
 import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
 
 
@@ -75,10 +75,15 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
-    // the list last loaded from the robot or server: the save effect sends only lists the user changed
+    // the list last loaded from the robot or server: the save effect sends only lists the user changed.
+    // loadedMapId: the map that list belongs to; until the shown map's load has succeeded nothing can be
+    // edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const loadedBoundariesRef = useRef<(NoGoLine | Zone)[] | null>(null)
+    const [loadedMapId, setLoadedMapId] = useState<string>()
+    const [boundariesFailed, setBoundariesFailed] = useState(false)
+    const canEdit = !!persistentMap && loadedMapId === persistentMap
 
-    const { data: persistentMaps, refresh: updatePersistentMaps } = usePersistentMaps()
+    const { data: persistentMaps, error: mapsError, refresh: updatePersistentMaps } = usePersistentMaps()
     const getPromotedFloorplan = useGetPromotedFloorplan()
 
     // the map shown: picked with the chip on top; the tab opens on the last one picked, else an active one
@@ -113,21 +118,24 @@ export default () => {
     }, [exploring, persistentMaps, robot.serial])
     useEffect(() => {
         if (exploring || !mapsBeforeExplore.has(robot.serial)) return
-        // done: fetch the maps (the upload can take a moment after the robot has finished); no new map
-        // by then (cancelled, failed): forget the snapshot
-        const timers = [0, 10_000, 30_000].map(ms => setTimeout(updatePersistentMaps, ms))
-        timers.push(setTimeout(() => mapsBeforeExplore.delete(robot.serial), 40_000))
-        return () => timers.forEach(clearTimeout)
+        // done: look for the new map every 15 s (the robot may upload it only after docking) until it is
+        // found; none after 5 min (cancelled, failed): forget the snapshot
+        const serial = robot.serial
+        const look = () => { if (mapsBeforeExplore.has(serial)) updatePersistentMaps().catch(() => { /* next round */ }) }
+        look()
+        const poll = setInterval(look, 15_000)
+        const giveUp = setTimeout(() => mapsBeforeExplore.delete(serial), 5 * 60_000)
+        return () => { clearInterval(poll); clearTimeout(giveUp) }
     }, [exploring, robot.serial])
     useEffect(() => {
         const before = mapsBeforeExplore.get(robot.serial)
         const fresh = !exploring && before && persistentMaps?.find(m => !before.includes(m.id))
-        if (!fresh) return
+        if (!fresh || mode === 'boundary-edit' || mode === 'map-edit') return // after the drawing / edit
         mapsBeforeExplore.delete(robot.serial)
         chooseMap(fresh.id)
         setNewMapId(fresh.id)
         setNewMapName('')
-    }, [persistentMaps, exploring, robot.serial])
+    }, [persistentMaps, exploring, robot.serial, mode])
     const startExplore = () => {
         setExploreConfirmOpen(false)
         setSwitcherOpen(false)
@@ -213,6 +221,11 @@ export default () => {
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
         if (!persistentMap) return
+        // the previous map's zones must neither show nor be saved under this map
+        loadedBoundariesRef.current = null
+        setBoundaries([])
+        setLoadedMapId(undefined)
+        setBoundariesFailed(false)
         getMapBoundaries();
         setMode('boundaries')
         // phone: start with the sheet folded so the map is visible; the list is a drag/tap away
@@ -239,24 +252,27 @@ export default () => {
             if (shownMapRef.current !== mapId) return
             loadedBoundariesRef.current = list
             setBoundaries(list)
+            setLoadedMapId(mapId)
+            setBoundariesFailed(false)
         }
+        const failed = () => { if (shownMapRef.current === mapId) setBoundariesFailed(true) }
         if (robot.type === RobotType.NeatoGen4) {
-            Http.getBoundaries(robot.serial, mapId).then(res => show(res.data))
+            Http.getBoundaries(robot.serial, mapId).then(res => show(res.data), failed)
         } else {
-            fetchGen3MapBoundaries(robot.serial, mapId).then(b => show([...b]))
+            fetchGen3MapBoundaries(robot.serial, mapId).then(b => show([...b]), failed)
         }
     }
 
     useEffect(() => {
-        if (!persistentMap || boundaries === loadedBoundariesRef.current) return;
+        if (!persistentMap || loadedMapId !== persistentMap || boundaries === loadedBoundariesRef.current) return;
         if (robot.type === RobotType.NeatoGen4) {
-            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries)).then(() => {
+            // a promoted map reaches the robot only by promoting it again: "Saved" once that is done too
+            const promoted = !!currentMap && 'promoted' in currentMap && currentMap.promoted
+            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries), promoted ? null : 'common.saved').then(() => {
                 getMapBoundaries();
-                // If the map is promoted, promote it again (the boundaries are saved either way)
-                if (currentMap && 'promoted' in currentMap && currentMap.promoted) {
-                    Http.promoteFloorplan(robot.serial, currentMap.id).then(() => updatePersistentMaps());
-                }
-            });
+                if (promoted) withFeedback(Http.promoteFloorplan(robot.serial, persistentMap), 'common.saved', 'map.notOnRobot')
+                    .then(() => updatePersistentMaps(), () => { /* said so */ })
+            }, () => { /* said so */ });
             return
         }
 
@@ -269,9 +285,9 @@ export default () => {
                 ? { id, name, color, type, vertices: rounded, enabled, relevancy: roundPoint(calcRelevancy(rounded)) }
                 : { id, name, color, type, vertices: rounded, enabled }
         });
-        withFeedback(GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries)).catch(() => {
-            getMapBoundaries();
-        });
+        withFeedback(GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries)).then(
+            () => setCachedGen3Boundaries(robot.serial, persistentMap, boundaries),
+            () => getMapBoundaries());
     }, [boundaries]);
 
     // mode changes
@@ -449,11 +465,18 @@ export default () => {
                         mmPerPixel={(currentMap as Floorplan | undefined)?.resolution}
                         boundaries={boundaries}
                         onBoundaryTap={onBoundaryTap}
-                        onAddHere={(at) => { setPendingCenter(at); setFeatureChooserOpen(true) }}
+                        onAddHere={(at) => { if (!canEdit) return; setPendingCenter(at); setFeatureChooserOpen(true) }}
                         centerOn={centerOn}
                     />
                 ) : (
                     <canvas className={styles.canvas} />
+                )}
+
+                {!persistentMaps && !!mapsError && (
+                    <div className={styles.emptyState}>
+                        <p>{t('map.mapsFailed')}</p>
+                        <Button text={t('common.retry')} style='primary' onClick={() => updatePersistentMaps().catch(() => { /* still shown */ })} />
+                    </div>
                 )}
 
                 {!persistentMap && persistentMaps && (
@@ -628,10 +651,15 @@ export default () => {
                         )}
                         <hr />
                         <div className={styles.buttonContainer}>
-                            <Button text={t('map.addFeature')} style='primary' onClick={() => { setPendingCenter(null); setFeatureChooserOpen(true) }} />
+                            <Button text={t('map.addFeature')} style='primary' disabled={!canEdit} onClick={() => { setPendingCenter(null); setFeatureChooserOpen(true) }} />
                         </div>
+                        {!canEdit && (
+                            <p className={styles.tapHint}>
+                                {boundariesFailed ? <>{t('map.boundariesFailed')} <Button text={t('common.retry')} style='secondary' onClick={getMapBoundaries} /></> : t('common.loading')}
+                            </p>
+                        )}
                         {boundaries.length > 0 && <p className={styles.tapHint}>{t('map.tapHint')}</p>}
-                        {isGen3 && (
+                        {isGen3 && canEdit && (
                             <div className={styles.budget}>
                                 <div className={styles.budgetBar}>
                                     <i className={bytesLeft < gen3FeatureBytes('polyline', 2) ? styles.budgetFull : ''}

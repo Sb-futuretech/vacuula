@@ -1,6 +1,7 @@
 {
     "String-version": "3",
     "common": {
+        "retry": "Try again",
         "notSaved": "Not saved",
         "notStarted": "Not started",
         "reasonServer": "the server could not be reached",
@@ -281,6 +282,7 @@
         "mapping": "Mapping run"
     },
     "schedule": {
+        "robotScheduleUnavailable": "The robot's own schedule can't be read right now (robot not connected?). Pi entries still work.",
         "schedule": "Schedule",
         "newSchedule": "New schedule",
         "addOneMore": "Add one more schedule",
@@ -372,6 +374,9 @@
         "noMapsTitle": "No map yet",
         "drawPoints": "{{count}}/{{max}} points",
         "drawDone": "Done",
+        "boundariesFailed": "The zones and lines of this map could not be loaded, so they can't be changed now.",
+        "notOnRobot": "Saved in Vacuula, but not on the robot yet",
+        "mapsFailed": "The maps could not be loaded.",
         "noMaps": "You don't have any explored maps yet, start an exploration to draw boundaries!",
         "gen4SelectMapGuide": "After you have done an exploration, go to the history tab, select your run and mark map as floorplan!",
         "exploreNewMap": "Explore new map",

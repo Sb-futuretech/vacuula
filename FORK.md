@@ -187,6 +187,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   the run history). With no map at all the tab starts with it. Not yet tried on a real exploration.
 - **Drawing with a bar on top:** what is drawn, its points (n/10), the robot's memory, Cancel and
   Done. The map keeps its full height; name and colour come after Done.
+- A map's zones and lines can only be changed once they have loaded; if loading fails, it says so
+  with *Try again* (saving an empty or another map's list would replace them on the robot).
 - **Rulers** along the top and left edge, in real distance (cm / m). A ruler button in the zoom
   column switches them on; while drawing they are always on.
 - **Exact point positions:** tap a drawn point to type its X / Y in cm, see its distance to the
@@ -225,6 +227,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
 - Zone names come from the maps as they are now. Once all maps are loaded, a zone that is no
   longer on any of them shows as *unknown zone*.
+- With the robot offline the page still shows the week and the Pi's entries, which can be edited;
+  the robot's own schedule says it can't be read, with *Try again*.
 - Mode and navigation explained under their fields; Save says what is still missing.
 - **On desktop the week fits the window:** the three cards sit side by side above it. In windows
   1400 px and wider, a tapped entry's details and the edit form open in a column on the right.

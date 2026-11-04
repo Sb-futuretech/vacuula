@@ -37,6 +37,11 @@ export async function fetchAllGen3Boundaries(serial: string, maps: { id: string 
     }
 }
 
+// after a save the robot accepted: other pages (the schedule's zone names) see the map as it is now
+export const setCachedGen3Boundaries = (serial: string, mapId: string, boundaries: Boundaries) => {
+    gen3Boundaries[k(serial, mapId)] = boundaries
+}
+
 export const isGen3MapCached = (serial: string, mapId: string) => !!gen3Boundaries[k(serial, mapId)]
 
 export const getCachedZones = (serial: string, mapId: string): Zone[] =>

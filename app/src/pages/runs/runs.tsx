@@ -39,10 +39,14 @@ export default () => {
     const fullMapRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (!fullMap) return
+        const before = document.activeElement as HTMLElement | null
         fullMapRef.current?.focus()
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullMap(false) }
         window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
+        return () => {
+            window.removeEventListener('keydown', onKey)
+            before?.focus() // back into the run's sheet, where Escape closes it
+        }
     }, [fullMap])
 
     const getCleanings = () => {

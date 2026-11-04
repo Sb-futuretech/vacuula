@@ -10,7 +10,7 @@ import { GEN3_COMMANDS } from '../../http/gen3'
 import { CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
 import { useRobot } from '../../context/useRobot'
 import { useMediaQuery } from '../../utils/useIsDesktop'
-import { withFeedback } from '../../components/toast/toast'
+import { showToast, withFeedback } from '../../components/toast/toast'
 import { RobotDay } from '../../types/neato/gen3/api'
 import { RobotType } from '../../types'
 import Scheudle_gen4 from './scheudle_gen4'
@@ -37,13 +37,17 @@ type Editing = { kind: 'pi', entry: PiScheduleEntry } | { kind: 'robot', group: 
 // wide enough for the details column on the right; keep in sync with $schedule-wide in schedule.module.scss
 const SCHEDULE_WIDE = '(min-width: 1400px)'
 
-export default () => {
+// two components, not an early return: switching between a gen3 and a gen4 robot on this tab must
+// not change the number of hooks
+export default function Schedule() {
+    const { robot } = useRobot()
+    return robot?.type === RobotType.NeatoGen4 ? <Scheudle_gen4 /> : <ScheduleGen3 />
+}
+
+function ScheduleGen3() {
     const { t } = useTranslation()
 
     const { robot, serverInfo } = useRobot()
-
-    if (robot?.type === RobotType.NeatoGen4) return <Scheudle_gen4 />
-
 
     const [schedule, setSchedule] = useState<GetSchedule>()
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -51,9 +55,11 @@ export default () => {
     const offset = serverInfo.utc_offset_minutes ?? 0
     const { data: persistentMaps } = usePersistentMaps()
 
+    // the zones of all maps, for names and the zone picker; a render once they are in shows them
+    const [, setZonesLoaded] = useState(0)
     useEffect(() => {
         if (robot.type !== RobotType.NeatoGen3 || !persistentMaps) return
-        fetchAllGen3Boundaries(robot.serial, persistentMaps)
+        fetchAllGen3Boundaries(robot.serial, persistentMaps).then(() => setZonesLoaded(n => n + 1))
     }, [robot.serial, persistentMaps])
 
     // value "mapId||zoneId": a Pi entry needs the map, a robot event only the zone
@@ -83,10 +89,13 @@ export default () => {
     // one robot event is created per selected day
     const [days, setDays] = useState<RobotDay[]>([])
 
+    // the robot's own schedule; if it can't be read (robot offline), the page still works with the Pi's
+    const [scheduleFailed, setScheduleFailed] = useState(false)
     const getSchedule = () => {
         GEN3_COMMANDS.getSchedule(robot.serial).then(res => {
             setSchedule(res.data.data)
-        })
+            setScheduleFailed(false)
+        }).catch(() => setScheduleFailed(true))
     }
 
     useEffect(() => {
@@ -142,10 +151,15 @@ export default () => {
     // saves the drawer: a new entry, or the edited one in place; an entry moves between Pi and robot
     // when what it needs changes (navigation mode / several zones only work from the Pi)
     const saveEvents = () => {
-        if (!schedule) return;
+        // without the robot's schedule only Pi entries can be saved: writing the robot's list blind
+        // would replace what is on it
+        if (!schedule && !needsPi) {
+            showToast(t('schedule.robotScheduleUnavailable'), false)
+            return
+        }
         setDrawerOpen(false)
         const editedRobotEvents = editing?.kind === 'robot' ? editing.group.events : []
-        const robotEvents = schedule.events.filter(e => !editedRobotEvents.includes(e))
+        const robotEvents = (schedule?.events ?? []).filter(e => !editedRobotEvents.includes(e))
         if (needsPi) {
             const entry = {
                 days, startTime: scheduleForm.startTime, mode: scheduleForm.mode, navigationMode: scheduleForm.navigationMode,
@@ -191,9 +205,9 @@ export default () => {
     const week = useMemo(() => buildWeek(piEntries, schedule?.events ?? [], schedule?.enabled ?? false,
         (mode, navigationMode, zoneIds) => estimateMinutes(stats, mode, navigationMode, zoneIds)), [piEntries, schedule, stats])
 
-    if (!schedule) return
+    if (!schedule && !scheduleFailed) return
 
-    const robotGroups = groupEvents(schedule.events ?? [])
+    const robotGroups = groupEvents(schedule?.events ?? [])
     // the server's clock: entries are in its time zone
     const serverNow = new Date(now + offset * 60_000)
     const next = nextRun(week, serverNow)
@@ -210,7 +224,9 @@ export default () => {
     const zoneNamesOf = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.map((id, i) => {
         const current = zoneNameById.get(id)
         if (current !== undefined) return decodeRobotText(current) || t('schedule.week.unnamedZone')
-        return !allZonesLoaded && zoneNames[i] ? decodeRobotText(zoneNames[i]) : t('schedule.week.unknownZone')
+        // not found yet: while the zones still load, the saved name (or "…"); once all are in, it is gone
+        if (!allZonesLoaded) return zoneNames[i] ? decodeRobotText(zoneNames[i]) : '…'
+        return t('schedule.week.unknownZone')
     })
     const zonesText = (slot: { zoneIds: string[], zoneNames: string[] }) => slot.zoneIds.length
         ? zoneNamesOf(slot).join(', ')
@@ -296,12 +312,15 @@ export default () => {
                         {serverInfo && (
                             <span className={styles.type}>{serverInfo.timezone}</span>
                         )}
+                        {!schedule && <span className={styles.type}>{t('schedule.robotScheduleUnavailable')}</span>}
                     </div>
-                    <Input type="switch" skipSection={true} value={schedule.enabled} onChange={() => {
-                        let cmd = GEN3_COMMANDS.enableSchedule;
-                        if (schedule.enabled) cmd = GEN3_COMMANDS.disableSchedule;
-                        withFeedback(cmd(robot.serial)).then(() => getSchedule());
-                    }} />
+                    {schedule ? (
+                        <Input type="switch" skipSection={true} value={schedule.enabled} onChange={() => {
+                            let cmd = GEN3_COMMANDS.enableSchedule;
+                            if (schedule.enabled) cmd = GEN3_COMMANDS.disableSchedule;
+                            withFeedback(cmd(robot.serial)).then(() => getSchedule());
+                        }} />
+                    ) : <Button text={t('common.retry')} style='secondary' onClick={getSchedule} />}
                 </div>
 
                 <div className={styles.nextRun}>

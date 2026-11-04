@@ -39,6 +39,7 @@ export default function Drawer(props: DrawerProps) {
 
     // Per-gesture values, inside the event handlers
     const dragStartYRef = useRef(0)
+    const dragStartXRef = useRef(0)
     const startHeightRef = useRef(0)
     const currentHeightRef = useRef(0)
     const lastYRef = useRef(0)
@@ -54,8 +55,13 @@ export default function Drawer(props: DrawerProps) {
     useEffect(() => {
         if (!isModal || !props.open) return
         const before = document.activeElement as HTMLElement | null
-        sheetRef.current?.focus()
-        return () => before?.focus()
+        const sheet = sheetRef.current
+        sheet?.focus()
+        return () => {
+            before?.focus()
+            // the opener was the page itself or is gone: don't leave the focus on the closed sheet
+            if (sheet?.contains(document.activeElement)) (document.activeElement as HTMLElement).blur()
+        }
     }, [isModal, props.open])
 
     // Pointer events cover mouse, touch and pen in every modern browser
@@ -160,14 +166,19 @@ export default function Drawer(props: DrawerProps) {
                         onPointerDown={e => {
                             if (e.button !== 0) return // a right click is no tap
                             dragStartYRef.current = e.clientY
+                            dragStartXRef.current = e.clientX
                             movedRef.current = false
                             setDragOffset(0)
                         }}
                         onPointerMove={e => {
                             if (dragOffset === null || !(e.buttons & 1)) return // hovering, not dragging
-                            const down = Math.max(0, e.clientY - dragStartYRef.current)
-                            if (down > 5 && !movedRef.current) { movedRef.current = true; e.currentTarget.setPointerCapture(e.pointerId) }
-                            if (movedRef.current) setDragOffset(down)
+                            const dy = e.clientY - dragStartYRef.current
+                            // any move (also up or sideways) makes it a drag rather than a tap; only down moves the sheet
+                            if (!movedRef.current && Math.hypot(e.clientX - dragStartXRef.current, dy) > 5) {
+                                movedRef.current = true
+                                e.currentTarget.setPointerCapture(e.pointerId)
+                            }
+                            if (movedRef.current) setDragOffset(Math.max(0, dy))
                         }}
                         onPointerUp={() => {
                             if (dragOffset === null) return
