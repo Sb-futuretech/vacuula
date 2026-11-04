@@ -1,13 +1,14 @@
 {
     "String-version": "3",
     "common": {
-        "notSavedServer": "Not saved: the server could not be reached.",
-        "notSavedOffline": "Not saved: the robot is not connected.",
+        "notSaved": "Not saved",
+        "notStarted": "Not started",
+        "reasonServer": "the server could not be reached",
+        "reasonNoAnswer": "the robot did not answer",
+        "reasonRefused": "the robot refused it",
+        "reasonOffline": "the robot is not connected",
         "started": "Started",
         "saved": "Saved",
-        "notSavedNoAnswer": "Not saved: the robot did not answer.",
-        "notSavedRefused": "Not saved: the robot refused it.",
-        "notSaved": "Not saved.",
         "save": "Save",
         "cancel": "Cancel",
         "delete": "Delete",
@@ -318,6 +319,8 @@
         "deepNeedsNormal": "Deep only works with mode Normal.",
         "robotBadge": "Run by the robot",
         "week": {
+            "unnamedZone": "unnamed zone",
+            "oldNotRemoved": "Saved, but the old entry is still there and may run twice",
             "unknownZone": "unknown zone",
             "next": "Next run",
             "noNext": "Nothing planned this week.",

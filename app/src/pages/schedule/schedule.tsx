@@ -157,8 +157,10 @@ export default () => {
             const saved: Promise<unknown> = editing?.kind === 'pi'
                 ? Http.updatePiSchedule(robot.serial, editing.entry.id, { ...entry, enabled: editing.entry.enabled ?? true })
                 : Http.addPiSchedule(robot.serial, entry)
-            // one message for both steps: a robot entry that became a Pi entry is only removed once the Pi has it
-            withFeedback(saved.then(() => editedRobotEvents.length ? GEN3_COMMANDS.setSchedule(robot.serial, robotEvents) : undefined))
+            // a robot entry that became a Pi entry is only removed once the Pi has it; if that fails, the
+            // user hears that the old one is still there (both would run)
+            withFeedback(saved).then(() => editedRobotEvents.length
+                ? withFeedback(GEN3_COMMANDS.setSchedule(robot.serial, robotEvents), null, 'schedule.week.oldNotRemoved') : undefined)
                 .finally(() => { getPiEntries(); if (editedRobotEvents.length) getSchedule() })
             return
         }
@@ -166,9 +168,10 @@ export default () => {
         const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = robotEvents.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
-        // one message for both steps: a Pi entry that the robot can keep now is only removed once the robot has it
-        withFeedback<unknown>(GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept])
-            .then(() => editing?.kind === 'pi' ? Http.deletePiSchedule(robot.serial, editing.entry.id) : undefined))
+        // a Pi entry that the robot can keep now is only removed once the robot has it; if that fails, the
+        // user hears that the old one is still there (both would run)
+        withFeedback(GEN3_COMMANDS.setSchedule(robot.serial, [...added, ...kept])).then(() => editing?.kind === 'pi'
+            ? withFeedback(Http.deletePiSchedule(robot.serial, editing.entry.id), null, 'schedule.week.oldNotRemoved') : undefined)
             .finally(() => { getSchedule(); if (editing?.kind === 'pi') getPiEntries() })
     }
 
@@ -203,9 +206,12 @@ export default () => {
     // names from the maps as they are now. Until every map's zones are loaded, a zone not found yet keeps
     // the name it was saved with; once they are, it is gone from the maps: "unknown zone".
     const zoneNameById = new Map((persistentMaps ?? []).flatMap(m => getCachedZones(robot.serial, m.id).map(z => [z.id, z.name] as const)))
-    const allZonesLoaded = (persistentMaps ?? []).every(m => isGen3MapCached(robot.serial, m.id))
-    const zoneNamesOf = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.map((id, i) =>
-        decodeRobotText(zoneNameById.get(id) ?? ((!allZonesLoaded && zoneNames[i]) || t('schedule.week.unknownZone'))))
+    const allZonesLoaded = !!persistentMaps && persistentMaps.every(m => isGen3MapCached(robot.serial, m.id))
+    const zoneNamesOf = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.map((id, i) => {
+        const current = zoneNameById.get(id)
+        if (current !== undefined) return decodeRobotText(current) || t('schedule.week.unnamedZone')
+        return !allZonesLoaded && zoneNames[i] ? decodeRobotText(zoneNames[i]) : t('schedule.week.unknownZone')
+    })
     const zonesText = (slot: { zoneIds: string[], zoneNames: string[] }) => slot.zoneIds.length
         ? zoneNamesOf(slot).join(', ')
         : t('schedule.wholeMap')

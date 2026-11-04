@@ -30,8 +30,6 @@ interface DrawerProps {
 const HANDLE_HEIGHT = 60
 // a modal sheet pulled down further than this closes
 const CLOSE_DRAG = 80
-// open modal sheets; while there is one, the app behind them is inert (no focus, no keys, no clicks)
-let openModals = 0
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
@@ -52,16 +50,12 @@ export default function Drawer(props: DrawerProps) {
     const [dragOffset, setDragOffset] = useState<number | null>(null)
     const sheetRef = useRef<HTMLDivElement>(null)
     const isModal = !props.handle && !isPanel
+    // focus moves into an opened sheet (so keys go to it, not to the page) and back where it was on close
     useEffect(() => {
         if (!isModal || !props.open) return
+        const before = document.activeElement as HTMLElement | null
         sheetRef.current?.focus()
-        const root = document.getElementById('root')
-        openModals += 1
-        if (root) root.inert = true
-        return () => {
-            openModals -= 1
-            if (root && openModals === 0) root.inert = false
-        }
+        return () => before?.focus()
     }, [isModal, props.open])
 
     // Pointer events cover mouse, touch and pen in every modern browser

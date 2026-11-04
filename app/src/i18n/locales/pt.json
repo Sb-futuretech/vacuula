@@ -1,13 +1,14 @@
 {
     "String-version": "0",
     "common": {
-        "notSavedServer": "N\u00e3o guardado: o servidor n\u00e3o respondeu.",
-        "notSavedOffline": "N\u00e3o guardado: o rob\u00f4 n\u00e3o est\u00e1 ligado.",
+        "notSaved": "N\u00e3o guardado",
+        "notStarted": "N\u00e3o iniciado",
+        "reasonServer": "o servidor n\u00e3o respondeu",
+        "reasonNoAnswer": "o rob\u00f4 n\u00e3o respondeu",
+        "reasonRefused": "o rob\u00f4 recusou",
+        "reasonOffline": "o rob\u00f4 n\u00e3o est\u00e1 ligado",
         "started": "Iniciado",
         "saved": "Guardado",
-        "notSavedNoAnswer": "N\u00e3o guardado: o rob\u00f4 n\u00e3o respondeu.",
-        "notSavedRefused": "N\u00e3o guardado: o rob\u00f4 recusou.",
-        "notSaved": "N\u00e3o guardado.",
         "save": "Guardar",
         "cancel": "Cancelar",
         "delete": "Eliminar",
@@ -311,6 +312,8 @@
         "deepNeedsNormal": "Deep só funciona com o modo Normal.",
         "robotBadge": "Executado pelo robô",
         "week": {
+            "unnamedZone": "zona sem nome",
+            "oldNotRemoved": "Guardado, mas a entrada antiga continua l\u00e1 e pode correr duas vezes",
             "unknownZone": "zona desconhecida",
             "next": "Próxima limpeza",
             "noNext": "Nada planeado esta semana.",

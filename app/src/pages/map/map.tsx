@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, type CSSProperties } from 'react'
 import styles from './map.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
@@ -11,6 +11,7 @@ import { Http } from '../../http'
 import { Neato, RobotType, type Robot } from '../../types'
 
 import MapCanvas, { type MapMode } from './MapCanvas'
+import { RULER_PX } from './MapRulers'
 import { GEN4_COMMANDS } from '../../http/gen4'
 import { useRobot } from '../../context/useRobot'
 import { usePersistentMaps } from '../../loaders/resources'
@@ -74,7 +75,8 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
-    const skipNextPostRef = useRef(false)
+    // the list last loaded from the robot or server: the save effect sends only lists the user changed
+    const loadedBoundariesRef = useRef<(NoGoLine | Zone)[] | null>(null)
 
     const { data: persistentMaps, refresh: updatePersistentMaps } = usePersistentMaps()
     const getPromotedFloorplan = useGetPromotedFloorplan()
@@ -99,20 +101,24 @@ export default () => {
     // exploring a new map: confirm first (the robot vacuums the whole home on the way); when it is done,
     // the new map is fetched, shown, and asks for a name
     const [exploreConfirmOpen, setExploreConfirmOpen] = useState(false)
-    // gen3 only, by the robot's action (its state is PAUSED or ERROR while an exploration is paused or
-    // stuck); a gen4 explores with a normal cleaning, and its map is marked in the run history
-    const exploring = robot.type === RobotType.NeatoGen3 && EXPLORE_ACTIONS.includes(robot.action)
+    // gen3 only, by the robot's action while it is not idle (the action means nothing when idle, and the
+    // state is PAUSED or ERROR while an exploration pauses or sticks); a gen4 explores with a normal
+    // cleaning, and its map is marked in the run history
+    const exploring = robot.type === RobotType.NeatoGen3 && robot.state !== Neato.Gen3.RobotState.IDLE
+        && EXPLORE_ACTIONS.includes(robot.action)
     const [newMapId, setNewMapId] = useState<string>()
     const [newMapName, setNewMapName] = useState('')
     useEffect(() => {
         if (exploring && persistentMaps && !mapsBeforeExplore.has(robot.serial)) mapsBeforeExplore.set(robot.serial, persistentMaps.map(m => m.id))
-    }, [exploring, persistentMaps])
+    }, [exploring, persistentMaps, robot.serial])
     useEffect(() => {
         if (exploring || !mapsBeforeExplore.has(robot.serial)) return
-        // done: fetch the maps; the upload can take a moment after the robot has finished
+        // done: fetch the maps (the upload can take a moment after the robot has finished); no new map
+        // by then (cancelled, failed): forget the snapshot
         const timers = [0, 10_000, 30_000].map(ms => setTimeout(updatePersistentMaps, ms))
+        timers.push(setTimeout(() => mapsBeforeExplore.delete(robot.serial), 40_000))
         return () => timers.forEach(clearTimeout)
-    }, [exploring])
+    }, [exploring, robot.serial])
     useEffect(() => {
         const before = mapsBeforeExplore.get(robot.serial)
         const fresh = !exploring && before && persistentMaps?.find(m => !before.includes(m.id))
@@ -121,13 +127,13 @@ export default () => {
         chooseMap(fresh.id)
         setNewMapId(fresh.id)
         setNewMapName('')
-    }, [persistentMaps, exploring])
+    }, [persistentMaps, exploring, robot.serial])
     const startExplore = () => {
         setExploreConfirmOpen(false)
         setSwitcherOpen(false)
         withFeedback<unknown>(robot.type === RobotType.NeatoGen4
             ? GEN4_COMMANDS.startCleaning(robot.serial, getGen4CleaningMode(), getGen4NavigationMode())
-            : GEN3_COMMANDS.startPersistentMapExploration(robot.serial), 'common.started')
+            : GEN3_COMMANDS.startPersistentMapExploration(robot.serial), 'common.started', 'common.notStarted')
     }
 
     // TODO: the dock marker should be moved to the usemap thing 
@@ -216,7 +222,7 @@ export default () => {
     const updatePersistentMap = (data: { name: string, enabled: boolean }, mapToChange?: string) => {
         const map = mapToChange || persistentMap;
         if (!map) return;
-        withFeedback(Http.updatePersistentMap(robot.serial, map, data)).finally(() => {
+        return withFeedback(Http.updatePersistentMap(robot.serial, map, data)).finally(() => {
             updatePersistentMaps()
             if (persistentMap) setMode('boundaries')
         })
@@ -229,8 +235,11 @@ export default () => {
     const getMapBoundaries = () => {
         const mapId = persistentMap
         if (!mapId) return
-        skipNextPostRef.current = true
-        const show = (list: (NoGoLine | Zone)[]) => { if (shownMapRef.current === mapId) setBoundaries(list) }
+        const show = (list: (NoGoLine | Zone)[]) => {
+            if (shownMapRef.current !== mapId) return
+            loadedBoundariesRef.current = list
+            setBoundaries(list)
+        }
         if (robot.type === RobotType.NeatoGen4) {
             Http.getBoundaries(robot.serial, mapId).then(res => show(res.data))
         } else {
@@ -239,19 +248,15 @@ export default () => {
     }
 
     useEffect(() => {
-        if (!persistentMap) return;
-        if (skipNextPostRef.current) {
-            skipNextPostRef.current = false
-            return
-        }
+        if (!persistentMap || boundaries === loadedBoundariesRef.current) return;
         if (robot.type === RobotType.NeatoGen4) {
-            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries).then(() => {
+            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries)).then(() => {
                 getMapBoundaries();
-                // If the map is promoted, promote it again
+                // If the map is promoted, promote it again (the boundaries are saved either way)
                 if (currentMap && 'promoted' in currentMap && currentMap.promoted) {
-                    return Http.promoteFloorplan(robot.serial, currentMap.id).then(() => updatePersistentMaps());
+                    Http.promoteFloorplan(robot.serial, currentMap.id).then(() => updatePersistentMaps());
                 }
-            }));
+            });
             return
         }
 
@@ -423,7 +428,7 @@ export default () => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.mapArea}>
+            <div className={styles.mapArea} style={{ '--ruler': `${RULER_PX}px` } as CSSProperties}>
                 {persistentMap ? (
                     <MapCanvas
                         mapId={persistentMap}
@@ -462,8 +467,8 @@ export default () => {
                     </div>
                 )}
 
-                {mode === 'boundary-edit' && selectedPoint === null && (
-                    <div className={styles.mapBar}>
+                {mode === 'boundary-edit' && (selectedPoint === null || !currentLinePoints[selectedPoint]) && (
+                    <div className={`${styles.mapBar} ${styles.drawing}`}>
                         <div className={styles.drawBar}>
                             <strong>{editForm.zoneType === BoundaryTypes.NOGO_LINE ? t('map.noGoLine')
                                 : editForm.zoneType === BoundaryTypes.NOGO_ZONE ? t('map.noGoZone') : t('map.cleaningZone')}</strong>
@@ -502,8 +507,9 @@ export default () => {
                                 <span>{t('map.newMapName')}</span>
                                 <Input type="text" skipSection={true} value={newMapName} onChange={setNewMapName} />
                                 <Button text={t('common.save')} style='success' disabled={!newMapName.trim()} onClick={() => {
+                                    // the prompt stays until the name is really saved
                                     updatePersistentMap({ name: newMapName.trim(), enabled: currentMap && 'enabled' in currentMap ? currentMap.enabled : true })
-                                    setNewMapId(undefined)
+                                        ?.then(() => setNewMapId(undefined), () => { /* "Not saved" is shown; try again */ })
                                 }} />
                             </div>
                         )}

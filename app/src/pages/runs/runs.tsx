@@ -34,9 +34,12 @@ export default () => {
     const [tab, setTab] = useState<'runs' | 'stats'>('runs')
     const [fullMap, setFullMap] = useState(false)
 
-    // Escape closes the full-screen map
+    // Escape closes the full-screen map. It takes the focus, so the key doesn't also reach the run's
+    // sheet below it (which would close too).
+    const fullMapRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (!fullMap) return
+        fullMapRef.current?.focus()
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullMap(false) }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
@@ -201,7 +204,7 @@ export default () => {
             </Drawer>
 
             {fullMap && selectedCleaning && (
-                <div className={styles.fullMap} role="dialog" aria-modal="true">
+                <div ref={fullMapRef} tabIndex={-1} className={styles.fullMap} role="dialog" aria-modal="true">
                     <div className={styles.fullMapHeader}>
                         <span>{new Date('timing' in selectedCleaning ? selectedCleaning.timing.start : selectedCleaning.run.start_at).toLocaleString()}</span>
                         <button onClick={() => setFullMap(false)} aria-label={t('runs.closeMap')} title={t('runs.closeMap')}><FaTimes /></button>

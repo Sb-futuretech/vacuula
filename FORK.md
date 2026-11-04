@@ -172,9 +172,9 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 **Whole app**
 - **Saved or not:** every change sent to the robot or the Pi (zones and lines, maps, schedule)
   shows a short *Saved*, or why not: the robot did not answer (the D7 dropping a save no longer
-  goes unnoticed), refused it, is not connected, or the server could not be reached. A change
-  made in two steps (e.g. a schedule entry moving from the robot to the Pi) says *Saved* only once
-  both are done.
+  goes unnoticed), refused it, is not connected, or the server could not be reached. When a
+  schedule entry moves between robot and Pi and the old one can't be removed, it says so (both
+  would run).
 - **Sheets** (cleaning options, schedule form, run details, add feature, help) open over the whole
   app with the page behind dimmed. They are as tall as their content, only their content scrolls,
   and Save stays visible at the bottom. Close them by tapping outside or pulling the title down.
