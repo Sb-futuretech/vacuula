@@ -6,7 +6,8 @@ import { FaServer } from 'react-icons/fa'
 import { dayKey } from '../../i18n/days'
 import { decodeRobotText } from '../../utils/robotText'
 import styles from './week.module.scss'
-import { hhmm, levelOf, WEEK, type Slot } from './week'
+import { formatHHMM } from '../../utils/clockTime'
+import { levelOf, UNKNOWN_MIN, WEEK, type Slot } from './week'
 
 const DAY_START = 6 * 60
 const DAY_END = 22 * 60
@@ -25,7 +26,7 @@ export default function WeekView({ week, selected, onSelect, today, nowMinutes }
     // 6–22 h, wider when an entry lies outside
     const slots = week.flat()
     const from = Math.min(DAY_START, ...slots.map(s => Math.floor(s.start / 60) * 60))
-    const to = Math.max(DAY_END, ...slots.map(s => Math.ceil((s.start + (s.minutes ?? 30)) / 60) * 60))
+    const to = Math.max(DAY_END, ...slots.map(s => Math.ceil((s.start + (s.minutes ?? UNKNOWN_MIN)) / 60) * 60))
     const span = to - from
     const pos = (minutes: number) => (minutes - from) / span
     const step = span / 60 > 16 ? 6 : 4
@@ -61,16 +62,16 @@ export default function WeekView({ week, selected, onSelect, today, nowMinutes }
                                 ].join(' ')}
                                 style={{
                                     '--start': pos(slot.start),
-                                    '--len': (slot.minutes ?? 30) / span,
+                                    '--len': (slot.minutes ?? UNKNOWN_MIN) / span,
                                     '--lane': slot.lane,
                                     '--lanes': slot.lanes,
                                 } as CSSProperties}
-                                aria-label={`${t(`days.${dayKey(day)}` as any)} ${hhmm(slot.start)} ${slot.zoneNames.map(decodeRobotText).join(', ')}`}
+                                aria-label={`${t(`days.${dayKey(day)}` as any)} ${formatHHMM(slot.start)} ${slot.zoneNames.map(decodeRobotText).join(', ')}`}
                                 aria-pressed={slot.key === selected}
                                 onClick={e => { e.stopPropagation(); onSelect(slot.key === selected ? null : slot) }}
                             >
                                 {slot.kind === 'pi' && <FaServer className={styles.blockIcon} aria-hidden="true" />}
-                                <span>{hhmm(slot.start)}</span>
+                                <span>{formatHHMM(slot.start)}</span>
                             </button>
                         ))}
                     </div>

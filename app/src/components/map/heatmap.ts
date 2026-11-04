@@ -54,7 +54,11 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 if (cancelled || runs >= maxRuns) break
                 const reportedMap = cleaning.run.persistent_map_id
                 if (reportedMap && reportedMap !== mapId) continue
-                const runMap = await cached(cleaningLoader.peek(serial, cleaning.id), () => cleaningLoader.request(serial, cleaning.id))
+                // the run's map, and for a run on a reported map its floor too (to align it), downloaded together
+                const [runMap, runFloor] = await Promise.all([
+                    cached(cleaningLoader.peek(serial, cleaning.id), () => cleaningLoader.request(serial, cleaning.id)),
+                    reportedMap ? floorOf(cleaning.id) : undefined,
+                ])
                 if (!runMap) continue
                 const path = decodeRLE(runMap.rle)
 
@@ -62,8 +66,8 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 // part they reached and are aligned by their walls; older runs must share the grid
                 let offset: { dx: number, dy: number } | undefined
                 if (reportedMap) {
-                    const runFloor = await floorOf(cleaning.id)
-                    if (runFloor) offset = runOffset(cleaning.id, { cells: decodeRLE(runFloor.rle), width: runFloor.width, height: runFloor.height }, { cells: floor, width, height })
+                    if (runFloor) offset = runOffset(cleaning.id, () => ({ cells: decodeRLE(runFloor.rle), width: runFloor.width, height: runFloor.height }),
+                        () => ({ cells: floor, width, height }))
                 } else {
                     const runFloor = { width: runMap.width, height: runMap.height, dock: cellsCentre(path, runMap.width, runMap.height, GEN3_RUN_DOCK) }
                     if (sameFloorDistance(runFloor, storedFloor) !== null) offset = { dx: 0, dy: 0 }

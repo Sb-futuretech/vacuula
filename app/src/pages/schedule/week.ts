@@ -8,10 +8,9 @@ import type { ScheduleEvent } from './types'
 // a robot event this close to a Pi entry is its fallback (server: gen3/pi_schedule.py OVERLAP_MIN)
 export const OVERLAP_MIN = 15
 // length assumed for the overlap check while there is no estimate
-const UNKNOWN_MIN = 30
+export const UNKNOWN_MIN = 30
 
 export const minutesOf = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
-export const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 export const mondayFirst = (d: number) => (d + 6) % 7
 export const WEEK: RobotDay[] = [RobotDay.MONDAY, RobotDay.TUESDAY, RobotDay.WEDNESDAY, RobotDay.THURSDAY, RobotDay.FRIDAY, RobotDay.SATURDAY, RobotDay.SUNDAY]
 export const zoneOf = (e: ScheduleEvent) => e.boundaryId ?? e.boundary?.id

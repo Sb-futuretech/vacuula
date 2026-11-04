@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from vacuula_server.db import get_session
 from vacuula_server.gen3.data import Gen3MapBoundaries
+from vacuula_server.gen3.protocol import parse_time as _time
 from vacuula_server.models.notification import Notification
 from vacuula_server.models.run import Gen3__Run
 from vacuula_server.server_tz import server_timezone
@@ -23,13 +24,6 @@ WEEKS = 26  # length of the weekly battery history
 # a run without a zone counts as a whole map run if it covered at least this share of the largest one
 # (spot cleans and runs stopped early are left out)
 WHOLE_MAP_SHARE = 0.6
-
-
-def _time(value: str | None) -> datetime | None:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
-    except ValueError:
-        return None
 
 
 def _runs(serial: str) -> list[dict]:

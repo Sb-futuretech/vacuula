@@ -58,6 +58,7 @@ const MIN_WALL_MATCH = 0.6 // share of the run's walls that must land on stored 
 const MAX_FREE_ON_WALL = 0.03 // share of the run's free floor that may land on stored walls
 
 export interface Grid { cells: number[], width: number, height: number }
+type GridSize = Pick<Grid, 'width' | 'height'>
 
 // cells (or BLOCK-sized blocks) that are walls, optionally widened by `grow` in every direction
 function wallMask({ cells, width, height }: Grid, block: number, grow: number) {
@@ -131,15 +132,16 @@ function fits(run: Grid, stored: Grid, dx: number, dy: number) {
     return walls > 0 && wallHits >= walls * MIN_WALL_MATCH && freeOnWall <= free * MAX_FREE_ON_WALL
 }
 
-// run id -> its offset on its stored map (runs never change, aligning takes a moment)
+// run id -> its offset on its stored map (runs never change, aligning takes a moment). The grids are
+// only built (decoded) when the offset isn't known yet.
 const runOffsets: Record<string, { dx: number, dy: number } | null> = {}
-export function runOffset(runId: string, run: Grid, stored: Grid) {
-    if (!(runId in runOffsets)) runOffsets[runId] = alignToStored(run, stored) ?? null
+export function runOffset(runId: string, run: () => Grid, stored: () => Grid) {
+    if (!(runId in runOffsets)) runOffsets[runId] = alignToStored(run(), stored()) ?? null
     return runOffsets[runId] ?? undefined
 }
 
 // a stored map's zone, moved into a run's grid (normalised vertices of both)
-export function zoneInRun(zone: Zone, offset: { dx: number, dy: number }, stored: Grid, run: Grid): Zone {
+export function zoneInRun(zone: Zone, offset: { dx: number, dy: number }, stored: GridSize, run: GridSize): Zone {
     return {
         ...zone,
         vertices: zone.vertices.map(([x, y]): Point => [(x * stored.width - offset.dx) / run.width, (y * stored.height - offset.dy) / run.height]),

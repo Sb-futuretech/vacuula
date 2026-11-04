@@ -8,8 +8,8 @@ import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning }
 import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, pointInZone, onDockImageReady } from './drawingFunctions'
-import { decodeRLE } from './utils'
+import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
+import { decodeRLE, pointInPolygon } from './utils'
 import type { ExtraDrawFn } from './useMap'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
 import type { VacuulaMapData, Zone } from './types'
@@ -65,9 +65,9 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         img.src = marker
     }, [marker])
 
-    // the run's own cells (gen3): its dock block and the zones its path went through
+    // the run's own cells (gen3): its dock block and the zones its path went through (only needed for zones)
     const { data: cleaningData } = useCleaning(runId ?? '')
-    const runCells = useMemo(() => cleaningData ? decodeRLE(cleaningData.rle) : undefined, [cleaningData])
+    const runCells = useMemo(() => zones && cleaningData ? decodeRLE(cleaningData.rle) : undefined, [zones, cleaningData])
 
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
     // its grid, so its zones (normalised vertices) fit the run: take the enabled stored map on the same
@@ -91,21 +91,23 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
                 // to where the run's walls lie on the map's walls
                 const data = await stored(storedMapId)
                 if (!data) return
-                const runGrid = { cells: decodeRLE(persistantMapData.rle), width: run.width, height: run.height }
-                const storedGrid = { cells: decodeRLE(data.rle), width: data.width, height: data.height }
-                const offset = runOffset(runId, runGrid, storedGrid)
+                const runSize = { width: run.width, height: run.height }
+                const storedSize = { width: data.width, height: data.height }
+                const offset = runOffset(runId, () => ({ cells: decodeRLE(persistantMapData.rle), ...runSize }),
+                    () => ({ cells: decodeRLE(data.rle), ...storedSize }))
                 if (!offset) return
                 const boundaries = await getGen3MapBoundaries(robot.serial, storedMapId).catch(() => [])
-                if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon').map(z => zoneInRun(z, offset, storedGrid, runGrid)))
+                if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon').map(z => zoneInRun(z, offset, storedSize, runSize)))
                 return
             }
             let best: { id: string, distance: number } | undefined
-            for (const m of storedMaps as Neato.Gen3.PersistentMap[]) {
-                if (!m.enabled || m.id === mapId) continue
-                const data = await stored(m.id)
+            const candidates = (storedMaps as Neato.Gen3.PersistentMap[]).filter(m => m.enabled && m.id !== mapId)
+            const candidateData = await Promise.all(candidates.map(m => stored(m.id)))
+            candidates.forEach((m, i) => {
+                const data = candidateData[i]
                 const distance = data && sameFloorDistance(run, { width: data.width, height: data.height, dock: basePoint(data.base) })
                 if (distance != null && (!best || distance < best.distance)) best = { id: m.id, distance }
-            }
+            })
             if (!best) return
             const boundaries = await getGen3MapBoundaries(robot.serial, best.id).catch(() => [])
             if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon'))
@@ -120,7 +122,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         for (let i = 0; i < runCells.length; i++) {
             if (runCells[i] === 0 || GEN3_RUN_NOT_PATH.has(runCells[i])) continue
             const p: [number, number] = [(i % width + 0.5) / width, (Math.floor(i / width) + 0.5) / height]
-            for (const zone of runZones) if (!visited.has(zone.id) && pointInZone(p, zone)) visited.add(zone.id)
+            for (const zone of runZones) if (!visited.has(zone.id) && pointInPolygon(p, zone.vertices)) visited.add(zone.id)
         }
         return visited
     }, [runZones, runCells, cleaningData])

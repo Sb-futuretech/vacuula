@@ -8,6 +8,7 @@ import { useUnits } from '../../units'
 import { useTimeAgoFormatter } from '../../i18n/timeago'
 import { formatDuration } from '../../utils/duration'
 import type { AppNotification } from '../../http'
+import { robotCodeText } from '../../utils/robotText'
 
 const ICONS: Record<AppNotification['kind'], string> = {
     run_done: '✅', error: '❌', alert: '⚠️', offline: '🔌', online: '🔌', robot_push: '📣',
@@ -29,10 +30,7 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
     const navigate = useNavigate()
 
     // the robot's own error / alert texts, already translated for the home page
-    const robotText = (code: string | null) => {
-        const key = `robotErrorCode.${robot.type}.${code}`
-        return code && i18n.exists(key) ? t(key as any) : code ?? ''
-    }
+    const robotText = (code: string | null) => code ? robotCodeText(robot.type, code) : ''
 
     // the push message's code; older notifications only kept the raw body ({"message_code": ...})
     const pushCode = (n: AppNotification): string | null => {

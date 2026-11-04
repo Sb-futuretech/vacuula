@@ -20,18 +20,21 @@ export function getGen4NavigationMode(): Neato.Gen4.CleaningNavigationMode {
 }
 
 
-// Help-text i18n keys for the cleaning options, so Home and Schedule describe them
-// the same way. The values live under `modeHelp.*` in the locales.
+// i18n key part of each gen3 cleaning option, so Home, Schedule and Stats name and describe them the
+// same way: `modes.<key>` is the name, `modeHelp.cleaning.<key>` / `modeHelp.navigation.<key>` the help
+export const GEN3_MODE_KEY: Record<number, string> = {
+    [Neato.Gen3.CleaningMode.ECO]: 'eco',
+    [Neato.Gen3.CleaningMode.NORMAL]: 'normal',
+}
+export const GEN3_NAV_KEY: Record<number, string> = {
+    [Neato.Gen3.CleaningNavigationMode.NORMAL]: 'normal',
+    [Neato.Gen3.CleaningNavigationMode.EXTRA_CARE]: 'extraCare',
+    [Neato.Gen3.CleaningNavigationMode.DEEP]: 'deep',
+}
+
 export function gen3CleaningModeHelp(mode: Neato.Gen3.CleaningMode): string {
-    return mode === Neato.Gen3.CleaningMode.ECO ? 'modeHelp.cleaning.eco' : 'modeHelp.cleaning.normal'
+    return `modeHelp.cleaning.${GEN3_MODE_KEY[mode] ?? 'normal'}`
 }
 export function gen3NavigationHelp(nav: Neato.Gen3.CleaningNavigationMode): string {
-    return nav === Neato.Gen3.CleaningNavigationMode.EXTRA_CARE ? 'modeHelp.navigation.extraCare'
-        : nav === Neato.Gen3.CleaningNavigationMode.DEEP ? 'modeHelp.navigation.deep'
-        : 'modeHelp.navigation.normal'
-}
-export function gen3CategoryHelp(cat: Neato.Gen3.CleaningCategory): string {
-    return cat === Neato.Gen3.CleaningCategory.SPOT ? 'modeHelp.category.spot'
-        : cat === Neato.Gen3.CleaningCategory.MAP ? 'modeHelp.category.map'
-        : 'modeHelp.category.house'
+    return `modeHelp.navigation.${GEN3_NAV_KEY[nav] ?? 'normal'}`
 }

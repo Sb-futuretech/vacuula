@@ -6,6 +6,8 @@ import { Http, type RobotStats } from '../../http'
 import { useRobot } from '../../context/useRobot'
 import { useUnits } from '../../units'
 import { Neato } from '../../types'
+import { GEN3_MODE_KEY, GEN3_NAV_KEY } from '../../utils/modes'
+import { robotCodeText } from '../../utils/robotText'
 
 // the two gen3 modes the battery chart tells apart, in fixed series order
 const BATTERY_SERIES = [
@@ -105,18 +107,12 @@ function DailyArea({ daily }: { daily: RobotStats['daily'] }) {
     )
 }
 
-const MODE_KEYS: Record<number, string> = { [Neato.Gen3.CleaningMode.ECO]: 'eco', [Neato.Gen3.CleaningMode.NORMAL]: 'normal' }
-const NAV_KEYS: Record<number, string> = {
-    [Neato.Gen3.CleaningNavigationMode.NORMAL]: 'normal',
-    [Neato.Gen3.CleaningNavigationMode.EXTRA_CARE]: 'extraCare',
-    [Neato.Gen3.CleaningNavigationMode.DEEP]: 'deep',
-}
 // "Eco · Normal", "Normal · Deep", or "Mapping run" for a run without a mode
 function useComboLabel() {
     const { t } = useTranslation()
     return (g: { mode: number | null, navigationMode: number | null }) => g.mode === null
         ? t('stats.mapping')
-        : `${t(`modes.${MODE_KEYS[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${NAV_KEYS[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
+        : `${t(`modes.${GEN3_MODE_KEY[g.mode] ?? 'normal'}` as any)} · ${t(`modes.${GEN3_NAV_KEY[g.navigationMode ?? 1] ?? 'normal'}` as any)}`
 }
 
 // how much a group's numbers rest on: battery % used in total -> 1..4 dots
@@ -379,10 +375,6 @@ function Reliability({ reliability: r }: { reliability: RobotStats['reliability'
 function Problems({ problems }: { problems: RobotStats['problems'] }) {
     const { t } = useTranslation()
     const { robot } = useRobot()
-    const text = (code: string) => {
-        const key = `robotErrorCode.${robot.type}.${code}`
-        return i18n.exists(key) ? t(key as any) : code
-    }
     return (
         <section className={styles.card}>
             <h3>{t('stats.problemsTitle')}</h3>
@@ -390,7 +382,7 @@ function Problems({ problems }: { problems: RobotStats['problems'] }) {
                 <dl className={styles.rows}>
                     {problems.map(p => (
                         <div key={`${p.kind}:${p.code}`}>
-                            <dt>{text(p.code)}</dt>
+                            <dt>{robotCodeText(robot.type, p.code)}</dt>
                             <dd>{t('stats.problemCount', { count: p.count, date: new Date(p.lastAt * 1000).toLocaleDateString() })}</dd>
                         </div>
                     ))}

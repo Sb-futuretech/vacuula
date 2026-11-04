@@ -54,6 +54,17 @@ interface AppContextType {
 
 const GEN3_STATE_POLL_MS = 60_000
 
+// the gen3 robot fields a state reply or state event carries; one place, so none is left out
+const gen3StateFields = (s: Neato.Gen3.GetRobotStateResponse) => ({
+    availableCommands: s.availableCommands,
+    details: s.details,
+    alert: s.alert,
+    error: s.error,
+    state: s.state,
+    action: s.action,
+    cleaning: s.cleaning,
+})
+
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -114,13 +125,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     type: RobotType.NeatoGen3,
                     serial,
                     name,
-                    availableCommands: res.data.availableCommands,
-                    details: res.data.details,
-                    alert: res.data.alert,
-                    error: res.data.error,
-                    state: res.data.state,
-                    action: res.data.action,
-                    cleaning: res.data.cleaning,
+                    ...gen3StateFields(res.data),
                 })
             })
     }
@@ -229,13 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     setRobot(cur => cur ? {
                         ...cur,
                         type: RobotType.NeatoGen3,
-                        availableCommands: res.data.availableCommands,
-                        details: res.data.details,
-                        alert: res.data.alert,
-                        error: res.data.error,
-                        state: res.data.state,
-                        action: res.data.action,
-                        cleaning: res.data.cleaning,
+                        ...gen3StateFields(res.data),
                     } : cur)
                 });
             } else if (robot.type === RobotType.NeatoGen4) {
@@ -269,7 +268,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             refreshState()
         }
         if (robot.type === RobotType.NeatoGen3) {
-            poll = setInterval(() => { if (!document.hidden) refreshState() }, GEN3_STATE_POLL_MS)
+            poll = setInterval(onVisibility, GEN3_STATE_POLL_MS)
             document.addEventListener('visibilitychange', onVisibility)
         }
 
@@ -326,14 +325,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             setRobot(cur => cur ? {
                 ...cur,
-                availableCommands: wrapper.data.data.availableCommands,
-                details: wrapper.data.data.details,
-                alert: wrapper.data.data.alert,
-                error: wrapper.data.data.error,
-                state: wrapper.data.data.state,
-                action: wrapper.data.data.action,
-                cleaning: wrapper.data.data.cleaning,
-            } : cur)
+                ...gen3StateFields(wrapper.data.data),
+            } as Robot : cur)
         };
 
         events.onerror = (err) => {

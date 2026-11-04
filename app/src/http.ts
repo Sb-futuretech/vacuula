@@ -75,7 +75,6 @@ instance.interceptors.response.use(
   }
 );
 
-// One entry of the notification centre (server: vacuula_server/notifications.py)
 /** A schedule entry the server runs itself (gen3): navigation modes and several zones */
 export interface PiScheduleEntry {
   id: number
@@ -123,6 +122,7 @@ export interface TelegramSettings {
 }
 export interface TelegramChat { id: string, name: string, type: string }
 
+// One entry of the notification centre (server: vacuula_server/notifications.py)
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds

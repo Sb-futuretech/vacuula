@@ -33,6 +33,9 @@ export function withFeedback<T>(promise: Promise<T>, okKey: string | null = 'com
     return promise
 }
 
+// the server's own error text ({error}) of a failed request, else the error itself
+export const serverError = (err: unknown) => (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(err)
+
 function failureReason(e: AxiosError<{ result?: string, code?: number, error?: string }>) {
     const res = e.response
     const data = typeof res?.data === 'object' ? res.data : undefined

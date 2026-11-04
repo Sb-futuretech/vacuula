@@ -2,6 +2,7 @@ import { COLORS, DRAWING, readMapToken } from './constants'
 import type { Zone, NoGoLine, Point } from './types'
 import { normalizeHex, withAlpha } from './color'
 import { GEN3_MM_PER_CELL, ROBOT_RADIUS_MM } from './gen3Run'
+import { calcRelevancy } from './utils'
 import dockUrl from '../../assets/dock.svg'
 
 /* ---------------- SHAPE TYPES ---------------- */
@@ -476,6 +477,21 @@ export function drawMarker(
     ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size)
 }
 
+// Adds one rectangle per horizontal run of cells x0 <= x < x1 in row y for which `on(x)` holds: an area
+// of cells as few rectangles, filled as one path
+function addRowRuns(path: Path2D, y: number, x0: number, x1: number, on: (x: number) => boolean,
+    zoom: number, offset: { x: number; y: number }) {
+    let runStart = -1
+    for (let x = x0; x <= x1; x++) {
+        const hit = x < x1 && on(x)
+        if (hit && runStart < 0) runStart = x
+        if (!hit && runStart >= 0) {
+            path.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
+            runStart = -1
+        }
+    }
+}
+
 // Area the robot cleaned: the run's path is a thin track, so every path cell becomes a disc of the
 // robot's size. All discs are filled as one path, so overlaps merge into one smooth band instead of
 // stacking their opacity. The band is clipped to free floor, so it never spills over walls.
@@ -513,15 +529,7 @@ export function drawCoverage(
     const pad = Math.ceil(rCells)
     const floor = new Path2D()
     for (let y = Math.max(0, minY - pad); y <= Math.min(height - 1, maxY + pad); y++) {
-        let runStart = -1
-        for (let x = Math.max(0, minX - pad); x <= Math.min(width - 1, maxX + pad) + 1; x++) {
-            const free = x <= Math.min(width - 1, maxX + pad) && floorCells[y * width + x] === 1
-            if (free && runStart < 0) runStart = x
-            if (!free && runStart >= 0) {
-                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
-                runStart = -1
-            }
-        }
+        addRowRuns(floor, y, Math.max(0, minX - pad), Math.min(width - 1, maxX + pad) + 1, x => floorCells[y * width + x] === 1, zoom, offset)
     }
 
     ctx.save()
@@ -550,15 +558,7 @@ export function drawPlanFloor(
     // one rectangle per horizontal run of non-unknown cells: walls are part of the floor area too
     const floor = new Path2D()
     for (let y = 0; y < mapSize.height; y++) {
-        let runStart = -1
-        for (let x = 0; x <= mapSize.width; x++) {
-            const known = x < mapSize.width && cells[y * mapSize.width + x] !== 0
-            if (known && runStart < 0) runStart = x
-            if (!known && runStart >= 0) {
-                floor.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
-                runStart = -1
-            }
-        }
+        addRowRuns(floor, y, 0, mapSize.width, x => cells[y * mapSize.width + x] !== 0, zoom, offset)
     }
     ctx.fillStyle = COLORS.EMPTY
     ctx.fill(floor)
@@ -582,17 +582,7 @@ export function drawPlanWalls(
         || OPPOSITE_PAIRS.some(([dx, dy]) => isWall(x - dx, y - dy) && isWall(x + dx, y + dy))
 
     const walls = new Path2D()
-    for (let y = 0; y < height; y++) {
-        let runStart = -1
-        for (let x = 0; x <= width; x++) {
-            const w = x < width && wall(x, y)
-            if (w && runStart < 0) runStart = x
-            if (!w && runStart >= 0) {
-                walls.rect(offset.x + runStart * zoom, offset.y + y * zoom, (x - runStart) * zoom, zoom)
-                runStart = -1
-            }
-        }
-    }
+    for (let y = 0; y < height; y++) addRowRuns(walls, y, 0, width, x => wall(x, y), zoom, offset)
     ctx.fillStyle = COLORS.WALL
     ctx.fill(walls)
 }
@@ -656,23 +646,12 @@ export function drawZoneOverlay(
     ctx.shadowBlur = 3
     for (const zone of zones) {
         if (!zone.name || zone.vertices.length < 3) continue
-        const cx = zone.vertices.reduce((sum, v) => sum + v[0], 0) / zone.vertices.length
-        const cy = zone.vertices.reduce((sum, v) => sum + v[1], 0) / zone.vertices.length
+        const [cx, cy] = calcRelevancy(zone.vertices)
         ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.6
         ctx.fillStyle = '#ffffff'
         ctx.fillText(zone.name, offset.x + cx * mapSize.width * zoom, offset.y + cy * mapSize.height * zoom)
     }
     ctx.restore()
-}
-
-// is the normalised point inside the polygon (ray casting)
-export function pointInZone([x, y]: Point, zone: Zone): boolean {
-    let inside = false
-    const v = zone.vertices
-    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
-        if ((v[i][1] > y) !== (v[j][1] > y) && x < (v[j][0] - v[i][0]) * (y - v[i][1]) / (v[j][1] - v[i][1]) + v[i][0]) inside = !inside
-    }
-    return inside
 }
 
 // Coverage over several runs: free floor shaded by how many of the runs cleaned it (four steps,

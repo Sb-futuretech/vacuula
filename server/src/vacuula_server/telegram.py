@@ -14,11 +14,11 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
 from functools import cache
 
 from vacuula_server.constants import BASE_DIR
 from vacuula_server.db import get_session
+from vacuula_server.gen3.protocol import parse_time as _time
 from vacuula_server.generation import get_robot_by_serial
 from vacuula_server.models.telegram import TelegramRobot
 
@@ -190,13 +190,6 @@ def _code_text(code: str | None) -> str:
     if not code:
         return "unknown"
     return _code_texts().get(code) or code.replace("_", " ")
-
-
-def _time(value: str | None) -> datetime | None:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
-    except ValueError:
-        return None
 
 
 def _run_text(name: str, data: dict) -> str:

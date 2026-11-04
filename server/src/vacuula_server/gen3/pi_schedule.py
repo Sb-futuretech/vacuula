@@ -22,6 +22,7 @@ from vacuula_server.db import get_session
 from vacuula_server.gen3 import zone_queue
 from vacuula_server.gen3.commands import ask
 from vacuula_server.gen3.data import Gen3Data, Gen3PiSchedule
+from vacuula_server.gen3.protocol import CATEGORY_MAP, MODE_ECO, NAV_DEEP, STATE_IDLE
 from vacuula_server.server_tz import server_timezone
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,6 @@ PAUSE_BEFORE_S = 60    # the robot's own schedule is switched off this long befo
 RESUME_AFTER_S = 120   # ... and on again this long after it
 START_WINDOW_S = 120   # a start missed by more than this (server was down) is not made up
 OVERLAP_MIN = 15       # a robot event this close to a server entry is its fallback
-
-MODE_ECO, NAV_DEEP = 1, 3
-STATE_IDLE = 1
 
 
 # ---- entries --------------------------------------------------------------------------------------
@@ -193,7 +191,7 @@ def _start(entry: Gen3PiSchedule, start: datetime) -> None:
         if not ok:
             skipped(msg)
         return
-    params = {"category": 4, "mode": entry.mode, "navigationMode": entry.navigation_mode}
+    params = {"category": CATEGORY_MAP, "mode": entry.mode, "navigationMode": entry.navigation_mode}
     if zones:
         params |= {"mapId": zones[0]["mapId"], "boundaryId": zones[0]["boundaryId"]}
     reply = ask(serial, {"cmd": "startCleaning", "params": params})

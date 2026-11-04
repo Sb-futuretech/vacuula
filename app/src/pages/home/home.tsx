@@ -8,7 +8,7 @@ import { TbAdjustments, TbLeaf, TbHome } from 'react-icons/tb'
 import { FaBell, FaFan, FaStop, FaLock } from 'react-icons/fa'
 import { HiMap } from "react-icons/hi2";
 import { CleaningCategory, CleaningMode, CleaningNavigationMode } from '../../types/neato/gen3/state'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { TbSteeringWheel } from 'react-icons/tb'
 import Drawer from '../../components/drawer/drawer'
@@ -29,9 +29,9 @@ import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import { Http } from '../../http'
 import type { NoGoLine, Zone } from '../../components/map/types'
 import { usePersistentMaps } from '../../loaders/resources'
-import { fetchAllGen3Boundaries, getCachedZones } from '../../loaders/gen3Boundaries'
+import { fetchAllGen3Boundaries, gen3ZoneOptions, getCachedZones, splitZoneValue } from '../../loaders/gen3Boundaries'
 import { isDocked, isGen4D10 } from '../../components/topbar/robotInfo'
-import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
+import { GEN3_MODE_KEY, GEN3_NAV_KEY, gen3CleaningModeHelp, gen3NavigationHelp, getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
 
 
 interface AlertCardProps {
@@ -133,24 +133,17 @@ function CtrlBtn({ icon, label, selection, disabled, onClick }: { icon: React.Re
 const BELL_MS = 5 * 2500;
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-// Gen3 cleaning options shown in the Home picker sheets, with their help-text keys.
-const NAV_OPTIONS = [
-    { value: CleaningNavigationMode.NORMAL, label: 'modes.normal', help: 'modeHelp.navigation.normal' },
-    { value: CleaningNavigationMode.EXTRA_CARE, label: 'modes.extraCare', help: 'modeHelp.navigation.extraCare' },
-    { value: CleaningNavigationMode.DEEP, label: 'modes.deep', help: 'modeHelp.navigation.deep' },
-] as const
-const CLEAN_OPTIONS = [
-    { value: CleaningMode.ECO, label: 'modes.eco', help: 'modeHelp.cleaning.eco' },
-    { value: CleaningMode.NORMAL, label: 'modes.normal', help: 'modeHelp.cleaning.normal' },
-] as const
+// Gen3 cleaning options shown in the Home picker sheets (names and help: utils/modes)
+const NAV_OPTIONS = [CleaningNavigationMode.NORMAL, CleaningNavigationMode.EXTRA_CARE, CleaningNavigationMode.DEEP]
+const CLEAN_OPTIONS = [CleaningMode.ECO, CleaningMode.NORMAL]
 const navIconFor = (v: CleaningNavigationMode, size = 22) =>
     v === CleaningNavigationMode.EXTRA_CARE ? <MdOutlineHealthAndSafety color='var(--warn)' size={size} /> :
         v === CleaningNavigationMode.DEEP ? <MdAutoAwesome color='var(--violet)' size={size} /> :
             <MdCleaningServices color='var(--accent)' size={size} />
 const cleanIconFor = (v: CleaningMode, size = 22) =>
     v === CleaningMode.NORMAL ? <FaFan size={size} color='orange' /> : <TbLeaf size={size} color='lime' />
-const navName = (v: CleaningNavigationMode) => NAV_OPTIONS.find(o => o.value === v)?.label ?? 'modes.normal'
-const cleanName = (v: CleaningMode) => CLEAN_OPTIONS.find(o => o.value === v)?.label ?? 'modes.eco'
+const navName = (v: CleaningNavigationMode) => `modes.${GEN3_NAV_KEY[v] ?? 'normal'}`
+const cleanName = (v: CleaningMode) => `modes.${GEN3_MODE_KEY[v] ?? 'eco'}`
 
 export default function Home() {
     const { lastHeartbeat, getGen3State } = useApp()
@@ -224,9 +217,7 @@ export default function Home() {
     const [selectedZones, setSelectedZones] = useState<string[]>([])
     const [nogoEnabled, setNogoEnabled] = useState<boolean>(true)
 
-    const zoneOptions = (persistentMaps ?? [])
-        .filter(m => 'enabled' in m && m.enabled)
-        .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: `${m.id}||:||${z.id}`, label: `${m.name} - ${z.name}` })))
+    const zoneOptions = gen3ZoneOptions(robot.serial, persistentMaps)
 
     if (!isDocked(robot) && gen3__cleaningCategory === CleaningCategory.MAP ) gen3__setCleaningCategory(CleaningCategory.HOUSE)
 
@@ -255,6 +246,20 @@ export default function Home() {
         if (c.navigationMode === CleaningNavigationMode.DEEP) parts.push(t('modes.deep'))
         return parts.join(' · ')
     })()
+
+    // one option in the cleaning sheet; blockedReason: why it can't be picked now
+    const pickRow = (value: number, icon: ReactNode, label: string, help: string, sel: boolean, blockedReason: 'home.cleaningReasonEco' | 'home.cleaningReasonDeep' | null, onClick: () => void) => (
+        <button key={value} disabled={!!blockedReason}
+            className={`${styles.pickRow} ${sel ? styles.pickSel : ''} ${blockedReason ? styles.pickBlocked : ''}`}
+            onClick={onClick}>
+            <span className={styles.pickIcon}>{icon}</span>
+            <span className={styles.pickText}>
+                <span className={styles.pickName}>{t(label as any)}{sel && <span className={styles.pickCheck}>✓</span>}</span>
+                <span className={styles.pickDesc}>{t(help as any)}</span>
+                {blockedReason && <span className={styles.pickReason}><FaLock size={11} /> {t(blockedReason)}</span>}
+            </span>
+        </button>
+    )
 
     return (
         <div className={styles.home}>
@@ -449,14 +454,14 @@ export default function Home() {
                                     ) cat = CleaningCategory.HOUSE; // fallback to house if no maps exist
 
                                     if (cat === CleaningCategory.MAP && selectedZones.length === 1 && isDocked(robot)) {
-                                        const [mapId, zoneId] = selectedZones[0].split('||:||')
+                                        const [mapId, zoneId] = splitZoneValue(selectedZones[0])
                                         GEN3_COMMANDS.startCleaningZone(robot.serial, mapId, zoneId, gen3__cleaningMode, gen3__navigationMode)
                                         return
                                     }
                                     // several zones: cleaned in the order they were tapped
                                     if (cat === CleaningCategory.MAP && selectedZones.length > 1 && isDocked(robot)) {
                                         const zones = selectedZones.map(z => {
-                                            const [mapId, boundaryId] = z.split('||:||')
+                                            const [mapId, boundaryId] = splitZoneValue(z)
                                             return { mapId, boundaryId, name: zoneOptions.find(o => o.value === z)?.label }
                                         })
                                         GEN3_COMMANDS.startCleaningZones(robot.serial, zones, gen3__cleaningMode, gen3__navigationMode)
@@ -626,42 +631,16 @@ export default function Home() {
             <Drawer open={cleaningDrawerOpen} handle={false} onOpenChange={setCleaningDrawerOpen} title={t('home.btnExplain.cleaning')}>
                 <div className={styles.drawerContent}>
                     <div className={styles.pickSection}>{t('home.cleaningSuction')}</div>
-                    {CLEAN_OPTIONS.map(o => {
-                        // Gen3 rejects Deep together with Eco: block Eco while Deep is on, don't flip silently
-                        const blocked = o.value === CleaningMode.ECO && gen3__navigationMode === CleaningNavigationMode.DEEP
-                        const sel = gen3__cleaningMode === o.value
-                        return (
-                            <button key={o.value} disabled={blocked}
-                                className={`${styles.pickRow} ${sel ? styles.pickSel : ''} ${blocked ? styles.pickBlocked : ''}`}
-                                onClick={() => gen3__setCleaningMode(o.value)}>
-                                <span className={styles.pickIcon}>{cleanIconFor(o.value)}</span>
-                                <span className={styles.pickText}>
-                                    <span className={styles.pickName}>{t(o.label)}{sel && <span className={styles.pickCheck}>✓</span>}</span>
-                                    <span className={styles.pickDesc}>{t(o.help as any)}</span>
-                                    {blocked && <span className={styles.pickReason}><FaLock size={11} /> {t('home.cleaningReasonEco')}</span>}
-                                </span>
-                            </button>
-                        )
-                    })}
+                    {/* Gen3 rejects Deep together with Eco: block Eco while Deep is on, don't flip silently */}
+                    {CLEAN_OPTIONS.map(v => pickRow(v, cleanIconFor(v), cleanName(v), gen3CleaningModeHelp(v), gen3__cleaningMode === v,
+                        v === CleaningMode.ECO && gen3__navigationMode === CleaningNavigationMode.DEEP ? 'home.cleaningReasonEco' : null,
+                        () => gen3__setCleaningMode(v)))}
 
                     <div className={styles.pickSection}>{t('schedule.navigation')}</div>
-                    {NAV_OPTIONS.map(o => {
-                        // Deep needs full suction: block Deep while Eco is on
-                        const blocked = o.value === CleaningNavigationMode.DEEP && gen3__cleaningMode === CleaningMode.ECO
-                        const sel = gen3__navigationMode === o.value
-                        return (
-                            <button key={o.value} disabled={blocked}
-                                className={`${styles.pickRow} ${sel ? styles.pickSel : ''} ${blocked ? styles.pickBlocked : ''}`}
-                                onClick={() => gen3__setNavigationMode(o.value)}>
-                                <span className={styles.pickIcon}>{navIconFor(o.value)}</span>
-                                <span className={styles.pickText}>
-                                    <span className={styles.pickName}>{t(o.label)}{sel && <span className={styles.pickCheck}>✓</span>}</span>
-                                    <span className={styles.pickDesc}>{t(o.help as any)}</span>
-                                    {blocked && <span className={styles.pickReason}><FaLock size={11} /> {t('home.cleaningReasonDeep')}</span>}
-                                </span>
-                            </button>
-                        )
-                    })}
+                    {/* Deep needs full suction: block Deep while Eco is on */}
+                    {NAV_OPTIONS.map(v => pickRow(v, navIconFor(v), navName(v), gen3NavigationHelp(v), gen3__navigationMode === v,
+                        v === CleaningNavigationMode.DEEP && gen3__cleaningMode === CleaningMode.ECO ? 'home.cleaningReasonDeep' : null,
+                        () => gen3__setNavigationMode(v)))}
 
                     <button className={styles.okButton} onClick={() => setCleaningDrawerOpen(false)}>{t('common.ok')}</button>
                 </div>

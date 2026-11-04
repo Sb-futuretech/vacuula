@@ -19,17 +19,16 @@ import { useTranslation } from 'react-i18next'
 import { dayKey } from '../../i18n/days'
 import { usePersistentMaps } from '../../loaders/resources'
 import type { UseState } from '../../components/map/types'
-import { fetchAllGen3Boundaries, getCachedZones, isGen3MapCached } from '../../loaders/gen3Boundaries'
+import { fetchAllGen3Boundaries, gen3ZoneOptions, getCachedZones, isGen3MapCached, splitZoneValue, zoneValue } from '../../loaders/gen3Boundaries'
 import { Http, type PiScheduleEntry, type RobotStats } from '../../http'
-import { gen3CleaningModeHelp, gen3NavigationHelp } from '../../utils/modes'
+import { GEN3_MODE_KEY, GEN3_NAV_KEY, gen3CleaningModeHelp, gen3NavigationHelp } from '../../utils/modes'
 import { useMascot } from '../../mascot'
 
 import WeekView from './weekView'
-import { buildWeek, estimateMinutes, groupEvents, hhmm, minutesOf, mondayFirst, nextRun, OVERLAP_MIN, overlapsWith, WEEK, zoneOf,
+import { formatHHMM } from '../../utils/clockTime'
+import { buildWeek, estimateMinutes, groupEvents, minutesOf, mondayFirst, nextRun, OVERLAP_MIN, overlapsWith, WEEK, zoneOf,
     type RobotGroup } from './week'
 
-const NAV_KEYS: Record<number, string> = { [CleaningNavigationMode.NORMAL]: 'normal', [CleaningNavigationMode.EXTRA_CARE]: 'extraCare', [CleaningNavigationMode.DEEP]: 'deep' }
-const ZONE_SEP = '||'
 
 // what the drawer edits: nothing (a new entry), a Pi entry or a group of robot events
 type Editing = { kind: 'pi', entry: PiScheduleEntry } | { kind: 'robot', group: RobotGroup } | null
@@ -62,10 +61,7 @@ function ScheduleGen3() {
         fetchAllGen3Boundaries(robot.serial, persistentMaps).then(() => setZonesLoaded(n => n + 1))
     }, [robot.serial, persistentMaps])
 
-    // value "mapId||zoneId": a Pi entry needs the map, a robot event only the zone
-    const zoneOptions = (persistentMaps ?? [])
-        .filter(m => 'enabled' in m && m.enabled)
-        .flatMap(m => getCachedZones(robot.serial, m.id).map(z => ({ value: `${m.id}${ZONE_SEP}${z.id}`, label: `${m.name} - ${z.name}` })))
+    const zoneOptions = gen3ZoneOptions(robot.serial, persistentMaps)
 
 
     type ScheduleForm = { startTime: string, mode: CleaningMode, navigationMode: CleaningNavigationMode, zones: string[] }
@@ -131,7 +127,7 @@ function ScheduleGen3() {
         setEditing({ kind: 'pi', entry })
         SetScheduleForm({
             startTime: entry.startTime, mode: entry.mode, navigationMode: entry.navigationMode,
-            zones: entry.zones.map(z => `${z.mapId}${ZONE_SEP}${z.boundaryId}`),
+            zones: entry.zones.map(z => zoneValue(z.mapId, z.boundaryId)),
         })
         setDays(entry.days)
         setDrawerOpen(true)
@@ -141,8 +137,8 @@ function ScheduleGen3() {
         setEditing({ kind: 'robot', group })
         // built from the event itself, so the zone is kept even before the zone list has loaded
         const mapId = group.events.find(e => e.mapId)?.mapId
-        const zone = group.zoneId && (zoneOptions.find(o => o.value.endsWith(`${ZONE_SEP}${group.zoneId}`))?.value
-            ?? `${mapId ?? ''}${ZONE_SEP}${group.zoneId}`)
+        const zone = group.zoneId && (zoneOptions.find(o => splitZoneValue(o.value)[1] === group.zoneId)?.value
+            ?? zoneValue(mapId ?? '', group.zoneId))
         SetScheduleForm({ startTime: group.startTime, mode: group.mode, navigationMode: CleaningNavigationMode.NORMAL, zones: zone ? [zone] : [] })
         setDays(group.days)
         setDrawerOpen(true)
@@ -164,7 +160,7 @@ function ScheduleGen3() {
             const entry = {
                 days, startTime: scheduleForm.startTime, mode: scheduleForm.mode, navigationMode: scheduleForm.navigationMode,
                 zones: scheduleForm.zones.map(value => {
-                    const [mapId, boundaryId] = value.split(ZONE_SEP)
+                    const [mapId, boundaryId] = splitZoneValue(value)
                     return { mapId, boundaryId, name: zoneOptions.find(o => o.value === value)?.label ?? '' }
                 }),
             }
@@ -178,7 +174,7 @@ function ScheduleGen3() {
                 .finally(() => { getPiEntries(); if (editedRobotEvents.length) getSchedule() })
             return
         }
-        const zone = scheduleForm.zones[0]?.split(ZONE_SEP)[1]
+        const zone = scheduleForm.zones[0] && splitZoneValue(scheduleForm.zones[0])[1]
         const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = robotEvents.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
@@ -215,8 +211,8 @@ function ScheduleGen3() {
 
     const dayName = (d: number) => t(`days.${dayKey(d)}` as any)
     const shortDay = (d: number) => t(`daysShort.${dayKey(d)}` as any)
-    const modeText = (mode: CleaningMode, nav: CleaningNavigationMode) => t(`modes.${mode === CleaningMode.ECO ? 'eco' : 'normal'}` as any)
-        + (nav !== CleaningNavigationMode.NORMAL ? ` · ${t(`modes.${NAV_KEYS[nav] ?? 'normal'}` as any)}` : '')
+    const modeText = (mode: CleaningMode, nav: CleaningNavigationMode) => t(`modes.${GEN3_MODE_KEY[mode] ?? 'normal'}` as any)
+        + (nav !== CleaningNavigationMode.NORMAL ? ` · ${t(`modes.${GEN3_NAV_KEY[nav] ?? 'normal'}` as any)}` : '')
     // names from the maps as they are now. Until every map's zones are loaded, a zone not found yet keeps
     // the name it was saved with; once they are, it is gone from the maps: "unknown zone".
     const zoneNameById = new Map((persistentMaps ?? []).flatMap(m => getCachedZones(robot.serial, m.id).map(z => [z.id, z.name] as const)))
@@ -238,8 +234,9 @@ function ScheduleGen3() {
     const dayWord = (daysAhead: number, day: number) => daysAhead === 0 ? t('schedule.week.today') : daysAhead === 1 ? t('schedule.week.tomorrow') : dayName(day)
 
     // the drawer's entry: how long it takes and what it runs into
-    const formZoneIds = scheduleForm.zones.map(value => value.split(ZONE_SEP)[1])
+    const formZoneIds = scheduleForm.zones.map(value => splitZoneValue(value)[1])
     const formMinutes = estimate(scheduleForm.mode, needsPi ? scheduleForm.navigationMode : CleaningNavigationMode.NORMAL, formZoneIds)
+    const formFallbacks = scheduleForm.startTime ? fallbacks(days, scheduleForm.startTime) : []
     const formOverlaps = scheduleForm.startTime && days.length
         ? overlapsWith(week, days, minutesOf(scheduleForm.startTime), formMinutes, needsPi,
             s => editing?.kind === 'pi' ? s.pi?.id === editing.entry.id : editing?.kind === 'robot' ? s.group?.key === editing.group.key : false)
@@ -260,8 +257,8 @@ function ScheduleGen3() {
     const details = selectedSlot ? (
         <div className={styles.details} ref={detailsRef}>
             <span className={styles.detailsTitle}>
-                {dayName(selectedSlot.day)} {hhmm(selectedSlot.start)}
-                {selectedSlot.minutes != null && ` – ${hhmm(selectedSlot.start + selectedSlot.minutes)}`}
+                {dayName(selectedSlot.day)} {formatHHMM(selectedSlot.start)}
+                {selectedSlot.minutes != null && ` – ${formatHHMM(selectedSlot.start + selectedSlot.minutes)}`}
             </span>
             <span>{zonesText(selectedSlot)} · {modeText(selectedSlot.mode, selectedSlot.navigationMode)} · {lengthText(selectedSlot.minutes)}</span>
             <span className={styles.type}>
@@ -278,7 +275,7 @@ function ScheduleGen3() {
             )}
             {selectedSlot.overlaps.length > 0 && (
                 <span className={styles.warnNote}>
-                    <FaExclamationTriangle /> {t('schedule.week.overlap', { times: selectedSlot.overlaps.map(o => hhmm(o.start)).join(', ') })}
+                    <FaExclamationTriangle /> {t('schedule.week.overlap', { times: selectedSlot.overlaps.map(o => formatHHMM(o.start)).join(', ') })}
                 </span>
             )}
             <div className={styles.detailsActions}>
@@ -327,7 +324,7 @@ function ScheduleGen3() {
                     <span className={styles.nextLabel}>{t('schedule.week.next')}{next && ` · ${inText(next.minutesUntil)}`}</span>
                     {next ? (
                         <>
-                            <span className={styles.nextWhen}>{dayWord(next.daysAhead, next.slot.day)} {hhmm(next.slot.start)}</span>
+                            <span className={styles.nextWhen}>{dayWord(next.daysAhead, next.slot.day)} {formatHHMM(next.slot.start)}</span>
                             <span className={styles.type}>
                                 {zonesText(next.slot)} · {modeText(next.slot.mode, next.slot.navigationMode)}
                                 {next.slot.minutes != null && ` · ${t('schedule.week.about', { minutes: next.slot.minutes })}`}
@@ -425,7 +422,7 @@ function ScheduleGen3() {
 
                     <span className={styles.note}>
                         {formMinutes != null
-                            ? t('schedule.week.takes', { minutes: formMinutes }) + (scheduleForm.startTime ? ` (${scheduleForm.startTime} – ${hhmm(minutesOf(scheduleForm.startTime) + formMinutes)})` : '')
+                            ? t('schedule.week.takes', { minutes: formMinutes }) + (scheduleForm.startTime ? ` (${scheduleForm.startTime} – ${formatHHMM(minutesOf(scheduleForm.startTime) + formMinutes)})` : '')
                             : t('schedule.week.noEstimateLong')}
                     </span>
 
@@ -441,9 +438,7 @@ function ScheduleGen3() {
                     {needsPi && (
                         <span className={styles.note}>
                             <FaServer size={12} /> {t('schedule.runsOnPi', { what: t(piNeedsNavigation && piNeedsZones ? 'schedule.piWhatBoth' : piNeedsNavigation ? 'schedule.piWhatNavigation' : 'schedule.piWhatZones') })}
-                            {scheduleForm.startTime && fallbacks(days, scheduleForm.startTime).length > 0 && (
-                                <> {t('schedule.fallbackNote', { times: fallbacks(days, scheduleForm.startTime).join(', ') })}</>
-                            )}
+                            {formFallbacks.length > 0 && <> {t('schedule.fallbackNote', { times: formFallbacks.join(', ') })}</>}
                         </span>
                     )}
 
@@ -453,7 +448,7 @@ function ScheduleGen3() {
 
                     {formOverlaps.length > 0 && (
                         <span className={`${styles.note} ${styles.warnNote}`}>
-                            <FaExclamationTriangle /> {t('schedule.week.formOverlap', { times: formOverlaps.map(o => `${shortDay(o.day)} ${hhmm(o.start)}`).join(', ') })}
+                            <FaExclamationTriangle /> {t('schedule.week.formOverlap', { times: formOverlaps.map(o => `${shortDay(o.day)} ${formatHHMM(o.start)}`).join(', ') })}
                         </span>
                     )}
                 </div>

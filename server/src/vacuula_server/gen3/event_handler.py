@@ -10,6 +10,9 @@ import typing
 
 logger = logging.getLogger(__name__)
 
+# modules told about every robot state, in this order
+STATE_LISTENERS = (zone_queue, notifications, run_zone, run_segments)
+
 def robot_message(serial: str, data: bytes):
     """Handle one whole message from the robot (see gen3.chunked): a heartbeat or a JSON object."""
     data = data.strip()
@@ -32,16 +35,10 @@ def robot_message(serial: str, data: bytes):
     logger.debug("robot_data: serial=%s eventId=%s reqId=%s data=%s", serial, eventId, reqId, data)
 
     # state comes at the top level of command replies and under `data` in state events
-    if decoded.get("type") == "state":
-        zone_queue.on_state(serial, decoded.get("data") or {})
-        notifications.on_state(serial, decoded.get("data") or {})
-        run_zone.on_state(serial, decoded.get("data") or {})
-        run_segments.on_state(serial, decoded.get("data") or {})
-    elif "state" in decoded:
-        zone_queue.on_state(serial, decoded)
-        notifications.on_state(serial, decoded)
-        run_zone.on_state(serial, decoded)
-        run_segments.on_state(serial, decoded)
+    robot_state = (decoded.get("data") or {}) if decoded.get("type") == "state" else decoded if "state" in decoded else None
+    if robot_state is not None:
+        for listener in STATE_LISTENERS:
+            listener.on_state(serial, robot_state)
 
     if reqId in pending_requests:
         slot = pending_requests.get(reqId)

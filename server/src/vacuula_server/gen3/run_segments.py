@@ -11,7 +11,8 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-STATE_BUSY = 2
+from vacuula_server.gen3.protocol import STATE_BUSY, timestamp as _ts
+
 # house, spot, map (zone) cleaning, and a mapping run (it vacuums too)
 CLEANING_ACTIONS = {1, 2, 11, 12}
 # state times are the server's clock, run times the robot's: allow a little either way
@@ -38,13 +39,6 @@ def on_state(serial: str, data: dict) -> None:
         done = [s for s in _done.get(serial, []) if s["end"] > now - KEEP_S]
         done.append({**current, "end": now, "charge_end": charge})
         _done[serial] = done
-
-
-def _ts(value: str | None) -> float | None:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() if value else None
-    except ValueError:
-        return None
 
 
 def _iso(ts: float) -> str:

@@ -4,6 +4,7 @@ import { FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowUp, FaStop } from 'react
 import styles from './drive.module.scss'
 import { Http, type DriveCombo } from '../../http'
 import { useRobot } from '../../context/useRobot'
+import { serverError } from '../../components/toast/toast'
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
@@ -40,7 +41,7 @@ export default function Drive() {
 
     const fail = (err: any) => {
         setStatus('error')
-        setError(err?.response?.data?.error ?? String(err))
+        setError(serverError(err))
     }
 
     // connect when the page opens, leave manual mode when it closes

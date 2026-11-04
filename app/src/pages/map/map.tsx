@@ -89,7 +89,9 @@ export default () => {
     // the map shown: picked with the chip on top; the tab opens on the last one picked, else an active one
     const [switcherOpen, setSwitcherOpen] = useState(false)
     const currentMap = persistentMaps?.find(m => m.id === persistentMap)
+    const floorplan = currentMap as Floorplan | undefined // gen4 fields of the shown map
     const isActive = (m: NonNullable<typeof persistentMaps>[number]) => 'enabled' in m ? m.enabled : !!m.promoted
+    const offMaps = persistentMaps?.filter(m => !isActive(m)) ?? []
     const lastMapKey = `map.last.${robot.serial}`
     const chooseMap = (id: string) => {
         setPersistentMap(id)
@@ -340,8 +342,8 @@ export default () => {
         ? Math.max(0, Math.min(GEN3_MAX_POINTS_PER_BOUNDARY,
             currentLinePoints.length + Math.floor((GEN3_REPLY_LIMIT - draftBytes) / GEN3_POINT_BYTES)))
         : undefined
-    const minFeatureBytes = (kind: BoundaryTypes) => kind === BoundaryTypes.NOGO_LINE
-        ? gen3FeatureBytes('polyline', 2) : gen3FeatureBytes('polygon', 3)
+    const lineBytes = gen3FeatureBytes('polyline', 2) // the smallest line
+    const minFeatureBytes = (kind: BoundaryTypes) => kind === BoundaryTypes.NOGO_LINE ? lineBytes : gen3FeatureBytes('polygon', 3)
     const kindBlocked = (kind: BoundaryTypes) => isGen3 && minFeatureBytes(kind) > bytesLeft
 
     // Done: a line needs 2 points, a zone 3 (Done closes it)
@@ -462,7 +464,7 @@ export default () => {
                         maxPoints={editMaxPoints}
                         selectedPoint={selectedPoint}
                         setSelectedPoint={setSelectedPoint}
-                        mmPerPixel={(currentMap as Floorplan | undefined)?.resolution}
+                        mmPerPixel={floorplan?.resolution}
                         boundaries={boundaries}
                         onBoundaryTap={onBoundaryTap}
                         onAddHere={(at) => { if (!canEdit) return; setPendingCenter(at); setFeatureChooserOpen(true) }}
@@ -493,8 +495,7 @@ export default () => {
                 {mode === 'boundary-edit' && (selectedPoint === null || !currentLinePoints[selectedPoint]) && (
                     <div className={`${styles.mapBar} ${styles.drawing}`}>
                         <div className={styles.drawBar}>
-                            <strong>{editForm.zoneType === BoundaryTypes.NOGO_LINE ? t('map.noGoLine')
-                                : editForm.zoneType === BoundaryTypes.NOGO_ZONE ? t('map.noGoZone') : t('map.cleaningZone')}</strong>
+                            <strong>{t(FEATURE_TEXT[editForm.zoneType].name)}</strong>
                             {editMaxPoints !== undefined && (
                                 <span className={currentLinePoints.length >= editMaxPoints ? styles.drawLimit : ''}>
                                     {t('map.drawPoints', { count: currentLinePoints.length, max: editMaxPoints })}
@@ -564,8 +565,7 @@ export default () => {
                             updatePersistentMap(mapEditform);
                         }} />
                         {robot.type === RobotType.NeatoGen4 &&
-                            (currentMap as Floorplan | undefined)?.in_maps_list &&
-                            !(currentMap as Floorplan | undefined)?.promoted && (
+                            floorplan?.in_maps_list && !floorplan.promoted && (
                                 <div style={{ padding: '1rem 0' }}>
                                     <Button text={t('map.stopUsingAsFloormap')} style='fail' onClick={() =>
                                         withFeedback(Http.postUnuseMapAsFloorPlan(robot.serial, persistentMap)).then(() => {
@@ -616,7 +616,7 @@ export default () => {
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
                             {robot.type === RobotType.NeatoGen4 ? (
-                                currentMap && <PromoteDemoteBtn robot={robot} map={currentMap as Floorplan} onSuccess={updatePersistentMaps} />
+                                floorplan && <PromoteDemoteBtn robot={robot} map={floorplan} onSuccess={updatePersistentMaps} />
                             ) : (
                                 <span>{(currentMap as Neato.Gen3.PersistentMap | undefined)?.enabled ? t('common.enabled') : t('common.disabled')}</span>
                             )}
@@ -662,12 +662,12 @@ export default () => {
                         {isGen3 && canEdit && (
                             <div className={styles.budget}>
                                 <div className={styles.budgetBar}>
-                                    <i className={bytesLeft < gen3FeatureBytes('polyline', 2) ? styles.budgetFull : ''}
+                                    <i className={bytesLeft < lineBytes ? styles.budgetFull : ''}
                                         style={{ width: `${Math.min(100, bytesUsed / GEN3_REPLY_LIMIT * 100)}%` }} />
                                 </div>
                                 <p className={styles.tapHint}>
                                     {t('map.byteBudget', { used: bytesUsed, max: GEN3_REPLY_LIMIT })}
-                                    {' '}{t('map.byteBudgetLines', { count: Math.max(0, Math.floor(bytesLeft / gen3FeatureBytes('polyline', 2))) })}
+                                    {' '}{t('map.byteBudgetLines', { count: Math.max(0, Math.floor(bytesLeft / lineBytes)) })}
                                 </p>
                             </div>
                         )}
@@ -711,10 +711,10 @@ export default () => {
                 <div className={styles.featureList}>
                     <p className={styles.tapHint}>{t('map.mapsHint')}</p>
                     {persistentMaps?.filter(isActive).map(mapRow)}
-                    {!!persistentMaps?.some(m => !isActive(m)) && (
+                    {offMaps.length > 0 && (
                         <details className={styles.olderMaps}>
-                            <summary>{t('map.mapsOff', { count: persistentMaps.filter(m => !isActive(m)).length })}</summary>
-                            {persistentMaps.filter(m => !isActive(m)).map(mapRow)}
+                            <summary>{t('map.mapsOff', { count: offMaps.length })}</summary>
+                            {offMaps.map(mapRow)}
                         </details>
                     )}
                 </div>
@@ -743,14 +743,8 @@ export default () => {
                                 if (pendingCenter) setCenterOn([...pendingCenter]) // a fresh value re-centres
                                 setPendingCenter(null)
                             }}>
-                            <span className={styles.featureChoiceName}>{
-                                kind === BoundaryTypes.CLEANING_ZONE ? t('map.cleaningZone')
-                                    : kind === BoundaryTypes.NOGO_ZONE ? t('map.noGoZone') : t('map.noGoLine')
-                            }</span>
-                            <span className={styles.featureChoiceDesc}>{
-                                kind === BoundaryTypes.CLEANING_ZONE ? t('map.featureCleaningZoneDesc')
-                                    : kind === BoundaryTypes.NOGO_ZONE ? t('map.featureNoGoZoneDesc') : t('map.featureNoGoLineDesc')
-                            }</span>
+                            <span className={styles.featureChoiceName}>{t(FEATURE_TEXT[kind].name)}</span>
+                            <span className={styles.featureChoiceDesc}>{t(FEATURE_TEXT[kind].desc)}</span>
                             {kindBlocked(kind) && (
                                 <span className={styles.featureChoiceReason}>
                                     {t('map.byteBudgetReason', { left: Math.max(0, bytesLeft), need: minFeatureBytes(kind) })}
@@ -816,6 +810,13 @@ enum BoundaryTypes {
     NOGO_ZONE = 'nogo-zone',
     CLEANING_ZONE = 'cleaning-zone',
 }
+
+// i18n keys of each feature kind: its name, and what it does (feature chooser)
+const FEATURE_TEXT = {
+    [BoundaryTypes.CLEANING_ZONE]: { name: 'map.cleaningZone', desc: 'map.featureCleaningZoneDesc' },
+    [BoundaryTypes.NOGO_ZONE]: { name: 'map.noGoZone', desc: 'map.featureNoGoZoneDesc' },
+    [BoundaryTypes.NOGO_LINE]: { name: 'map.noGoLine', desc: 'map.featureNoGoLineDesc' },
+} as const
 
 interface EditBoundaryDetailsProps {
     currentLinePoints: Point[]

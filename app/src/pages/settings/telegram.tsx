@@ -6,9 +6,8 @@ import Input from '../../components/input/input'
 import Button from '../../components/button/button'
 import { Http, type TelegramChat, type TelegramKind, type TelegramSettings } from '../../http'
 import { useRobot } from '../../context/useRobot'
+import { serverError } from '../../components/toast/toast'
 import styles from './settings.module.scss'
-
-const errorOf = (err: unknown) => (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(err)
 
 export default function TelegramSettingsSection() {
     const { t } = useTranslation()
@@ -29,7 +28,7 @@ export default function TelegramSettingsSection() {
         setMessage(undefined)
         action()
             .then(() => done && setMessage({ ok: true, text: done }))
-            .catch(err => setMessage({ ok: false, text: errorOf(err) }))
+            .catch(err => setMessage({ ok: false, text: serverError(err) }))
             .finally(() => setBusy(false))
     }
     const update = (body: Parameters<typeof Http.updateTelegram>[1], done?: string) =>

@@ -46,3 +46,12 @@ export const isGen3MapCached = (serial: string, mapId: string) => !!gen3Boundari
 
 export const getCachedZones = (serial: string, mapId: string): Zone[] =>
     (gen3Boundaries[k(serial, mapId)] ?? []).filter((b): b is Zone => b.type === 'polygon')
+
+// The zones of the switched-on maps, for the zone pickers (Home, Schedule): value "mapId||zoneId"
+// (a Pi entry needs the map, a robot event only the zone), label "map - zone"
+const ZONE_SEP = '||'
+export const gen3ZoneOptions = (serial: string, maps: { id: string, name: string, enabled?: boolean }[] | undefined) => (maps ?? [])
+    .filter(m => m.enabled)
+    .flatMap(m => getCachedZones(serial, m.id).map(z => ({ value: zoneValue(m.id, z.id), label: `${m.name} - ${z.name}` })))
+export const zoneValue = (mapId: string, zoneId: string) => `${mapId}${ZONE_SEP}${zoneId}`
+export const splitZoneValue = (value: string) => value.split(ZONE_SEP) as [mapId: string, zoneId: string]

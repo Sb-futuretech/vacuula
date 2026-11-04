@@ -20,10 +20,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from vacuula_server.conn import Gen2Gen3Conn
-from vacuula_server.gen3.commands import send_command, hmac_sha256, rfc822_date
+from vacuula_server.gen3.commands import gen3_wfile, send_and_wait, hmac_sha256, rfc822_date
 from vacuula_server.generation import get_gen3_robot_data
-from vacuula_server.state import robot_connections, pending_requests, PendingRequest
 
 logger = logging.getLogger(__name__)
 
@@ -66,17 +64,14 @@ _sessions_lock = threading.Lock()
 def start(serial: str) -> tuple[bool, str]:
     """Put the robot into manual mode and connect to it. Blocks until connected or failed."""
     stop(serial)
-    conn = robot_connections.get(serial)
-    if conn is None or not isinstance(conn.conn, Gen2Gen3Conn):
+    wfile = gen3_wfile(serial)
+    if wfile is None:
         return False, "robot not connected"
 
-    slot = PendingRequest()
     try:
-        key = send_command(conn.conn.wfile, serial, {"cmd": "getRobotManualCleaningInfo"}, slot)
+        slot = send_and_wait(wfile, serial, {"cmd": "getRobotManualCleaningInfo"}, COMMAND_TIMEOUT_S)
     except Exception as e:
         return False, f"failed to send getRobotManualCleaningInfo: {e}"
-    slot.event.wait(COMMAND_TIMEOUT_S)
-    pending_requests.pop(key, None)
     if not slot.event.is_set():
         return False, "robot did not answer getRobotManualCleaningInfo"
     reply = json.loads(slot.content)

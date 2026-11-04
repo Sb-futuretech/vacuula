@@ -6,10 +6,9 @@ for the per-zone statistics. Runs from before this was recorded have no zone.
 """
 from __future__ import annotations
 import time
-from datetime import datetime
 
-STATE_BUSY = 2
-CATEGORY_MAP = 4
+from vacuula_server.gen3.protocol import CATEGORY_MAP, STATE_BUSY, timestamp as _ts
+
 # state times are the server's clock, run times the robot's: allow a little either way
 SLACK_S = 120
 
@@ -27,13 +26,6 @@ def on_state(serial: str, data: dict) -> None:
                          "at": time.time()}
     else:
         _seen[serial] = {"id": None, "at": time.time()}
-
-
-def _ts(value: str | None) -> float | None:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() if value else None
-    except ValueError:
-        return None
 
 
 def for_run(serial: str, run: dict) -> dict | None:

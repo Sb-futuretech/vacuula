@@ -717,7 +717,9 @@
     margin-top: 0.6rem;
 }
 
-.budgetBar {
+// the robot's memory for zones and lines (gen3 byte budget) as a thin bar: in the sheet and the draw bar
+$memory-full: #e8b24a;
+@mixin memory-bar {
     height: 0.6rem;
     border-radius: 0.3rem;
     background: $surface-hover;
@@ -728,9 +730,13 @@
         height: 100%;
         background: $accent;
     }
+}
+
+.budgetBar {
+    @include memory-bar;
 
     .budgetFull {
-        background: #e8b24a;
+        background: $memory-full;
     }
 }
 
@@ -771,19 +777,10 @@
 
 .drawBytes {
     width: 6rem;
-    height: 0.6rem;
-    border-radius: 0.3rem;
-    background: $surface-hover;
-    overflow: hidden;
-
-    i {
-        display: block;
-        height: 100%;
-        background: $accent;
-    }
+    @include memory-bar;
 
     &.full i {
-        background: #e8b24a;
+        background: $memory-full;
     }
 }
 

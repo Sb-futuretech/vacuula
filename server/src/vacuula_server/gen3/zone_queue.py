@@ -18,16 +18,11 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from vacuula_server.conn import Gen2Gen3Conn
-from vacuula_server.gen3.commands import send_command
-from vacuula_server.state import robot_connections, pending_requests, PendingRequest, push_to_app
+from vacuula_server.gen3.commands import gen3_wfile, send_and_wait
+from vacuula_server.gen3.protocol import CATEGORY_MAP, STATE_BUSY, STATE_ERROR, STATE_IDLE
+from vacuula_server.state import push_to_app
 
 logger = logging.getLogger(__name__)
-
-# Gen3 robot `state` values
-STATE_IDLE = 1
-STATE_BUSY = 2
-STATE_ERROR = 4
 
 # Commands from the app that mean the user took over; they end the queue
 CANCELLING_COMMANDS = {"startCleaning", "stopCleaning", "sendToBase"}
@@ -188,14 +183,14 @@ def _start_next(serial: str, q: ZoneQueue) -> None:
 
 def _start_zone(serial: str, q: ZoneQueue) -> tuple[bool, str]:
     zone = q.zones[q.index]
-    conn = robot_connections.get(serial)
-    if conn is None or not isinstance(conn.conn, Gen2Gen3Conn):
+    wfile = gen3_wfile(serial)
+    if wfile is None:
         return False, "robot not connected"
 
     cmd = {
         "cmd": "startCleaning",
         "params": {
-            "category": 4,  # map
+            "category": CATEGORY_MAP,
             "mode": q.mode,
             "navigationMode": q.navigation_mode,
             "mapId": zone.map_id,
@@ -203,14 +198,11 @@ def _start_zone(serial: str, q: ZoneQueue) -> tuple[bool, str]:
         },
     }
     logger.info("Zone queue for %s: starting zone %d/%d %r", serial, q.index + 1, len(q.zones), zone.name or zone.boundary_id)
-    slot = PendingRequest()
     try:
-        key = send_command(conn.conn.wfile, serial, cmd, slot)
+        slot = send_and_wait(wfile, serial, cmd, COMMAND_TIMEOUT_S)
     except Exception as e:
         return False, f"failed to send startCleaning: {e}"
 
-    slot.event.wait(COMMAND_TIMEOUT_S)
-    pending_requests.pop(key, None)
     if not slot.event.is_set():
         return False, "robot did not answer startCleaning"
     try:
