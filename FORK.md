@@ -162,7 +162,8 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
 - *Not released yet* (since sb 1.2.0): the fork's own code simplified (shared helpers, one way
-  to send a robot command and wait), no visible change; not yet run on the robots.
+  to send a robot command and wait), and zones and lines saved explicitly: the map shows a change
+  once the robot has it, and a failed save keeps the drawing.
 - **sb 1.2.0** (2026-11-04): sheets over the whole app, *Saved* / *Not saved* messages, the map tab
   opening on a map with a chip to switch, guided exploring, drawing with a bar on top, and the
   schedule working with the robot offline.
@@ -192,6 +193,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   Done. The map keeps its full height; name and colour come after Done.
 - A map's zones and lines can only be changed once they have loaded; if loading fails, it says so
   with *Try again* (saving an empty or another map's list would replace them on the robot).
+- **A change shows once the robot has it** (saving, switching on/off, deleting). If it fails, all
+  stays as it was and the message says why; a drawing stays open to save again.
 - **Rulers** along the top and left edge, in real distance (cm / m). A ruler button in the zoom
   column switches them on; while drawing they are always on.
 - **Exact point positions:** tap a drawn point to type its X / Y in cm, see its distance to the
@@ -272,6 +275,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
 | 2026-11-04 | [`0fd081b`](https://github.com/Sb-futuretech/vacuula/commit/0fd081b) | App, Server | Simplify the fork's own code: shared helpers instead of copies, less wasted work |
 | 2026-11-04 | [`sb-1.2.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.2.0) | Release | **sb 1.2.0** |
 | 2026-11-04 | [`80f07fb`](https://github.com/Sb-futuretech/vacuula/commit/80f07fb) | App, Map, Schedule | Map switch and failed loads can't overwrite zones; schedule works with the robot offline |
