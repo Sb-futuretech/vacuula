@@ -75,10 +75,8 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
-    // the list last loaded from the robot or server: the save effect sends only lists the user changed.
-    // loadedMapId: the map that list belongs to; until the shown map's load has succeeded nothing can be
-    // edited or saved (a save would replace everything on the robot with an empty or another map's list)
-    const loadedBoundariesRef = useRef<(NoGoLine | Zone)[] | null>(null)
+    // loadedMapId: the map the shown list belongs to; until the shown map's load has succeeded nothing can
+    // be edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const [loadedMapId, setLoadedMapId] = useState<string>()
     const [boundariesFailed, setBoundariesFailed] = useState(false)
     const canEdit = !!persistentMap && loadedMapId === persistentMap
@@ -224,7 +222,6 @@ export default () => {
     useEffect(() => {
         if (!persistentMap) return
         // the previous map's zones must neither show nor be saved under this map
-        loadedBoundariesRef.current = null
         setBoundaries([])
         setLoadedMapId(undefined)
         setBoundariesFailed(false)
@@ -243,8 +240,7 @@ export default () => {
         })
     }
 
-    // an answer for a map that is no longer shown (switched meanwhile) is dropped: taken as the
-    // shown map's boundaries it would be saved to that map
+    // an answer for a map that is no longer shown (switched meanwhile) is dropped
     const shownMapRef = useRef(persistentMap)
     useEffect(() => { shownMapRef.current = persistentMap }, [persistentMap])
     const getMapBoundaries = () => {
@@ -252,7 +248,6 @@ export default () => {
         if (!mapId) return
         const show = (list: (NoGoLine | Zone)[]) => {
             if (shownMapRef.current !== mapId) return
-            loadedBoundariesRef.current = list
             setBoundaries(list)
             setLoadedMapId(mapId)
             setBoundariesFailed(false)
@@ -265,32 +260,39 @@ export default () => {
         }
     }
 
-    useEffect(() => {
-        if (!persistentMap || loadedMapId !== persistentMap || boundaries === loadedBoundariesRef.current) return;
+    // Saving is explicit: the three actions (save a drawing, switch on/off, delete) call saveBoundaries with
+    // the list they want; loading never saves. The shown list changes only once the robot (gen3) or the
+    // server (gen4) has taken it. If not, everything stays as it was (a drawing too) and a message says why.
+    const [saving, setSaving] = useState(false)
+    const saveBoundaries = (next: (NoGoLine | Zone)[]): Promise<void> => {
+        const mapId = persistentMap
+        if (!mapId || loadedMapId !== mapId || saving) return Promise.reject(new Error('not ready to save'))
+        setSaving(true)
+        const show = (list: (NoGoLine | Zone)[]) => { if (shownMapRef.current === mapId) setBoundaries(list) }
+        let request: Promise<unknown>
         if (robot.type === RobotType.NeatoGen4) {
             // a promoted map reaches the robot only by promoting it again: "Saved" once that is done too
             const promoted = !!currentMap && 'promoted' in currentMap && currentMap.promoted
-            withFeedback(Http.postBoundaries(robot.serial, persistentMap, boundaries), promoted ? null : 'common.saved').then(() => {
-                getMapBoundaries();
-                if (promoted) withFeedback(Http.promoteFloorplan(robot.serial, persistentMap), 'common.saved', 'map.notOnRobot')
+            request = withFeedback(Http.postBoundaries(robot.serial, mapId, next), promoted ? null : 'common.saved').then(() => {
+                show(next)
+                getMapBoundaries()
+                if (promoted) withFeedback(Http.promoteFloorplan(robot.serial, mapId), 'common.saved', 'map.notOnRobot')
                     .then(() => updatePersistentMaps(), () => { /* said so */ })
-            }, () => { /* said so */ });
-            return
+            })
+        } else {
+            // The robot keeps each coordinate rounded to 4 decimals (0.40996 -> 0.41) and drops the rest,
+            // so send it exactly that: what the app shows is then what the robot stores. Only the fields
+            // it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer exactly.
+            const stored: (NoGoLine | Zone)[] = next.map(({ id, name, color, type, vertices, enabled }) =>
+                ({ id, name, color, type, vertices: vertices.map(roundPoint), enabled }))
+            const sent = stored.map(b => b.type === 'polygon' ? { ...b, relevancy: roundPoint(calcRelevancy(b.vertices)) } : b)
+            request = withFeedback(GEN3_COMMANDS.setMapBoundaries(robot.serial, mapId, sent)).then(() => {
+                show(stored)
+                setCachedGen3Boundaries(robot.serial, mapId, stored)
+            })
         }
-
-        // The robot keeps each coordinate rounded to 4 decimals (0.40996 -> 0.41) and drops the rest,
-        // so send it exactly that: what the app shows is then what the robot stores. Only the fields
-        // it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer exactly.
-        const updatedBoundaries = boundaries.map(({ id, name, color, type, vertices, enabled }) => {
-            const rounded = vertices.map(roundPoint)
-            return type === 'polygon'
-                ? { id, name, color, type, vertices: rounded, enabled, relevancy: roundPoint(calcRelevancy(rounded)) }
-                : { id, name, color, type, vertices: rounded, enabled }
-        });
-        withFeedback(GEN3_COMMANDS.setMapBoundaries(robot.serial, persistentMap, updatedBoundaries)).then(
-            () => setCachedGen3Boundaries(robot.serial, persistentMap, boundaries),
-            () => getMapBoundaries());
-    }, [boundaries]);
+        return request.then(() => undefined).finally(() => setSaving(false))
+    }
 
     // mode changes
     useEffect(() => {
@@ -353,7 +355,6 @@ export default () => {
 
     const saveEditBoundary = () => {
         if (draftTooBig) return
-        setMode(returnFromEditMode);
         const id = activeBoundaryId ?? uuidv4();
         const updated = {
             id,
@@ -364,7 +365,8 @@ export default () => {
             vertices: currentLinePoints,
             enabled: true
         };
-        setBoundaries(prev => upsertPreserveOrder(prev, updated));
+        // back to where it was opened from only once it is saved; if not, the drawing stays to try again
+        saveBoundaries(upsertPreserveOrder(boundaries, updated)).then(() => setMode(returnFromEditMode), () => { /* said so */ })
     };
 
     const updateForm = <T extends object>(update: UseState<T>, patch: Partial<T>) => {
@@ -372,12 +374,11 @@ export default () => {
     }
 
     const toggleNoGo = (item: NoGoLine | Zone) => {
-        setBoundaries(prev => upsertPreserveOrder(prev, { ...item, enabled: !item.enabled }));
+        saveBoundaries(upsertPreserveOrder(boundaries, { ...item, enabled: !item.enabled })).catch(() => { /* said so */ })
     };
 
     const deleteBoundary = (id: string) => {
-        setBoundaries(prev => prev.filter(boundary => boundary.id !== id));
-        setMode('boundaries')
+        saveBoundaries(boundaries.filter(boundary => boundary.id !== id)).then(() => setMode('boundaries'), () => { /* said so */ })
     };
 
     // select a zone or line, from the list or by tapping it on the map: the panel shows its details
@@ -594,6 +595,7 @@ export default () => {
                         }}
                         supportsZoneType={robot.type === RobotType.NeatoGen4}
                         tooBig={draftTooBig ? { bytes: draftBytes, max: GEN3_REPLY_LIMIT } : undefined}
+                        saving={saving}
                     />
                 )}
 
@@ -833,6 +835,7 @@ interface EditBoundaryDetailsProps {
     supportsZoneType: boolean
     // gen3: the map would be too big for the robot with this feature as it is
     tooBig?: { bytes: number, max: number }
+    saving: boolean // waiting for the robot: no second save meanwhile
 }
 
 const EditBoundaryDetails = (props: EditBoundaryDetailsProps) => {
@@ -889,7 +892,7 @@ const EditBoundaryDetails = (props: EditBoundaryDetailsProps) => {
             )}
             <div className={styles.editBoundaryActionButtons}>
                 <Button text={t('common.cancel')} style='fail' onClick={() => props.cancel()} />
-                <Button text={t('common.save')} style='success' disabled={!!props.tooBig} onClick={() => props.save()} />
+                <Button text={props.saving ? t('common.saving') : t('common.save')} style='success' disabled={!!props.tooBig || props.saving} onClick={() => props.save()} />
             </div>
         </div>
     )

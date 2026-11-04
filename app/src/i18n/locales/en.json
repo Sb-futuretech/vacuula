@@ -1,6 +1,7 @@
 {
     "String-version": "3",
     "common": {
+        "saving": "Saving…",
         "retry": "Try again",
         "notSaved": "Not saved",
         "notStarted": "Not started",
