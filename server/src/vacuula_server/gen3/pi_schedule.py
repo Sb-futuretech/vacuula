@@ -74,6 +74,8 @@ def add(serial: str, entry: dict) -> dict:
         row = Gen3PiSchedule(robot=serial, **entry)
         session.add(row)
         session.commit()
+        logger.info("Server schedule %s of %s added: days %s, %s", row.start_time, serial, row.days,
+                    "on" if row.enabled else "paused")
         return _to_dict(row)
 
 
@@ -82,10 +84,19 @@ def update(serial: str, entry_id: int, entry: dict) -> dict | None:
         row = session.get(Gen3PiSchedule, entry_id)
         if row is None or row.robot != serial:
             return None
+        # what changed, so a run that did not happen can be traced to a pause or other days in the log
+        changes = [f"{k} {_brief(k, getattr(row, k))} -> {_brief(k, v)}" for k, v in entry.items() if getattr(row, k) != v]
         for k, v in entry.items():
             setattr(row, k, v)
         session.commit()
+        if changes:
+            logger.info("Server schedule %s of %s changed: %s", row.start_time, serial, ", ".join(changes))
         return _to_dict(row)
+
+
+def _brief(key: str, value):
+    """A field for the log; zones only as a count."""
+    return f"{len(value or [])} zones" if key == "zones" else value
 
 
 def remove(serial: str, entry_id: int) -> bool:
@@ -93,6 +104,7 @@ def remove(serial: str, entry_id: int) -> bool:
         row = session.get(Gen3PiSchedule, entry_id)
         if row is None or row.robot != serial:
             return False
+        logger.info("Server schedule %s of %s removed", row.start_time, serial)
         session.delete(row)
         session.commit()
         return True

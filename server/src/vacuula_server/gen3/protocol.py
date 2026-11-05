@@ -6,6 +6,9 @@ from datetime import datetime
 STATE_IDLE = 1
 STATE_BUSY = 2
 STATE_ERROR = 4
+# the robot's `action` while it cleans the whole home or a map (with zones); it returns to its base after
+ACTION_HOUSE_CLEANING = 1
+ACTION_MAP_CLEANING = 11
 # `category` of a cleaning: map (with zones)
 CATEGORY_MAP = 4
 # `mode` and `navigationMode` of a cleaning

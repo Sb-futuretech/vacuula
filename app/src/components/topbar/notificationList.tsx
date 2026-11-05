@@ -11,7 +11,7 @@ import type { AppNotification } from '../../http'
 import { robotCodeText } from '../../utils/robotText'
 
 const ICONS: Record<AppNotification['kind'], string> = {
-    run_done: '✅', error: '❌', alert: '⚠️', offline: '🔌', online: '🔌', robot_push: '📣',
+    run_done: '✅', error: '❌', alert: '⚠️', away_from_base: '🏠', offline: '🔌', online: '🔌', robot_push: '📣',
     schedule_overlap: '🗓️', schedule_skipped: '🗓️', schedule_clock: '🕐',
 }
 
@@ -51,6 +51,7 @@ export default function NotificationList({ onOpenRun }: { onOpenRun?: () => void
             }
             case 'error': return { title: t('notifications.error'), detail: robotText(n.code) }
             case 'alert': return { title: t('notifications.alert'), detail: robotText(n.code) }
+            case 'away_from_base': return { title: t('notifications.awayFromBase') }
             case 'offline': return { title: t('notifications.offline', { minutes: d.minutes ?? 5 }) }
             case 'online': return { title: t('notifications.online') }
             case 'schedule_overlap': return {

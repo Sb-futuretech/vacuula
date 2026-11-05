@@ -3,7 +3,7 @@ import logging
 import socket
 import time
 from vacuula_server.gen3.commands import send_chunk, build_heartbeat
-from vacuula_server.state import robot_connections, disconnected_at
+from vacuula_server.state import robot_connections, disconnected_at, fail_pending
 from vacuula_server.handlers.events import notify_robots_changed
 from vacuula_server.gen3.utils import get_robot_serial
 from vacuula_server.db import get_session
@@ -68,6 +68,7 @@ def nucleo_init(req: RouterHandler) -> None:
         reason = f"{type(e).__name__}: {e}"
         logger.debug("Command connection of %s failed", serial, exc_info=True)
     finally:
+        fail_pending(conn.conn.wfile)  # commands sent on it get no answer any more
         now = time.time()
         if robot_connections.get(serial) is conn:
             del robot_connections[serial]

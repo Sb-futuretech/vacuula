@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from vacuula_server.gen3.commands import gen3_wfile, send_and_wait
 from vacuula_server.gen3.protocol import CATEGORY_MAP, STATE_BUSY, STATE_ERROR, STATE_IDLE
-from vacuula_server.state import push_to_app
+from vacuula_server.state import CONNECTION_LOST, push_to_app
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,15 @@ def on_state(serial: str, data: dict) -> None:
         elif robot_state != STATE_IDLE or not q.seen_busy:
             return  # paused, or the start has not taken effect yet
         elif not (data.get("details") or {}).get("isDocked"):
-            reason = "robot stopped away from the dock"
+            if q.index + 1 < len(q.zones):
+                reason = "robot stopped away from the dock"
+            else:  # the last zone is done, the robot just did not get back onto its base (notifications says so)
+                _finish_zone(serial, q)
+                _queues.pop(serial, None)
+                _broadcast(serial, q.status(done=True))
+                logger.info("Zone queue for %s finished %d of %d zones; the robot stopped away from its base",
+                            serial, len(q.results), len(q.zones))
+                return
         else:
             _finish_zone(serial, q)
             if q.skipped or q.index + 1 >= len(q.zones):
@@ -205,6 +213,8 @@ def _start_zone(serial: str, q: ZoneQueue) -> tuple[bool, str]:
 
     if not slot.event.is_set():
         return False, "robot did not answer startCleaning"
+    if slot.status == CONNECTION_LOST:
+        return False, "robot not connected"
     try:
         reply = json.loads(slot.content)
     except Exception:

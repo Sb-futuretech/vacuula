@@ -126,7 +126,7 @@ export interface TelegramChat { id: string, name: string, type: string }
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
-  kind: 'run_done' | 'error' | 'alert' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped' | 'schedule_clock'
+  kind: 'run_done' | 'error' | 'alert' | 'away_from_base' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped' | 'schedule_clock'
   code: string | null // robot error / alert / push message code, or the run id for run_done
   data: Record<string, any>
 }

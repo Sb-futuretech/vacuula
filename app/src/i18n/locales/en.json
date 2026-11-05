@@ -169,6 +169,7 @@
         "runCanceled": "Cleaning stopped",
         "error": "Error",
         "alert": "Alert",
+        "awayFromBase": "Stopped away from its base after cleaning (could not dock?)",
         "offline": "Robot offline for more than {{minutes}} min",
         "online": "Robot back online",
         "robotPush": "Message from the robot",

@@ -21,6 +21,7 @@ import time
 from dataclasses import dataclass, field
 
 from vacuula_server.gen3.commands import gen3_wfile, send_and_wait, hmac_sha256, rfc822_date
+from vacuula_server.state import CONNECTION_LOST
 from vacuula_server.generation import get_gen3_robot_data
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,8 @@ def start(serial: str) -> tuple[bool, str]:
         return False, f"failed to send getRobotManualCleaningInfo: {e}"
     if not slot.event.is_set():
         return False, "robot did not answer getRobotManualCleaningInfo"
+    if slot.status == CONNECTION_LOST:
+        return False, "robot not connected"
     reply = json.loads(slot.content)
     if slot.status != 200:
         return False, f"robot refused manual mode: {reply.get('result')}"

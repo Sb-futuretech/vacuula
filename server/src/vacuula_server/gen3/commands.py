@@ -92,6 +92,7 @@ def send_command(wfile, robot_serial: str, cmd: dict, slot) -> str:
 
     req_id, msg = build_command(robot_serial, cmd)
     key = str(req_id)
+    slot.wfile = wfile
     pending_requests[key] = slot
     try:
         send_chunk(wfile, msg)

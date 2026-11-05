@@ -162,6 +162,7 @@
         "runCanceled": "Limpeza interrompida",
         "error": "Erro",
         "alert": "Alerta",
+        "awayFromBase": "Parou fora da base depois de limpar (n\u00e3o conseguiu acoplar?)",
         "offline": "Robot offline há mais de {{minutes}} min",
         "online": "Robot novamente online",
         "robotPush": "Mensagem do robot",

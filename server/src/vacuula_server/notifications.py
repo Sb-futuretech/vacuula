@@ -1,8 +1,8 @@
 """Notification centre: what happened with a robot, kept so the app can show it later.
 
 Sources: a new robot error or alert (from every state the robot sends), a finished run (its map
-upload), the robot being offline for a while and back, and the robot's own push_notifications
-request. Each new notification is stored and pushed to connected apps as a `notification` event, and
+upload), the robot left idle away from its base after a cleaning, the robot being offline for a while
+and back, and the robot's own push_notifications request. Each new notification is stored and pushed to connected apps as a `notification` event, and
 sent to the robot's Telegram chat if it wants that kind (telegram.py).
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 
 from vacuula_server import telegram
 from vacuula_server.db import get_session
+from vacuula_server.gen3.protocol import ACTION_HOUSE_CLEANING, ACTION_MAP_CLEANING, STATE_BUSY, STATE_IDLE
 from vacuula_server.models.notification import Notification
 from vacuula_server.state import push_to_app, robot_connections
 
@@ -21,6 +22,8 @@ logger = logging.getLogger(__name__)
 KEEP_PER_ROBOT = 300
 # only report the robot as offline if it stays away this long (it reconnects now and then)
 OFFLINE_AFTER_S = 5 * 60
+# a cleaning of the home or a map ends at the base; still idle away from it this long after: report it
+AWAY_AFTER_S = 2 * 60
 # run statuses that mean the run is over (an upload can also arrive mid-run)
 FINISHED_RUN_STATUSES = {"complete", "canceled"}
 
@@ -74,6 +77,7 @@ _UNKNOWN = object()
 
 def on_state(serial: str, data: dict) -> None:
     """Feed every robot state in here; a new error or alert code becomes a notification."""
+    _check_away_from_base(serial, data)
     last = _last_state.setdefault(serial, {})
     for kind in ("error", "alert"):
         if kind not in data:
@@ -119,17 +123,59 @@ def run_uploaded(serial: str, run: dict) -> None:
     })
 
 
+# ---- stopped away from the base --------------------------------------------------------------------
+# serial -> (state, docked) last reported, and whether it was cleaning the home or a map just before
+_position: dict[str, tuple[int | None, bool]] = {}
+_cleaning: dict[str, bool] = {}
+
+
+def _check_away_from_base(serial: str, data: dict) -> None:
+    """After a home or map cleaning the robot drives back to its base. If it is idle away from it a
+    while later (e.g. it did not manage to dock), the user has to fetch it: say so."""
+    state = data.get("state")
+    if state is None:
+        return
+    docked = bool((data.get("details") or {}).get("isDocked"))
+    _position[serial] = (state, docked)
+    if state == STATE_BUSY:
+        _cleaning[serial] = data.get("action") in (ACTION_HOUSE_CLEANING, ACTION_MAP_CLEANING)
+        return
+    if state != STATE_IDLE or not _cleaning.pop(serial, False) or docked or data.get("error"):
+        return
+
+    def still_away() -> None:
+        if _position.get(serial) == (STATE_IDLE, False):
+            add(serial, "away_from_base", data={"minutes": AWAY_AFTER_S // 60})
+
+    timer = threading.Timer(AWAY_AFTER_S, still_away)
+    timer.daemon = True
+    timer.start()
+
+
 # ---- offline / online ---------------------------------------------------------------------------
 _offline_timers: dict[str, threading.Timer] = {}
-_reported_offline: set[str] = set()
+
+
+def _reported_offline(serial: str) -> bool:
+    """Whether the robot's last offline/online notification says offline. Read from the database, so
+    the "online" still comes after a server restart in between."""
+    try:
+        with get_session() as session:
+            kind = session.execute(
+                select(Notification.kind).where(Notification.robot == serial, Notification.kind.in_(("offline", "online")))
+                .order_by(Notification.id.desc()).limit(1)
+            ).scalar_one_or_none()
+    except Exception:
+        logger.exception("Failed to read the last offline/online notification of %s", serial)
+        return False
+    return kind == "offline"
 
 
 def robot_connected(serial: str) -> None:
     timer = _offline_timers.pop(serial, None)
     if timer:
         timer.cancel()
-    if serial in _reported_offline:
-        _reported_offline.discard(serial)
+    if _reported_offline(serial):
         add(serial, "online")
 
 
@@ -137,7 +183,6 @@ def robot_disconnected(serial: str) -> None:
     def still_gone() -> None:
         _offline_timers.pop(serial, None)
         if serial not in robot_connections:
-            _reported_offline.add(serial)
             add(serial, "offline", data={"minutes": OFFLINE_AFTER_S // 60})
 
     timer = threading.Timer(OFFLINE_AFTER_S, still_gone)
