@@ -23,7 +23,9 @@ KEEP_PER_ROBOT = 300
 # only report the robot as offline if it stays away this long (it reconnects now and then)
 OFFLINE_AFTER_S = 5 * 60
 # a cleaning of the home or a map ends at the base; still idle away from it this long after: report it
+# and send it home once (a test: does a second try dock? see "sent it home" in the log)
 AWAY_AFTER_S = 2 * 60
+HOME_CHECK_S = 3 * 60
 # run statuses that mean the run is over (an upload can also arrive mid-run)
 FINISHED_RUN_STATUSES = {"complete", "canceled"}
 
@@ -145,9 +147,28 @@ def _check_away_from_base(serial: str, data: dict) -> None:
 
     def still_away() -> None:
         if _position.get(serial) == (STATE_IDLE, False):
-            add(serial, "away_from_base", data={"minutes": AWAY_AFTER_S // 60})
+            add(serial, "away_from_base", data={"minutes": AWAY_AFTER_S // 60, "sentHome": True})
+            _send_home(serial)
 
     timer = threading.Timer(AWAY_AFTER_S, still_away)
+    timer.daemon = True
+    timer.start()
+
+
+def _send_home(serial: str) -> None:
+    """One sendToBase; what the robot answered and whether it is on its base a few minutes later go
+    to the log."""
+    from vacuula_server.gen3.commands import ask  # here: commands needs the database set up first
+    reply = ask(serial, {"cmd": "sendToBase"})
+    logger.info("Robot %s stopped away from its base: sent it home once, robot answered %s",
+                serial, reply.get("result") if reply else "nothing or refused")
+
+    def check() -> None:
+        state, docked = _position.get(serial, (None, False))
+        logger.info("Robot %s %s %d min after being sent home (state %s)", serial,
+                    "is back on its base" if docked else "is still away from its base", HOME_CHECK_S // 60, state)
+
+    timer = threading.Timer(HOME_CHECK_S, check)
     timer.daemon = True
     timer.start()
 
