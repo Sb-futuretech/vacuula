@@ -176,6 +176,8 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         redrawKey: extraDraw,
         fitToRun: focusRun,
         coverage,
+        // gen3: the floor the run cleaned by its black box track, where there is one
+        cleanedCells: runCoverage && persistantMapData?.width === runCoverage.width ? runCoverage.cleaned : undefined,
         plan,
         fitInclude: dock ? [dock.x, dock.y] : undefined,
     })

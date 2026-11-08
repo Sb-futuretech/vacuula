@@ -64,8 +64,8 @@ def _rle(mask: np.ndarray) -> list[list[int]]:
 
 
 def measure(floor: np.ndarray, track: list[list[float]], zone: list[list[float]] | None = None) -> dict | None:
-    """Cleaned share of the area (`zone` in cells of `floor`, else all free floor), and the missed cells
-    as RLE over the grid. None without a usable area or track."""
+    """Cleaned share of the area (`zone` in cells of `floor`, else all free floor), the missed cells and
+    the cleaned free floor as RLE over the grid. None without a usable area or track."""
     if len(track) < 2:
         return None
     free = floor == FREE
@@ -92,4 +92,6 @@ def measure(floor: np.ndarray, track: list[list[float]], zone: list[list[float]]
         "width": int(floor.shape[1]),
         "height": int(floor.shape[0]),
         "missed": _rle(missed),
+        # what the run cleaned on free floor, for drawing (the area it is measured against may be smaller)
+        "cleaned": _rle(covered & free),
     }

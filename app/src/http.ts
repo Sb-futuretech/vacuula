@@ -97,6 +97,7 @@ export interface RunCoverage {
   width: number
   height: number
   missed: [number, number][]
+  cleaned?: [number, number][] // what it cleaned on free floor (newer tracks)
 }
 
 export interface StatsTotals { runs: number, area: number, hours: number, areaPerMinute: number | null }

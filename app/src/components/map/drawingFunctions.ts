@@ -460,14 +460,8 @@ export function drawBase(
     ctx.restore()
 }
 
-// Free floor a run did not clean (gen3): RLE [value, count] over the run map, 1 = missed
-export function drawMissed(
-    ctx: CanvasRenderingContext2D,
-    rle: [number, number][],
-    width: number,
-    zoom: number,
-    offset: { x: number; y: number },
-) {
+// The cells of an RLE [value, count] over a grid of `width` that have value 1, as one path of rects
+function rleCells(rle: [number, number][], width: number, zoom: number, offset: { x: number; y: number }): Path2D {
     const path = new Path2D()
     let i = 0
     for (const [value, count] of rle) {
@@ -484,9 +478,37 @@ export function drawMissed(
         }
         i += count
     }
+    return path
+}
+
+// The floor a run cleaned (gen3, from its black box track with the brush width), drawn like the
+// covered area from the RunMap, which it replaces
+export function drawCleaned(
+    ctx: CanvasRenderingContext2D,
+    rle: [number, number][],
+    width: number,
+    zoom: number,
+    offset: { x: number; y: number },
+    color: string,
+) {
+    ctx.save()
+    ctx.globalAlpha = parseFloat(COLORS.RUN_OPACITY) || DRAWING.RUN_OVERLAY_OPACITY
+    ctx.fillStyle = color
+    ctx.fill(rleCells(rle, width, zoom, offset))
+    ctx.restore()
+}
+
+// Free floor a run did not clean (gen3): RLE [value, count] over the run map, 1 = missed
+export function drawMissed(
+    ctx: CanvasRenderingContext2D,
+    rle: [number, number][],
+    width: number,
+    zoom: number,
+    offset: { x: number; y: number },
+) {
     ctx.save()
     ctx.fillStyle = 'rgba(230, 60, 60, 0.45)'
-    ctx.fill(path)
+    ctx.fill(rleCells(rle, width, zoom, offset))
     ctx.restore()
 }
 

@@ -409,7 +409,7 @@ def _save_coverage(serial: str, run_id: str, result: dict | None) -> None:
         grun = db.get(Gen3__Run, run_id)
         if grun is None:
             return
-        summary = {k: v for k, v in (result or {}).items() if k not in ("missed", "width", "height")} or None
+        summary = {k: v for k, v in (result or {}).items() if k not in ("missed", "cleaned", "width", "height")} or None
         grun.run = {**grun.run, "coverage": summary}
         db.commit()
 

@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { DRAWING } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
-import { drawMap, drawCoverage, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
+import { drawMap, drawCoverage, drawCleaned, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_NOT_PATH, GEN3_RUN_START, cellsCentre } from './gen3Run'
 import { cleaningLoader, persistentMapLoader, useCleaning, usePersistentMap } from '../../loaders/resources'
@@ -41,6 +41,9 @@ interface UseMapOptions {
     fitInclude?: [number, number]
     // draw the run as the area the robot covered instead of its thin path
     coverage?: boolean
+    // gen3: what the run cleaned according to its black box (RLE over the run map); replaces the area
+    // worked out from the RunMap when given
+    cleanedCells?: [number, number][]
     // "plan" look: continuous floor and wall lines instead of the cell shapes
     plan?: boolean
 }
@@ -56,6 +59,7 @@ export function useMap({
     fitToRun,
     fitInclude,
     coverage,
+    cleanedCells,
     plan
 }: UseMapOptions) {
     const canvasRef = useRef<HTMLCanvasElement | undefined>(undefined)
@@ -92,12 +96,15 @@ export function useMap({
             { getRunColor: colorForPathValue, ignoreRunValues: runIgnoreSetRef.current },
             backgroundToken
         )
-        if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, GEN3_MM_PER_CELL)
+        if (covered && cleanedCells) {
+            const pathValue = runCellsRef.current!.find(v => v !== 0 && !runIgnoreSetRef.current.has(v))
+            drawCleaned(ctx, cleanedCells, mapSize.width, currentZoom, currentOffset, colorForPathValue(pathValue ?? 3))
+        } else if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, GEN3_MM_PER_CELL)
         // walls on top, so they stay sharp over the covered area
         if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
-    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan])
+    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan, cleanedCells])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
