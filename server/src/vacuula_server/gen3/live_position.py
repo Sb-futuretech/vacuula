@@ -5,10 +5,11 @@ is on. A read-only script on the robot (installer: bbtail.sh behind inetd, port 
 out the newest log file from a byte offset. While the robot is busy this module asks it once a second
 for the new bytes, decodes the newest position and sends it to the app as event "livePosition".
 
-Positions are in the robot's own unit with the start of the run as origin and the axes of the map
-(y up). Where that origin lies on the map is learnt per map: after a run that started on the dock, its
-positions are matched against the run's RunMap track (calibrate()). Until a map is calibrated nothing
-is sent for it.
+Positions are in the robot's own unit and frame (y up); once it has found itself on its map after
+leaving the dock that frame is the same on every run (the dock lies at the same place in it, within a
+cell or two). Where its origin lies on the map is learnt per map: every run's positions are matched
+against its RunMap track, and the median of the last LEARN_RUNS runs is kept, so a single run whose
+track fits one lane off doesn't move it. Until a map has one nothing is sent for it.
 """
 from __future__ import annotations
 
@@ -306,6 +307,7 @@ def _save_run(serial: str, session: Session) -> None:
         return
     _save_problems(serial, session, session.origin)
     _save_floor(serial, session, session.origin)
+    _learn(serial, session.map_id, session.origin, Path(session.run_folder).name)
 
 
 def _save_floor(serial: str, session: Session, cal: dict) -> None:
@@ -418,8 +420,8 @@ def _calibration(serial: str, map_id: str) -> dict | None:
 
 
 def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
-    """A run's maps arrived: if this run's positions are at hand and it started on the dock, learn where
-    the robot's origin lies on its map from the RunMap track."""
+    """A run's maps arrived: its track, coverage, problems and floor type (once read to its end), and
+    where the robot's origin lies on its map."""
     with _lock:
         session = _sessions.get(serial)
         positions = list(session.positions) if session else []
@@ -434,27 +436,6 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     session.origin = _save_track(serial, job_folder, positions, session.zone_cells, list(session.events),
                                  session.map_id)
     _save_run(serial, session)
-    why_not = ("no map id in the run" if not map_id
-               else "it did not start on the dock" if not session.docked_at_start
-               else f"only {len(positions)} positions" if len(positions) < 100
-               else None)
-    if why_not:
-        logger.info("Live position of %s: run %s not used for calibration: %s", serial, run.get("id"), why_not)
-        return
-    try:
-        result = calibrate(Path(job_folder), MAPS_DIR / serial / map_id, positions)
-    except Exception as e:
-        logger.warning("Live position of %s: calibration on run %s failed: %s", serial, run.get("id"), e)
-        return
-    if result is None:
-        logger.info("Live position of %s: run %s not used for calibration: no clean start and end on the dock "
-                    "on map %s (failed docking, start away from the dock, other grid, or the track does not fit)",
-                    serial, run.get("id"), map_id)
-        return
-    data = _load()
-    data.setdefault(serial, {})[map_id] = result
-    CALIBRATION_FILE.write_text(json.dumps(data, indent=1))
-    logger.info("Live position of %s: map %s calibrated on run %s: %s", serial, map_id, run.get("id"), result)
 
 
 def _grid(meta: dict) -> np.ndarray:
@@ -516,38 +497,26 @@ def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: flo
 
 
 MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
-RUN_DOCK = 100  # the dock block in a RunMap (only in runs that ended on the dock)
-# the origin (robot centre at the start) lies this close to the dock block, cells: about 50 cm; on a D7
-# it was 7 cells away on two runs from the dock
-MAX_ORIGIN_FROM_DOCK = 12
+LEARN_RUNS = 7    # the map's origin is the median of the last this many runs' own fits
 
 
-def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]) -> dict | None:
-    """Where the robot's origin lies on the map (u0, v0, in cells), fitted to the RunMap track.
-    None when the run's grid is not the map's (doors closed: the run covers only part of it) or the
-    track does not fit. The scale is the robot's (UNITS_PER_CELL); only the origin depends on map and
-    dock."""
-    run = json.loads((run_dir / "runmap.json").read_text())
-    floor = json.loads((map_dir / "floormap.json").read_text())
-    if (run["width"], run["height"]) != (floor["width"], floor["height"]):
-        return None
-    grid = _grid(run)
-    # positions count from where the run started: only a run that started (and ended) on the dock says
-    # where the origin lies. The run must end with its dock block (a run that failed to dock has none),
-    # and the fitted origin must lie next to it (a start off the dock, e.g. after a failed docking, is
-    # reported as docked by the robot now and then)
-    dock = np.argwhere(grid == RUN_DOCK)
-    if len(dock) == 0:
-        return None
-    fit = _fit_origin(grid, positions, UNITS_PER_CELL)
-    if fit is None or fit[2] > MAX_FIT:
-        return None
-    u0, v0, c = fit
-    dv, du = dock.mean(0)
-    if math.hypot(u0 - du, v0 - dv) > MAX_ORIGIN_FROM_DOCK:
-        return None
-    return {"u0": round(u0, 2), "v0": round(v0, 2), "upc": UNITS_PER_CELL, "fit": round(c, 2),
-            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> None:
+    """One more run's origin for the map; the map's origin is the median of the last LEARN_RUNS."""
+    data = _load()
+    cal = data.setdefault(serial, {}).get(map_id) or {}
+    runs = (cal.get("runs") or [])[-(LEARN_RUNS - 1):] + [
+        [round(origin["u0"], 2), round(origin["v0"], 2), run_id]]
+    data[serial][map_id] = {
+        "u0": round(float(np.median([r[0] for r in runs])), 2),
+        "v0": round(float(np.median([r[1] for r in runs])), 2),
+        "upc": UNITS_PER_CELL,
+        "runs": runs,
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    CALIBRATION_FILE.write_text(json.dumps(data, indent=1))
+    logger.info("Live position of %s: map %s origin from run %s u0 %.2f v0 %.2f, map now u0 %.2f v0 %.2f (%d runs)",
+                serial, map_id, run_id, origin["u0"], origin["v0"], data[serial][map_id]["u0"],
+                data[serial][map_id]["v0"], len(runs))
 
 
 TRACK_EVERY = 5  # every 5th position (2 per second) is plenty for a line
