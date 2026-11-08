@@ -460,6 +460,32 @@ export function drawBase(
     ctx.restore()
 }
 
+// The way the robot drove: its RunMap track (a thin line of its centre), drawn as a fine line over the
+// covered area so both can be seen.
+export function drawTrack(
+    ctx: CanvasRenderingContext2D,
+    runCells: number[],
+    ignore: Set<number>,
+    zoom: number,
+    offset: { x: number; y: number },
+    mapSize: { height: number, width: number },
+) {
+    const { width } = mapSize
+    // a square per track cell, a bit smaller than the cell: neighbours still touch into a line
+    const side = Math.max(1, zoom * 0.55)
+    const track = new Path2D()
+    for (let i = 0; i < runCells.length; i++) {
+        const v = runCells[i]
+        if (v === 0 || ignore.has(v)) continue
+        const x = i % width, y = Math.floor(i / width)
+        track.rect(offset.x + (x + 0.5) * zoom - side / 2, offset.y + (y + 0.5) * zoom - side / 2, side, side)
+    }
+    ctx.save()
+    ctx.fillStyle = withAlpha(COLORS.WALL, 0.55)
+    ctx.fill(track)
+    ctx.restore()
+}
+
 // The robot where it is now (live, gen3) and the way it took during this clean. Positions are map
 // cells; heading in degrees on screen (0 = right, clockwise).
 export function drawLiveRobot(
