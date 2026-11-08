@@ -455,6 +455,18 @@
             "lost": "lost its position",
             "stuck": "stuck",
             "dock_tilted": "docking aborted (tilted)"
+        },
+        "floor": {
+            "title": "Floor type",
+            "high": "high pile",
+            "runner": "runner",
+            "none": "Nothing measured yet: comes with the next runs (black box)",
+            "highArea": "Carpet {{area}} m²",
+            "runnerArea": "Runner {{area}} m²",
+            "addZone": "Add as zone",
+            "noRoom": "(no room left on the robot)",
+            "carpetZone": "Carpet",
+            "runnerZone": "Runner"
         }
     },
     "settings": {

@@ -448,6 +448,18 @@
             "lost": "perdeu a posição",
             "stuck": "preso",
             "dock_tilted": "acoplagem cancelada (inclinado)"
+        },
+        "floor": {
+            "title": "Tipo de chão",
+            "high": "pelo alto",
+            "runner": "passadeira",
+            "none": "Ainda nada medido: vem com as próximas limpezas (caixa negra)",
+            "highArea": "Tapete {{area}} m²",
+            "runnerArea": "Passadeira {{area}} m²",
+            "addZone": "Adicionar como zona",
+            "noRoom": "(sem espaço no robô)",
+            "carpetZone": "Tapete",
+            "runnerZone": "Passadeira"
         }
     },
     "settings": {

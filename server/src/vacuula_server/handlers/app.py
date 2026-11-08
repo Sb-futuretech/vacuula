@@ -3,7 +3,7 @@ import re
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position, floor_type
 from vacuula_server import notifications, telegram
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -207,6 +207,12 @@ def get_map_problems(req: RouterHandler, serial: str, map_id: str) -> None:
     """GET /robot/<serial>/maps/<map_id>/problems - bumps, tilts, getting lost or stuck recorded on a
     gen3 map over the last runs, in map cells (gen3/live_position.py)"""
     req.send_ok(live_position.problems(serial, map_id))
+
+
+def get_map_floor(req: RouterHandler, serial: str, map_id: str) -> None:
+    """GET /robot/<serial>/maps/<map_id>/floor - floor type per cell of a gen3 map (hard, runner, high
+    pile) from the brush load over the runs, and carpet areas to offer as zones (gen3/floor_type.py)"""
+    req.send_ok(floor_type.floor(serial, map_id))
 
 
 def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:

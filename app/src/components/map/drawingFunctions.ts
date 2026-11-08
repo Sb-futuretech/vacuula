@@ -513,6 +513,24 @@ export function drawMissed(
     ctx.restore()
 }
 
+// Floor type (gen3, from the brush load): high pile dark, runner light; hard floor is left as it is
+export const FLOOR_COLORS = { 2: 'rgba(214, 170, 110, 0.55)', 3: 'rgba(140, 90, 45, 0.6)' } as const
+export function drawFloorType(
+    ctx: CanvasRenderingContext2D,
+    cells: [number, number, 1 | 2 | 3][],
+    zoom: number,
+    offset: { x: number; y: number },
+) {
+    const paths = { 2: new Path2D(), 3: new Path2D() }
+    for (const [u, v, k] of cells) if (k !== 1) paths[k].rect(offset.x + u * zoom, offset.y + v * zoom, zoom, zoom)
+    ctx.save()
+    for (const k of [2, 3] as const) {
+        ctx.fillStyle = FLOOR_COLORS[k]
+        ctx.fill(paths[k])
+    }
+    ctx.restore()
+}
+
 // Problems the robot noted (gen3, black box), one symbol each
 export const PROBLEM_ICONS: Record<Problem['kind'], string> = {
     bump: '💥', tilt: '⚠️', lost: '❓', unreachable: '⛔', slip: '〰️', stuck: '🆘', dock_tilted: '🔌', off_base: '🔌',

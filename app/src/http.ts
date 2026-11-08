@@ -87,6 +87,13 @@ export interface PiScheduleEntry {
 }
 
 /** GET /api/robot/<serial>/stats (gen3) */
+// floor type on a gen3 map (from the black box's brush load): cells [u, v, kind] with kind 1 hard,
+// 2 runner, 3 high pile; carpet areas with a rectangle (map cells) to offer as a zone
+export interface MapFloor {
+  cells: [number, number, 1 | 2 | 3][]
+  patches: { kind: 'high' | 'runner', areaM2: number, share: number, rect: [number, number][] }[]
+}
+
 // a problem the robot noted in its black box (gen3), where it happened: cells of a run map or stored map
 export interface Problem {
   kind: 'bump' | 'tilt' | 'lost' | 'unreachable' | 'slip' | 'stuck' | 'dock_tilted' | 'off_base'
@@ -286,6 +293,11 @@ export class Http {
   // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
   static getLiveTrack(serial: string) {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
+  }
+
+  // gen3: floor type per cell of a map from the brush load over the runs, and carpet areas as zone offers
+  static getMapFloor(serial: string, mapId: string) {
+    return instance.get<MapFloor>(`/robot/${serial}/maps/${mapId}/floor`)
   }
 
   // gen3: bumps, tilts, getting lost or stuck recorded on a map over the last runs (map cells)

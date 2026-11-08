@@ -27,7 +27,7 @@ import numpy as np
 from vacuula_server.constants import DATA_DIR, MAPS_DIR
 from vacuula_server.env import BB_KEY, BB_PORT
 from vacuula_server.db import get_session
-from vacuula_server.gen3 import blackbox, coverage
+from vacuula_server.gen3 import blackbox, coverage, floor_type
 from vacuula_server.gen3.data import Gen3MapBoundaries
 from vacuula_server.models.run import Gen3__Run
 from sqlalchemy import select
@@ -85,6 +85,7 @@ class Session:
     anchor: tuple[float, float] | None = None  # where it was when it last moved
     still_since: float = 0.0
     stuck_reported: bool = False
+    floor: list[tuple[float, float, int]] = field(default_factory=list)  # (x, y, brush load) while brushing
 
 
 @dataclass
@@ -171,6 +172,7 @@ def _run(reader: Reader) -> None:
                         list(session.events))
         if session:
             _save_problems(reader.serial, session)
+            _save_floor(reader.serial, session)
 
 
 def _poll(reader: Reader) -> None:
@@ -208,6 +210,9 @@ def _poll(reader: Reader) -> None:
                 if session:
                     session.positions.append((latest.x, latest.y))
                     session.last_pos = (latest.x, latest.y)
+            elif ptype == floor_type.PKT_MOTORS and session and session.last_pos is not None:
+                if (load := floor_type.sample(pdata)) is not None:
+                    session.floor.append((*session.last_pos, load))
             elif ptype == blackbox.PKT_TEXT and session:
                 if m := MAP_ID_RE.search(pdata):
                     session.map_id = m.group(1).decode(errors="replace")
@@ -262,6 +267,17 @@ def _where(serial: str, session: Session) -> dict:
         return {}
     u, v = _to_cells(cal, *session.last_pos)
     return {"mapId": session.map_id, "xM": round(u * 0.04, 2), "yM": round(v * 0.04, 2)}
+
+
+def _save_floor(serial: str, session: Session) -> None:
+    """The run's brush load onto its map (gen3/floor_type.py), in map cells."""
+    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
+    if not cal or not session.floor:
+        return
+    try:
+        floor_type.add_run(serial, session.map_id, [(*_to_cells(cal, x, y), load) for x, y, load in session.floor])
+    except Exception as e:
+        logger.warning("Floor type of %s not saved: %s", serial, e)
 
 
 def problems(serial: str, map_id: str) -> list[dict]:

@@ -9,7 +9,7 @@ import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
 import { Neato, RobotType, type Robot } from '../../types'
-import type { Problem } from '../../http'
+import type { MapFloor, Problem } from '../../http'
 
 import MapCanvas, { type MapMode } from './MapCanvas'
 import { RULER_PX } from './MapRulers'
@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawProblems, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
@@ -171,11 +171,28 @@ export default () => {
         return () => { cancelled = true }
     }, [showProblems, persistentMap, robot.serial, robot.type])
     const problems = showProblems && loadedProblems && loadedProblems.mapId === persistentMap ? loadedProblems.list : undefined
+
+    // gen3: floor type from the brush load over the runs (black box), and carpet areas to add as a zone
+    const [showFloor, setShowFloor] = useState(false)
+    const [loadedFloor, setLoadedFloor] = useState<{ mapId: string, floor: MapFloor }>()
+    useEffect(() => {
+        if (!showFloor || !persistentMap || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getMapFloor(robot.serial, persistentMap)
+            .then(res => { if (!cancelled) setLoadedFloor({ mapId: persistentMap, floor: res.data }) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [showFloor, persistentMap, robot.serial, robot.type])
+    const floorType = showFloor && loadedFloor && loadedFloor.mapId === persistentMap ? loadedFloor.floor : undefined
+    // the shown map's size in cells, for turning a carpet area into a zone (normalised vertices)
+    const mapSizeRef = useRef<{ width: number, height: number }>(undefined)
     const [heatmapRuns, setHeatmapRuns] = useState(10)
     const { heatmap, loading: heatmapLoading } = useCoverageHeatmap(
         robot.serial, persistentMap, showHeatmap && robot.type === RobotType.NeatoGen3, heatmapRuns)
 
     const extraDraw = useCallback((ctx, canvas, currentZoom, currentOffset, mapSize) => {
+        mapSizeRef.current = mapSize
+        if (floorType) drawFloorType(ctx, floorType.cells, currentZoom, currentOffset)
         // coverage of the recent runs under the zones (gen3, switched on in the panel)
         if (heatmap && heatmap.width === mapSize.width) drawHeatmap(ctx, heatmap, currentZoom, currentOffset)
 
@@ -241,7 +258,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -393,6 +410,21 @@ export default () => {
         // back to where it was opened from only once it is saved; if not, the drawing stays to try again
         saveBoundaries(upsertPreserveOrder(boundaries, updated)).then(() => setMode(returnFromEditMode), () => { /* said so */ })
     };
+
+    // a carpet area (gen3, floor type) as a new cleaning zone: its rectangle, if the robot has room for it
+    const carpetZone = (patch: MapFloor['patches'][number]): Zone | undefined => {
+        const size = mapSizeRef.current
+        if (!size) return undefined
+        return {
+            id: uuidv4(),
+            name: t(patch.kind === 'high' ? 'map.floor.carpetZone' : 'map.floor.runnerZone'),
+            color: pickUnusedPreset(boundaries.map(b => b.color)),
+            type: 'polygon' as const,
+            vertices: patch.rect.map(([u, v]): Point => [u / size.width, v / size.height]),
+            enabled: true,
+        }
+    }
+    const carpetZoneFits = (zone: Zone | undefined) => !!zone && gen3ReplyBytes([...boundaries, zone]) <= GEN3_REPLY_LIMIT
 
     const updateForm = <T extends object>(update: UseState<T>, patch: Partial<T>) => {
         update(prev => ({ ...prev, ...patch }))
@@ -673,6 +705,34 @@ export default () => {
                                             {heatmapLoading ? t('common.loading') : t('map.heatmapCount', { runs: heatmap?.runs ?? 0 })}
                                             {!heatmapLoading && !!heatmap?.blackBoxRuns && ` · ${t('map.heatmapBlackBox', { count: heatmap.blackBoxRuns })}`}
                                         </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div className={styles.heatmap}>
+                                <Input type="switch" label={t('map.floor.title')} value={showFloor} onChange={setShowFloor} />
+                                {showFloor && (
+                                    <>
+                                        <div className={styles.heatmapLegend}>
+                                            <i style={{ background: FLOOR_COLORS[3] }} /><span>{t('map.floor.high')}</span>
+                                            <i style={{ background: FLOOR_COLORS[2] }} /><span>{t('map.floor.runner')}</span>
+                                        </div>
+                                        {!floorType && <span className={styles.heatmapInfo}>{t('common.loading')}</span>}
+                                        {floorType && floorType.cells.length === 0 && <span className={styles.heatmapInfo}>{t('map.floor.none')}</span>}
+                                        {floorType?.patches.map((patch, i) => {
+                                            const zone = carpetZone(patch)
+                                            const fits = carpetZoneFits(zone)
+                                            return (
+                                                <div key={i} className={styles.heatmapInfo}>
+                                                    {t(patch.kind === 'high' ? 'map.floor.highArea' : 'map.floor.runnerArea', { area: patch.areaM2.toFixed(1) })}
+                                                    {' '}
+                                                    <Button text={t('map.floor.addZone')} style='primary' disabled={!canEdit || !fits || saving}
+                                                        onClick={() => { if (zone && fits) saveBoundaries([...boundaries, zone]).catch(() => { /* said so */ }) }} />
+                                                    {!fits && <span> {t('map.floor.noRoom')}</span>}
+                                                </div>
+                                            )
+                                        })}
                                     </>
                                 )}
                             </div>
