@@ -85,7 +85,8 @@ class Session:
     anchor: tuple[float, float] | None = None  # where it was when it last moved
     still_since: float = 0.0
     stuck_reported: bool = False
-    floor: list[tuple[float, float, int]] = field(default_factory=list)  # (x, y, brush load) while brushing
+    floor: list[tuple[float, float, int, float]] = field(default_factory=list)  # (x, y, load, heading) where the brush was
+    last_heading: float = 0.0
 
 
 @dataclass
@@ -210,9 +211,14 @@ def _poll(reader: Reader) -> None:
                 if session:
                     session.positions.append((latest.x, latest.y))
                     session.last_pos = (latest.x, latest.y)
+                    session.last_heading = latest.heading
             elif ptype == floor_type.PKT_MOTORS and session and session.last_pos is not None:
                 if (load := floor_type.sample(pdata)) is not None:
-                    session.floor.append((*session.last_pos, load))
+                    # where the brush is: ahead of the centre, in the robot's frame (heading counter-clockwise)
+                    ahead = floor_type.BRUSH_AHEAD_CELLS * UNITS_PER_CELL
+                    x, y = session.last_pos
+                    session.floor.append((x + ahead * math.cos(session.last_heading),
+                                          y + ahead * math.sin(session.last_heading), load, session.last_heading))
             elif ptype == blackbox.PKT_TEXT and session:
                 if m := MAP_ID_RE.search(pdata):
                     session.map_id = m.group(1).decode(errors="replace")
@@ -275,7 +281,9 @@ def _save_floor(serial: str, session: Session) -> None:
     if not cal or not session.floor:
         return
     try:
-        floor_type.add_run(serial, session.map_id, [(*_to_cells(cal, x, y), load) for x, y, load in session.floor])
+        # across the brush: perpendicular to the heading; in map cells y is down
+        floor_type.add_run(serial, session.map_id, [(*_to_cells(cal, x, y), load, -math.sin(h), -math.cos(h))
+                                                    for x, y, load, h in session.floor])
     except Exception as e:
         logger.warning("Floor type of %s not saved: %s", serial, e)
 

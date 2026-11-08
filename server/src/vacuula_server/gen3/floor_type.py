@@ -21,7 +21,11 @@ PKT_MOTORS = 44
 LOAD_FIELD, BRUSH_RPM_FIELD = 17, 18   # int32 fields of the motor packet
 HARD, LOW, HIGH = 1, 2, 3
 LOW_FROM, HIGH_FROM = 25_000, 55_000   # brush load: runner from, high pile from
-SPREAD = 3                 # cells around the robot's centre a sample counts for (about half the brush)
+# where the brush acts: about 10 cm ahead of the robot's centre (from edge crossings on a D7: the load
+# changes ~20 cm later leaving a carpet than entering it at the same edge, motor lag included)
+BRUSH_AHEAD_CELLS = 2.5
+BRUSH_SIDE_CELLS = 1.5    # each sample counts across the brush this far to either side (about 6 cm of its 13.5)
+CLOSE_CELLS = 5            # gaps between lanes up to this wide are filled (not where hard floor was measured)
 CELL_M2 = 0.04 * 0.04
 MIN_PATCH_M2 = 0.5
 FLOOR_FILE = DATA_DIR / "live_floor.json"
@@ -49,18 +53,20 @@ def _load_file() -> dict:
         return {}
 
 
-def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int]]) -> None:
-    """A run's samples (map cells u, v and brush load) onto its map's counts: per cell [hard, low, high]."""
+def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int, float, float]]) -> None:
+    """A run's samples (map cells u, v where the brush was, brush load, and the unit vector across the
+    brush in cells) onto its map's counts: per cell [hard, low, high]."""
     if not samples:
         return
     per_run: dict[tuple[int, int], list[int]] = {}
-    for u, v, load in samples:
+    for u, v, load, side_u, side_v in samples:
         k = kind(load) - 1
-        cu, cv = round(u), round(v)
-        for du in range(-SPREAD, SPREAD + 1):
-            for dv in range(-SPREAD, SPREAD + 1):
-                if du * du + dv * dv <= SPREAD * SPREAD:
-                    per_run.setdefault((cu + du, cv + dv), [0, 0, 0])[k] += 1
+        # a short line across the brush (side_u, side_v: unit vector to its side, in cells)
+        steps = int(BRUSH_SIDE_CELLS * 2)
+        cells = {(round(u + side_u * BRUSH_SIDE_CELLS * i / steps), round(v + side_v * BRUSH_SIDE_CELLS * i / steps))
+                 for i in range(-steps, steps + 1)}
+        for c in cells:
+            per_run.setdefault(c, [0, 0, 0])[k] += 1
     with _lock:
         data = _load_file()
         cells = data.setdefault(serial, {}).setdefault(map_id, {})
@@ -102,15 +108,36 @@ def _patches(cells: dict[tuple[int, int], int]) -> list[dict]:
     return sorted(out, key=lambda p: -p["areaM2"])
 
 
+def _close(cells: dict[tuple[int, int], int]) -> dict[tuple[int, int], int]:
+    """Fill the unmeasured gaps between the lanes inside carpet areas: an unmeasured cell takes the
+    carpet kind if that kind lies within CLOSE_CELLS on both sides of it, across or along. Measured
+    cells, hard floor included, stay as they are, so a carpet doesn't grow past its edges."""
+    out = dict(cells)
+    us = [c[0] for c in cells] or [0]
+    vs = [c[1] for c in cells] or [0]
+    for u in range(min(us), max(us) + 1):
+        for v in range(min(vs), max(vs) + 1):
+            if (u, v) in cells:
+                continue
+            for k in (HIGH, LOW):
+                def seen(du: int, dv: int) -> bool:
+                    return any(cells.get((u + du * i, v + dv * i)) == k for i in range(1, CLOSE_CELLS + 1))
+                if (seen(1, 0) and seen(-1, 0)) or (seen(0, 1) and seen(0, -1)):
+                    out[(u, v)] = k
+                    break
+    return out
+
+
 def floor(serial: str, map_id: str) -> dict:
     """Per cell of the map its floor type ([u, v, kind], kind 1 hard, 2 runner, 3 high pile), and the
     carpet areas to offer as zones."""
     with _lock:
         stored = _load_file().get(serial, {}).get(map_id, {})
-    cells = {}
+    measured = {}
     for key, counts in stored.items():
         u, v = (int(x) for x in key.split(","))
-        cells[(u, v)] = max(range(3), key=lambda i: counts[i]) + 1
+        measured[(u, v)] = max(range(3), key=lambda i: counts[i]) + 1
+    cells = _close(measured)
     return {
         "cells": [[u, v, k] for (u, v), k in cells.items()],
         "patches": _patches(cells),
