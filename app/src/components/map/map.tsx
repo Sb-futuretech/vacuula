@@ -8,7 +8,7 @@ import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning }
 import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { drawBase, drawMarker, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
+import { drawBase, drawMarker, drawRunTrack, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
 import { decodeRLE, pointInPolygon } from './utils'
 import type { ExtraDrawFn } from './useMap'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
@@ -67,6 +67,19 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
 
     // the run's own cells (gen3): its dock block and the zones its path went through (only needed for zones)
     const { data: cleaningData } = useCleaning(runId ?? '')
+
+    // gen3: the way the run drove (from its black box, saved by the server); runs without one have none
+    const [loadedTrack, setLoadedTrack] = useState<{ runId: string, cells: [number, number][] }>()
+    useEffect(() => {
+        if (!runId || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getRunTrack(robot.serial, runId)
+            .then(res => { if (!cancelled) setLoadedTrack({ runId, cells: res.data.cells }) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [robot.serial, robot.type, runId])
+    // only the shown run's: another run's track stays hidden until this one has loaded
+    const track = loadedTrack && loadedTrack.runId === runId ? loadedTrack.cells : undefined
     const runCells = useMemo(() => zones && cleaningData ? decodeRLE(cleaningData.rle) : undefined, [zones, cleaningData])
 
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
@@ -130,6 +143,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runMarkers) => {
         if (!persistantMapData) return
         if (runZones.length) drawZoneOverlay(ctx, runZones, visitedZones, zoom, offset, mapSize)
+        if (track) drawRunTrack(ctx, track, zoom, offset)
         // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
         // from the dock and start markers together). The mascot goes where the robot ended.
         const at = (p: [number, number]) => ({ pose: { x: p[0], y: p[1], dir: 0 }, resolution: GEN3_MM_PER_CELL })
@@ -148,7 +162,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
 
         const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
         if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
-    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones, startFlag])
+    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones, startFlag, track])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 

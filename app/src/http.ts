@@ -258,6 +258,11 @@ export class Http {
     return instance.get(`/robot/${serial}/run/${runId}`)
   }
 
+  // gen3: the way a run drove, from its black box, in cells of the run's map (404 without one)
+  static getRunTrack(serial: string, runId: string) {
+    return instance.get<{ cells: [number, number][] }>(`/robot/${serial}/run/${runId}/track`)
+  }
+
   static demoteFloorplan(serial: string, mapId: string) {
     return instance.delete(`/robot/${serial}/maps/${mapId}`)
   }

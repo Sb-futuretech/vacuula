@@ -460,29 +460,27 @@ export function drawBase(
     ctx.restore()
 }
 
-// The way the robot drove: its RunMap track (a thin line of its centre), drawn as a fine line over the
-// covered area so both can be seen.
-export function drawTrack(
+// The way the robot drove during a run (gen3, from its black box): a fine line over the covered area.
+// Points are cells of the run's map.
+export function drawRunTrack(
     ctx: CanvasRenderingContext2D,
-    runCells: number[],
-    ignore: Set<number>,
+    cells: [number, number][],
     zoom: number,
     offset: { x: number; y: number },
-    mapSize: { height: number, width: number },
 ) {
-    const { width } = mapSize
-    // a square per track cell, a bit smaller than the cell: neighbours still touch into a line
-    const side = Math.max(1, zoom * 0.55)
-    const track = new Path2D()
-    for (let i = 0; i < runCells.length; i++) {
-        const v = runCells[i]
-        if (v === 0 || ignore.has(v)) continue
-        const x = i % width, y = Math.floor(i / width)
-        track.rect(offset.x + (x + 0.5) * zoom - side / 2, offset.y + (y + 0.5) * zoom - side / 2, side, side)
-    }
+    if (cells.length < 2) return
     ctx.save()
-    ctx.fillStyle = withAlpha(COLORS.WALL, 0.55)
-    ctx.fill(track)
+    ctx.beginPath()
+    cells.forEach(([u, v], i) => {
+        const x = offset.x + u * zoom, y = offset.y + v * zoom
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+    })
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = withAlpha(COLORS.WALL, 0.7)
+    ctx.lineWidth = Math.max(1, Math.min(2.5, zoom * 0.25))
+    ctx.stroke()
     ctx.restore()
 }
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
@@ -194,6 +195,21 @@ def get_run(req: RouterHandler, serial: str, run_id: str) -> None:
 
 
 
+
+
+def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:
+    """GET /robot/<serial>/run/<run_id>/track - the way a gen3 run drove, from its black box, in the
+    cells of its run map (gen3/live_position.py); 404 for runs without one"""
+    if not re.fullmatch(r"[0-9A-Za-z:.\-]+", serial) or not re.fullmatch(r"[0-9A-Za-z:.\-]+", run_id):
+        req.send_not_found("Track not found")
+        return
+    file = MAPS_DIR / serial / run_id / "track.json"
+    try:
+        data = json.loads(file.read_text())
+    except (OSError, ValueError):
+        req.send_not_found("Track not found")
+        return
+    req.send_ok(data)
 
 
 def connect_robot(req: RouterHandler, serial: str) -> None:

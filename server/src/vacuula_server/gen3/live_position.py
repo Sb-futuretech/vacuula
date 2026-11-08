@@ -50,6 +50,7 @@ class Session:
     map_id: str | None = None
     positions: list[tuple[float, float]] = field(default_factory=list)
     ended_at: float | None = None
+    run_folder: str | None = None   # where the robot's maps of this run went (its track is saved there)
 
 
 @dataclass
@@ -128,6 +129,9 @@ def _run(reader: Reader) -> None:
                 logger.info("Live position of %s: run ended, %d positions (map %s); %d reads, %d failed, slowest %.1f s",
                             reader.serial, len(session.positions), session.map_id, reader.reads, reader.failed,
                             reader.slowest)
+        # the maps came while the last blocks were still read: save the track again, complete now
+        if session and session.run_folder:
+            _save_track(reader.serial, session.run_folder, list(session.positions))
 
 
 def _poll(reader: Reader) -> None:
@@ -223,6 +227,8 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     # still being read counts, an older one only for SESSION_KEEP_S
     if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
         return
+    session.run_folder = job_folder
+    _save_track(serial, job_folder, positions)
     map_id = run.get("persistent_map_id")
     why_not = ("no map id in the run" if not map_id
                else "it did not start on the dock" if not session.docked_at_start
@@ -274,44 +280,73 @@ def _distance_map(mask: np.ndarray) -> np.ndarray:
     return d
 
 
-def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]) -> dict | None:
-    """Where the robot's origin lies on the map (u0, v0, in cells), fitted to the RunMap track.
-    None when the run's grid is not the map's (doors closed: the run covers only part of it) or the
-    track does not fit."""
-    run = json.loads((run_dir / "runmap.json").read_text())
-    floor = json.loads((map_dir / "floormap.json").read_text())
-    if (run["width"], run["height"]) != (floor["width"], floor["height"]):
+def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: float) -> tuple[float, float, float] | None:
+    """Where the robot's origin lies in `grid` (u0, v0, in cells) so its positions run along the grid's
+    track (value 3), and the mean distance to it in cells (clipped at 3). None without a track."""
+    track = np.argwhere(grid == 3)
+    if len(track) < 50 or len(positions) < 20:
         return None
-    grid = _grid(run)
     dist = _distance_map(grid == 3)
     h, w = grid.shape
     pts = np.array(positions[:: max(1, len(positions) // 600)], dtype=float)
     pts[:, 1] *= -1
 
-    def cost(u0: float, v0: float, upc: float) -> float:
+    def cost(u0: float, v0: float) -> float:
         q = pts / upc + (u0, v0)
         u = np.clip(np.rint(q[:, 0]).astype(int), 0, w - 1)
         v = np.clip(np.rint(q[:, 1]).astype(int), 0, h - 1)
         return float(np.minimum(dist[v, u], 3).mean())
 
-    track = np.argwhere(grid == 3)
-    if len(track) < 50:
-        return None
-    # the scale is the robot's (UNITS_PER_CELL); only the origin depends on map and dock. Start with the
-    # track's centre against the positions' centre, then a coarse and finer searches around it.
-    upc = UNITS_PER_CELL
+    # start with the track's centre against the positions' centre, then a coarse and finer searches
     cv, cu = track.mean(0)
-    u0, v0 = cu - (pts[:, 0] / upc).mean(), cv - (pts[:, 1] / upc).mean()
-    best = (math.inf, u0, v0)
+    best = (math.inf, cu - (pts[:, 0] / upc).mean(), cv - (pts[:, 1] / upc).mean())
     for step, reach in ((1.0, 30), (0.25, 2), (0.05, 0.5)):
         _, cu0, cv0 = best
         for du in np.arange(-reach, reach + step / 2, step):
             for dv in np.arange(-reach, reach + step / 2, step):
-                c = cost(cu0 + du, cv0 + dv, upc)
+                c = cost(cu0 + du, cv0 + dv)
                 if c < best[0]:
                     best = (c, cu0 + du, cv0 + dv)
-    _, u0, v0 = best
-    if best[0] > 1.5:  # mean distance to the track in cells (clipped at 3)
+    return float(best[1]), float(best[2]), best[0]
+
+
+MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
+
+
+def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]) -> dict | None:
+    """Where the robot's origin lies on the map (u0, v0, in cells), fitted to the RunMap track.
+    None when the run's grid is not the map's (doors closed: the run covers only part of it) or the
+    track does not fit. The scale is the robot's (UNITS_PER_CELL); only the origin depends on map and
+    dock."""
+    run = json.loads((run_dir / "runmap.json").read_text())
+    floor = json.loads((map_dir / "floormap.json").read_text())
+    if (run["width"], run["height"]) != (floor["width"], floor["height"]):
         return None
-    return {"u0": round(float(u0), 2), "v0": round(float(v0), 2), "upc": upc, "fit": round(best[0], 2),
+    fit = _fit_origin(_grid(run), positions, UNITS_PER_CELL)
+    if fit is None or fit[2] > MAX_FIT:
+        return None
+    u0, v0, c = fit
+    return {"u0": round(u0, 2), "v0": round(v0, 2), "upc": UNITS_PER_CELL, "fit": round(c, 2),
             "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
+TRACK_EVERY = 5  # every 5th position (2 per second) is plenty for a line
+
+
+def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]]) -> None:
+    """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track):
+    the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers."""
+    try:
+        run = json.loads((Path(run_folder) / "runmap.json").read_text())
+        fit = _fit_origin(_grid(run), positions, UNITS_PER_CELL)
+        if fit is None or fit[2] > MAX_FIT:
+            logger.info("Live position of %s: no track for %s: positions do not fit its run map", serial, run_folder)
+            return
+        u0, v0, c = fit
+        cells = [[round(u0 + x / UNITS_PER_CELL, 2), round(v0 - y / UNITS_PER_CELL, 2)]
+                 for x, y in positions[::TRACK_EVERY]]
+        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2)}))
+        logger.info("Live position of %s: track of %d points saved for %s (fit %.2f)",
+                    serial, len(cells), Path(run_folder).name, c)
+    except Exception as e:
+        logger.warning("Live position of %s: track for %s not saved: %s", serial, run_folder, e)
