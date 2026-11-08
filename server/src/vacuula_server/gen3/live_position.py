@@ -87,6 +87,10 @@ class Session:
     stuck_reported: bool = False
     floor: list[tuple[float, float, int, float]] = field(default_factory=list)  # (x, y, load, heading) where the brush was
     last_heading: float = 0.0
+    # where this run's origin lies on its stored map, fitted on the run's own RunMap track (None: the run
+    # map is not the stored map's grid, or the track does not fit); problems and floor type go there
+    origin: dict | None = None
+    saved: bool = False             # problems and floor type of this run are on its map
 
 
 @dataclass
@@ -169,11 +173,10 @@ def _run(reader: Reader) -> None:
                             reader.slowest)
         # the maps came while the last blocks were still read: save the track again, complete now
         if session and session.run_folder:
-            _save_track(reader.serial, session.run_folder, list(session.positions), session.zone_cells,
-                        list(session.events))
+            session.origin = _save_track(reader.serial, session.run_folder, list(session.positions),
+                                         session.zone_cells, list(session.events), session.map_id)
         if session:
-            _save_problems(reader.serial, session)
-            _save_floor(reader.serial, session)
+            _save_run(reader.serial, session)
 
 
 def _poll(reader: Reader) -> None:
@@ -275,10 +278,25 @@ def _where(serial: str, session: Session) -> dict:
     return {"mapId": session.map_id, "xM": round(u * 0.04, 2), "yM": round(v * 0.04, 2)}
 
 
-def _save_floor(serial: str, session: Session) -> None:
+def _save_run(serial: str, session: Session) -> None:
+    """Once the run is read to its end and its maps are here: its problems and floor type onto its map,
+    placed with the origin fitted on this run's own track. Not with the map's calibration: that one
+    assumes the run started on the dock, which the robot reports now and then when it did not, and
+    everything would land shifted, off the map too."""
+    if session.saved or not session.ended_at or not session.run_folder:
+        return
+    session.saved = True
+    if not session.origin or not session.map_id:
+        logger.info("Live position of %s: problems and floor type of this run not kept: its track does not "
+                    "fit its stored map (other grid, e.g. doors closed, or no fit)", serial)
+        return
+    _save_problems(serial, session, session.origin)
+    _save_floor(serial, session, session.origin)
+
+
+def _save_floor(serial: str, session: Session, cal: dict) -> None:
     """The run's brush load onto its map (gen3/floor_type.py), in map cells."""
-    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
-    if not cal or not session.floor:
+    if not session.floor:
         return
     try:
         # across the brush: perpendicular to the heading; in map cells y is down
@@ -296,10 +314,9 @@ def problems(serial: str, map_id: str) -> list[dict]:
         return []
 
 
-def _save_problems(serial: str, session: Session) -> None:
-    """The run's problems onto its map, in map cells (needs the map's calibration and a start on the dock)."""
-    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
-    if not cal or not session.events:
+def _save_problems(serial: str, session: Session, cal: dict) -> None:
+    """The run's problems onto its map, in map cells."""
+    if not session.events:
         return
     run_id = Path(session.run_folder).name if session.run_folder else None
     at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -398,8 +415,11 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
         return
     session.run_folder = job_folder
     session.zone_cells = _zone_cells(serial, run, Path(job_folder))
-    _save_track(serial, job_folder, positions, session.zone_cells, list(session.events))
     map_id = run.get("persistent_map_id")
+    session.map_id = session.map_id or map_id
+    session.origin = _save_track(serial, job_folder, positions, session.zone_cells, list(session.events),
+                                 session.map_id)
+    _save_run(serial, session)
     why_not = ("no map id in the run" if not map_id
                else "it did not start on the dock" if not session.docked_at_start
                else f"only {len(positions)} positions" if len(positions) < 100
@@ -552,9 +572,11 @@ def _save_coverage(serial: str, run_id: str, result: dict | None) -> None:
 
 
 def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]],
-                zone_cells: list[list[float]] | None = None, events: list[dict] | None = None) -> None:
+                zone_cells: list[list[float]] | None = None, events: list[dict] | None = None,
+                map_id: str | None = None) -> dict | None:
     """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track):
-    the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers."""
+    the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers.
+    Returns the fitted origin ({"u0", "v0", "upc"}) if the run map is the grid of stored map `map_id`."""
     try:
         run = json.loads((Path(run_folder) / "runmap.json").read_text())
         fit = _fit_origin(_grid(run), positions, UNITS_PER_CELL)
@@ -575,5 +597,10 @@ def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float
         logger.info("Live position of %s: track of %d points saved for %s (fit %.2f), cleaned %s%% of %s",
                     serial, len(cells), Path(run_folder).name, c, cov and cov["percent"],
                     "its zone" if zone_cells else "the free floor")
+        if map_id:
+            stored = json.loads((MAPS_DIR / serial / map_id / "floormap.json").read_text())
+            if (stored["width"], stored["height"]) == (run["width"], run["height"]):
+                return {"u0": u0, "v0": v0, "upc": UNITS_PER_CELL}
     except Exception as e:
         logger.warning("Live position of %s: track for %s not saved: %s", serial, run_folder, e)
+    return None
