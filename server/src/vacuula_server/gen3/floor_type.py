@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import statistics
 import threading
 
 from vacuula_server.constants import DATA_DIR
@@ -26,6 +27,8 @@ LOW_FROM, HIGH_FROM = 25_000, 55_000   # brush load: runner from, high pile from
 BRUSH_AHEAD_CELLS = 2.5
 BRUSH_SIDE_CELLS = 1.5    # each sample counts across the brush this far to either side (about 6 cm of its 13.5)
 CLOSE_CELLS = 5            # gaps between lanes up to this wide are filled (not where hard floor was measured)
+SMOOTH = 11               # samples (10 a second): each counts with the median load around it, so a short
+                           # dip or spike (a lifted brush, a cable) doesn't decide a cell
 CELL_M2 = 0.04 * 0.04
 MIN_PATCH_M2 = 0.5
 FLOOR_FILE = DATA_DIR / "live_floor.json"
@@ -54,13 +57,15 @@ def _load_file() -> dict:
 
 
 def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int, float, float]]) -> None:
-    """A run's samples (map cells u, v where the brush was, brush load, and the unit vector across the
-    brush in cells) onto its map's counts: per cell [hard, low, high]."""
+    """A run's samples in the order they were taken (map cells u, v where the brush was, brush load,
+    and the unit vector across the brush in cells) onto its map's counts: per cell [hard, low, high]."""
     if not samples:
         return
+    loads = [s[2] for s in samples]
+    half = SMOOTH // 2
     per_run: dict[tuple[int, int], list[int]] = {}
-    for u, v, load, side_u, side_v in samples:
-        k = kind(load) - 1
+    for i, (u, v, _, side_u, side_v) in enumerate(samples):
+        k = kind(statistics.median(loads[max(0, i - half):i + half + 1])) - 1
         # a short line across the brush (side_u, side_v: unit vector to its side, in cells)
         steps = int(BRUSH_SIDE_CELLS * 2)
         cells = {(round(u + side_u * BRUSH_SIDE_CELLS * i / steps), round(v + side_v * BRUSH_SIDE_CELLS * i / steps))
