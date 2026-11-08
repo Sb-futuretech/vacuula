@@ -32,7 +32,7 @@ from vacuula_server.state import push_to_app, robot_connections
 logger = logging.getLogger(__name__)
 
 STATE_BUSY = 2
-POLL_S = 1.0
+POLL_S = 2.0               # 30 requests a minute: below inetd's default limit (40), even on a robot without nowait.1000
 RETRY_S = 5.0              # after a failed request: don't keep knocking (inetd shuts a port it finds busy)
 FETCH_TIMEOUT_S = 15       # the robot answers in 0.3 s at rest; while cleaning it is busier
 IDLE_STOP_S = 20            # keep reading this long after the robot left BUSY (last blocks)
