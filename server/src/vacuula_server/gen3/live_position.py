@@ -218,18 +218,27 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     the robot's origin lies on its map from the RunMap track."""
     with _lock:
         session = _sessions.get(serial)
-    if not session or not session.ended_at or time.time() - session.ended_at > SESSION_KEEP_S:
+        positions = list(session.positions) if session else []
+    # the robot uploads its maps right at the end, while this server still reads its last blocks: a run
+    # still being read counts, an older one only for SESSION_KEEP_S
+    if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
         return
     map_id = run.get("persistent_map_id")
-    if not map_id or not session.docked_at_start or len(session.positions) < 100:
+    why_not = ("no map id in the run" if not map_id
+               else "it did not start on the dock" if not session.docked_at_start
+               else f"only {len(positions)} positions" if len(positions) < 100
+               else None)
+    if why_not:
+        logger.info("Live position of %s: run %s not used for calibration: %s", serial, run.get("id"), why_not)
         return
     try:
-        result = calibrate(Path(job_folder), MAPS_DIR / serial / map_id, session.positions)
+        result = calibrate(Path(job_folder), MAPS_DIR / serial / map_id, positions)
     except Exception as e:
         logger.warning("Live position of %s: calibration on run %s failed: %s", serial, run.get("id"), e)
         return
     if result is None:
-        logger.info("Live position of %s: run %s does not fit its map well enough, not calibrated", serial, run.get("id"))
+        logger.info("Live position of %s: run %s not used for calibration: its track does not fit map %s "
+                    "(other grid, or too far off)", serial, run.get("id"), map_id)
         return
     data = _load()
     data.setdefault(serial, {})[map_id] = result
