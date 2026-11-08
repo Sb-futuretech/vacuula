@@ -78,6 +78,20 @@ def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int, flo
     logger.info("Floor type of %s: %d samples of this run added to map %s", serial, len(samples), map_id)
 
 
+EDGE_SHARE = 0.3   # a row or column belongs to the rectangle with at least this share of the patch's typical one
+
+
+def _extent(coords: list[int]) -> tuple[int, int]:
+    """From the first to past the last row (or column) that holds at least EDGE_SHARE of the cells a
+    typical one of the patch holds: single spots sticking out of an edge don't widen the rectangle."""
+    counts: dict[int, int] = {}
+    for c in coords:
+        counts[c] = counts.get(c, 0) + 1
+    typical = sorted(counts.values())[len(counts) // 2]
+    kept = [c for c, n in counts.items() if n >= EDGE_SHARE * typical]
+    return min(kept), max(kept) + 1
+
+
 def _patches(cells: dict[tuple[int, int], int]) -> list[dict]:
     """Connected areas of carpet (high pile, and runner or more) with a rectangle around each."""
     out = []
@@ -95,9 +109,8 @@ def _patches(cells: dict[tuple[int, int], int]) -> list[dict]:
                         todo.append(n)
             if len(comp) * CELL_M2 < MIN_PATCH_M2:
                 continue
-            us = [c[0] for c in comp]
-            vs = [c[1] for c in comp]
-            u0, u1, v0, v1 = min(us), max(us) + 1, min(vs), max(vs) + 1
+            u0, u1 = _extent([c[0] for c in comp])
+            v0, v1 = _extent([c[1] for c in comp])
             box = (u1 - u0) * (v1 - v0)
             out.append({
                 "kind": name,
