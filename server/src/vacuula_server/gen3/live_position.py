@@ -69,7 +69,13 @@ PROBLEMS_KEEP = 3000       # per map, newest kept
 # not moved more than STUCK_MOVE_CELLS for STUCK_S while cleaning: stuck (a Telegram message, once)
 STUCK_S = 120
 STUCK_MOVE_CELLS = 3
-CLEANING_ACTIONS = {1, 2, 11, 12}  # house, spot, map cleaning, exploring (not docking or recharging)
+CLEANING_ACTIONS = {1, 2, 11, 12}
+# Leaving the dock the robot counts from where it stood, drives off about 35 cm, stands ~20 s to find
+# itself on its map, then its position jumps into the map's frame (seen on every run of a D7,
+# 2026-11-08). What came before that jump is in another frame: dropped. A jump is a step this large
+# between two positions; only one within START_POSITIONS of the start counts as that one.
+JUMP_CELLS = 3
+START_POSITIONS = 900  # house, spot, map cleaning, exploring (not docking or recharging)
 
 
 @dataclass
@@ -211,6 +217,14 @@ def _poll(reader: Reader) -> None:
         for ptype, clock, pdata in reader.stream.feed(payload):
             if ptype == blackbox.PKT_COORDS:
                 latest = blackbox.Coords.parse(pdata)
+                if session and session.last_pos and len(session.positions) < START_POSITIONS and math.hypot(
+                        latest.x - session.last_pos[0], latest.y - session.last_pos[1]) > JUMP_CELLS * UNITS_PER_CELL:
+                    logger.info("Live position of %s: on its map now, %d positions of leaving the dock dropped",
+                                reader.serial, len(session.positions))
+                    session.positions.clear()
+                    session.floor.clear()
+                    session.events.clear()
+                    session.anchor = None
                 if session:
                     session.positions.append((latest.x, latest.y))
                     session.last_pos = (latest.x, latest.y)
