@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 STATE_BUSY = 2
 POLL_S = 1.0
+FETCH_TIMEOUT_S = 15       # the robot answers in 0.3 s at rest; while cleaning it is busier
 IDLE_STOP_S = 20            # keep reading this long after the robot left BUSY (last blocks)
 MAX_BUFFER = 1 << 20        # raw bytes kept while waiting for a whole block
 CATCH_UP = 256 * 1024       # joining a run late: start this far before the end of the file
@@ -61,13 +62,16 @@ class Reader:
     stream: blackbox.PacketStream = field(default_factory=blackbox.PacketStream)
     idle_since: float | None = None
     stop: threading.Event = field(default_factory=threading.Event)
+    reads: int = 0          # answers from the robot this run
+    failed: int = 0         # requests without an answer
+    slowest: float = 0.0    # longest answer, seconds
+    failing: bool = False
 
 
 _lock = threading.Lock()
 _readers: dict[str, Reader] = {}
 _sessions: dict[str, Session] = {}
 _last_docked: dict[str, bool] = {}
-_warned: set[str] = set()
 
 
 # ---- robot state ------------------------------------------------------------------------------------
@@ -100,21 +104,30 @@ def _run(reader: Reader) -> None:
         while not reader.stop.is_set():
             if reader.idle_since and time.time() - reader.idle_since > IDLE_STOP_S:
                 break
+            started = time.time()
             try:
                 _poll(reader)
+                reader.reads += 1
+                reader.slowest = max(reader.slowest, time.time() - started)
+                if reader.failing:
+                    reader.failing = False
+                    logger.info("Live position of %s: black box readable again (after %.1f s)",
+                                reader.serial, time.time() - started)
             except OSError as e:
-                if reader.serial not in _warned:
-                    _warned.add(reader.serial)
-                    logger.warning("Live position of %s: black box not readable (%s); installer with bbtail.sh needed",
-                                   reader.serial, e)
+                reader.failed += 1
+                if not reader.failing:
+                    reader.failing = True
+                    logger.warning("Live position of %s: black box not readable (%s after %.1f s)",
+                                   reader.serial, e, time.time() - started)
             reader.stop.wait(POLL_S)
     finally:
         with _lock:
             _readers.pop(reader.serial, None)
             if session := _sessions.get(reader.serial):
                 session.ended_at = time.time()
-                logger.info("Live position of %s: run ended, %d positions (map %s)",
-                            reader.serial, len(session.positions), session.map_id)
+                logger.info("Live position of %s: run ended, %d positions (map %s); %d reads, %d failed, slowest %.1f s",
+                            reader.serial, len(session.positions), session.map_id, reader.reads, reader.failed,
+                            reader.slowest)
 
 
 def _poll(reader: Reader) -> None:
@@ -160,7 +173,7 @@ def _poll(reader: Reader) -> None:
 def _fetch(host: str, name: str, offset: int) -> tuple[tuple[str, int, int, str], bytes]:
     """Ask bbtail.sh on the robot for `name` from `offset`. Its answer: a line
     "<name> <size> <start> <newest>", then the file's bytes from `start` (offset rounded down to 4 KiB)."""
-    with socket.create_connection((host, BB_PORT), timeout=5) as sock:
+    with socket.create_connection((host, BB_PORT), timeout=FETCH_TIMEOUT_S) as sock:
         sock.sendall(f"{name} {offset}\n".encode())
         chunks = []
         while chunk := sock.recv(65536):
