@@ -270,8 +270,9 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
         logger.warning("Live position of %s: calibration on run %s failed: %s", serial, run.get("id"), e)
         return
     if result is None:
-        logger.info("Live position of %s: run %s not used for calibration: its track does not fit map %s "
-                    "(other grid, or too far off)", serial, run.get("id"), map_id)
+        logger.info("Live position of %s: run %s not used for calibration: no clean start and end on the dock "
+                    "on map %s (failed docking, start away from the dock, other grid, or the track does not fit)",
+                    serial, run.get("id"), map_id)
         return
     data = _load()
     data.setdefault(serial, {})[map_id] = result
@@ -338,6 +339,10 @@ def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: flo
 
 
 MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
+RUN_DOCK = 100  # the dock block in a RunMap (only in runs that ended on the dock)
+# the origin (robot centre at the start) lies this close to the dock block, cells: about 50 cm; on a D7
+# it was 7 cells away on two runs from the dock
+MAX_ORIGIN_FROM_DOCK = 12
 
 
 def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]) -> dict | None:
@@ -349,10 +354,21 @@ def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]
     floor = json.loads((map_dir / "floormap.json").read_text())
     if (run["width"], run["height"]) != (floor["width"], floor["height"]):
         return None
-    fit = _fit_origin(_grid(run), positions, UNITS_PER_CELL)
+    grid = _grid(run)
+    # positions count from where the run started: only a run that started (and ended) on the dock says
+    # where the origin lies. The run must end with its dock block (a run that failed to dock has none),
+    # and the fitted origin must lie next to it (a start off the dock, e.g. after a failed docking, is
+    # reported as docked by the robot now and then)
+    dock = np.argwhere(grid == RUN_DOCK)
+    if len(dock) == 0:
+        return None
+    fit = _fit_origin(grid, positions, UNITS_PER_CELL)
     if fit is None or fit[2] > MAX_FIT:
         return None
     u0, v0, c = fit
+    dv, du = dock.mean(0)
+    if math.hypot(u0 - du, v0 - dv) > MAX_ORIGIN_FROM_DOCK:
+        return None
     return {"u0": round(u0, 2), "v0": round(v0, 2), "upc": UNITS_PER_CELL, "fit": round(c, 2),
             "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
