@@ -97,6 +97,9 @@ class Session:
     # where this run's origin lies on its stored map, fitted on the run's own RunMap track (None: the run
     # map is not the stored map's grid, or the track does not fit); problems and floor type go there
     origin: dict | None = None
+    # the stored map the run's upload names; None: the robot cleaned without its map (it built a new one
+    # on the way, in another grid, and its position drifts), so nothing of the run goes onto a stored map
+    run_map_id: str | None = None
     saved: bool = False             # problems and floor type of this run are on its map
 
 
@@ -181,7 +184,7 @@ def _run(reader: Reader) -> None:
         # the maps came while the last blocks were still read: save the track again, complete now
         if session and session.run_folder:
             session.origin = _save_track(reader.serial, session.run_folder, list(session.positions),
-                                         session.zone_cells, list(session.events), session.map_id)
+                                         session.zone_cells, list(session.events), session.run_map_id)
         if session:
             _save_run(reader.serial, session)
 
@@ -301,13 +304,19 @@ def _save_run(serial: str, session: Session) -> None:
     if session.saved or not session.ended_at or not session.run_folder:
         return
     session.saved = True
-    if not session.origin or not session.map_id:
+    if not session.run_map_id:
+        logger.info("Live position of %s: run cleaned without its stored map (none named in its upload): "
+                    "its problems and floor type are not kept", serial)
+        return
+    session.map_id = session.run_map_id
+    if not session.origin:
         logger.info("Live position of %s: problems and floor type of this run not kept: its track does not "
                     "fit its stored map (other grid, e.g. doors closed, or no fit)", serial)
         return
+    if not _learn(serial, session.map_id, session.origin, Path(session.run_folder).name):
+        return
     _save_problems(serial, session, session.origin)
     _save_floor(serial, session, session.origin)
-    _learn(serial, session.map_id, session.origin, Path(session.run_folder).name)
 
 
 def _save_floor(serial: str, session: Session, cal: dict) -> None:
@@ -431,10 +440,9 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
         return
     session.run_folder = job_folder
     session.zone_cells = _zone_cells(serial, run, Path(job_folder))
-    map_id = run.get("persistent_map_id")
-    session.map_id = session.map_id or map_id
+    session.run_map_id = run.get("persistent_map_id")
     session.origin = _save_track(serial, job_folder, positions, session.zone_cells, list(session.events),
-                                 session.map_id)
+                                 session.run_map_id)
     _save_run(serial, session)
 
 
@@ -498,12 +506,19 @@ def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: flo
 
 MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
 LEARN_RUNS = 7    # the map's origin is the median of the last this many runs' own fits
+MAX_OFF_CELLS = 3  # once a map has 3 runs, a run this far off its origin is not taken (its fit went wrong)
 
 
-def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> None:
-    """One more run's origin for the map; the map's origin is the median of the last LEARN_RUNS."""
+def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> bool:
+    """One more run's origin for the map; the map's origin is the median of the last LEARN_RUNS. False
+    if the run's origin is too far off the map's to be trusted (nothing of the run should go onto it)."""
     data = _load()
     cal = data.setdefault(serial, {}).get(map_id) or {}
+    if len(cal.get("runs") or []) >= 3 and math.hypot(origin["u0"] - cal["u0"], origin["v0"] - cal["v0"]) > MAX_OFF_CELLS:
+        logger.info("Live position of %s: map %s origin from run %s (u0 %.2f v0 %.2f) not taken: %.1f cells off the "
+                    "map's", serial, map_id, run_id, origin["u0"], origin["v0"],
+                    math.hypot(origin["u0"] - cal["u0"], origin["v0"] - cal["v0"]))
+        return False
     runs = (cal.get("runs") or [])[-(LEARN_RUNS - 1):] + [
         [round(origin["u0"], 2), round(origin["v0"], 2), run_id]]
     data[serial][map_id] = {
@@ -517,6 +532,7 @@ def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> None:
     logger.info("Live position of %s: map %s origin from run %s u0 %.2f v0 %.2f, map now u0 %.2f v0 %.2f (%d runs)",
                 serial, map_id, run_id, origin["u0"], origin["v0"], data[serial][map_id]["u0"],
                 data[serial][map_id]["v0"], len(runs))
+    return True
 
 
 TRACK_EVERY = 5  # every 5th position (2 per second) is plenty for a line
