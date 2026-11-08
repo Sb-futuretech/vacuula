@@ -40,7 +40,7 @@ def nucleo_init(req: RouterHandler) -> None:
     req.end_headers()
 
     send_chunk(req.wfile, build_heartbeat())
-    conn = RobotConn(serial, Generation.GEN3, Gen2Gen3Conn(gen3_data.password, req.wfile))
+    conn = RobotConn(serial, Generation.GEN3, Gen2Gen3Conn(gen3_data.password, req.wfile), req.client_address[0])
     peer = "%s:%s" % req.client_address[:2]
     if serial in robot_connections:
         logger.warning("Robot %s opened a new command connection while the old one was still open", serial)

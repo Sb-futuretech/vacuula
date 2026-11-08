@@ -42,6 +42,9 @@ interface AppContextType {
     zoneQueue: ZoneQueueStatus | null
     setZoneQueue: (queue: ZoneQueueStatus | null) => void
 
+    // gen3: where the robot is while it cleans (from its black box, sent by the server)
+    livePosition: LiveTrack | null
+
     // notification centre: newest first; read state is remembered per device
     notifications: AppNotification[]
     unreadNotifications: number
@@ -65,6 +68,24 @@ const gen3StateFields = (s: Neato.Gen3.GetRobotStateResponse) => ({
     cleaning: s.cleaning,
 })
 
+// one position as the server sends it: map cells (u right, v down) and heading in degrees on screen
+export interface LivePosition {
+    mapId: string
+    u: number
+    v: number
+    heading: number
+    t: number
+}
+
+// the positions of the running clean: the newest and the way there
+export interface LiveTrack {
+    last: LivePosition
+    points: [number, number][]
+}
+
+// a new clean (or a gap this long, in seconds) starts a new track
+const LIVE_TRACK_GAP_S = 120
+
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -79,6 +100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: false })
     const [message, setMessage] = useState<string | null>(null)
     const [zoneQueue, setZoneQueue] = useState<ZoneQueueStatus | null>(null)
+    const [livePosition, setLivePosition] = useState<LiveTrack | null>(null)
     const [notifications, setNotifications] = useState<AppNotification[]>([])
     const [lastReadNotification, setLastReadNotification] = useState(0)
     const readKey = (serial: string) => `vacuula.notificationsRead.${serial}`
@@ -223,6 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             `${BASE_PATH}/api/robot/${robot.serial}/connect`,
         );
         setZoneQueue(null)
+        setLivePosition(null)
         setNotifications([])
         try { setLastReadNotification(Number(localStorage.getItem(readKey(robot.serial))) || 0) } catch { setLastReadNotification(0) }
 
@@ -285,6 +308,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // zone queue progress comes from the server itself, not from the robot
             if (parsed.event === 'zoneQueue') {
                 setZoneQueue(parsed.data)
+                return
+            }
+            if (parsed.event === 'livePosition') {
+                const pos: LivePosition = parsed.data
+                setLivePosition(cur => cur && cur.last.mapId === pos.mapId && pos.t - cur.last.t < LIVE_TRACK_GAP_S
+                    ? { last: pos, points: [...cur.points, [pos.u, pos.v]] }
+                    : { last: pos, points: [[pos.u, pos.v]] })
                 return
             }
             if (parsed.event === 'notification') {
@@ -361,6 +391,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMessage,
         zoneQueue,
         setZoneQueue,
+        livePosition,
         notifications,
         unreadNotifications,
         markNotificationsRead,

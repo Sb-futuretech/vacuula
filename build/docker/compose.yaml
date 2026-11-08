@@ -18,6 +18,7 @@ services:
       - VACUULA_TZ=Europe/Berlin
       - TZ=Europe/Berlin
       - LOG_LEVEL=INFO           # DEBUG shows every robot message
+      - VACUULA_BB_KEY=          # gen3 live position: the black box key from the robot's firmware (hex); empty = off
     volumes:
       - vacuula-data:/server/data
     restart: unless-stopped

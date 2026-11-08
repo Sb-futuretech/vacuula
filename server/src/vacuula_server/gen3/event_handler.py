@@ -4,14 +4,14 @@ from vacuula_server import state
 import json
 import time
 from vacuula_server.state import pending_requests, put_drop_oldest
-from vacuula_server.gen3 import zone_queue, run_zone, run_segments
+from vacuula_server.gen3 import zone_queue, run_zone, run_segments, live_position
 from vacuula_server import notifications
 import typing
 
 logger = logging.getLogger(__name__)
 
 # modules told about every robot state, in this order
-STATE_LISTENERS = (zone_queue, notifications, run_zone, run_segments)
+STATE_LISTENERS = (zone_queue, notifications, run_zone, run_segments, live_position)
 
 def robot_message(serial: str, data: bytes):
     """Handle one whole message from the robot (see gen3.chunked): a heartbeat or a JSON object."""

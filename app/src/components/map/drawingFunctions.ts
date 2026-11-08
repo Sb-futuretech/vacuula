@@ -460,6 +460,50 @@ export function drawBase(
     ctx.restore()
 }
 
+// The robot where it is now (live, gen3) and the way it took during this clean. Positions are map
+// cells; heading in degrees on screen (0 = right, clockwise).
+export function drawLiveRobot(
+    ctx: CanvasRenderingContext2D,
+    points: [number, number][],
+    heading: number,
+    zoom: number,
+    offset: { x: number; y: number },
+    resolution: number,
+) {
+    const at = ([u, v]: [number, number]) => [offset.x + u * zoom, offset.y + v * zoom] as const
+    const rPx = Math.max(6, (ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)) * zoom)
+    ctx.save()
+    if (points.length > 1) {
+        ctx.beginPath()
+        points.forEach((p, i) => {
+            const [x, y] = at(p)
+            if (i === 0) ctx.moveTo(x, y)
+            else ctx.lineTo(x, y)
+        })
+        ctx.lineJoin = 'round'
+        ctx.lineCap = 'round'
+        ctx.strokeStyle = withAlpha(COLORS.CROSSHAIR, 0.45)
+        ctx.lineWidth = Math.max(2, rPx * 0.35)
+        ctx.stroke()
+    }
+    const [x, y] = at(points[points.length - 1])
+    ctx.translate(x, y)
+    ctx.beginPath()
+    ctx.arc(0, 0, rPx, 0, Math.PI * 2)
+    ctx.fillStyle = withAlpha(COLORS.CROSSHAIR, 0.9)
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#ffffff'
+    ctx.stroke()
+    // which way it faces
+    ctx.rotate(heading * Math.PI / 180)
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.lineTo(rPx, 0)
+    ctx.stroke()
+    ctx.restore()
+}
+
 // An image (e.g. the mascot) where the robot docks, drawn instead of the dock symbol.
 export function drawMarker(
     ctx: CanvasRenderingContext2D,

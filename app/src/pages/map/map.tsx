@@ -21,7 +21,8 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, HEATMAP_ALPHAS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, HEATMAP_ALPHAS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { useApp } from '../../context/useApp'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
 import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
@@ -34,6 +35,9 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 
 
 // gen3 robot actions of an exploration (exploring, paused, getting map ids, uploading the map)
+// a live position older than this (seconds) is not drawn: the clean has ended or the link is gone
+const LIVE_FRESH_S = 60
+
 const EXPLORE_ACTIONS = [Neato.Gen3.RobotAction.EXPLORING_MAP, Neato.Gen3.RobotAction.SUSPENDED_EXPLORATION,
     Neato.Gen3.RobotAction.ACQUIRING_PERSISTENT_MAP_IDS, Neato.Gen3.RobotAction.CREATING_UPLOADING_MAP]
 // serial -> map ids when an exploration was first seen; kept outside the page so leaving the map tab
@@ -75,6 +79,7 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
+    const { livePosition } = useApp()
     // loadedMapId: the map the shown list belongs to; until the shown map's load has succeeded nothing can
     // be edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const [loadedMapId, setLoadedMapId] = useState<string>()
@@ -209,6 +214,11 @@ export default () => {
             drawBase(ctx, { x: baseData[0], y: baseData[1], dir: baseData[2] ?? 0 }, currentZoom, currentOffset, mapSize, 0)
         }
 
+        // gen3: the robot where it is now and its way during this clean (fresh positions only)
+        if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
+            drawLiveRobot(ctx, livePosition.points, livePosition.last.heading, currentZoom, currentOffset, 0)
+        }
+
         if (mode === 'boundary-edit') {
             drawCrosshair(ctx, canvas)
             if (closedAsPolygon) {
@@ -216,7 +226,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {

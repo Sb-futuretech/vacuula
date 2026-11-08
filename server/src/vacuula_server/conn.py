@@ -16,11 +16,11 @@ class Gen4Conn:
         self.socket = socket
 
 class RobotConn:
-    def __init__(self, serial: str, gen: Generation, conn: Gen2Gen3Conn | Gen4Conn):
+    def __init__(self, serial: str, gen: Generation, conn: Gen2Gen3Conn | Gen4Conn, host: str | None = None):
         self.serial = serial
         self.gen = gen
         self.conn = conn
-        # self.addr = addr
+        self.host = host  # the robot's address as this server sees it (gen3: for its black box)
 
         self.stop_event = threading.Event()
 

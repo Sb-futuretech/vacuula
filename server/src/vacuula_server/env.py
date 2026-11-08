@@ -73,6 +73,11 @@ MDNS_ENABLED: bool = _get_bool_env("MDNS_ENABLED", True)
 HOST_IP: str = _get_str_env("HOST_IP", "0.0.0.0")
 LOG_LEVEL: str = _get_str_env("LOG_LEVEL", "INFO").upper()
 
+# Live position from a gen3 robot's black box (gen3/live_position.py): the 11-byte key fixed in the
+# robot's firmware, as hex (empty: off), and the port of bbtail.sh on the robot (installer).
+BB_KEY: bytes = bytes.fromhex(_get_str_env("VACUULA_BB_KEY", "") or "")
+BB_PORT: int = _get_int_env("VACUULA_BB_PORT", 4447)
+
 # HA Ingress stuff
 # By config.yaml default for this value will be true, but others not running via HA App it never even has to pass this check
 # SUPERVISOR_TOKEN is injected, should not be set by user
