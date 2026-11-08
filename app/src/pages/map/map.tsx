@@ -170,7 +170,7 @@ export default () => {
             .catch(() => {})
         return () => { cancelled = true }
     }, [showProblems, persistentMap, robot.serial, robot.type])
-    const problems = showProblems && loadedProblems?.mapId === persistentMap ? loadedProblems.list : undefined
+    const problems = showProblems && loadedProblems && loadedProblems.mapId === persistentMap ? loadedProblems.list : undefined
     const [heatmapRuns, setHeatmapRuns] = useState(10)
     const { heatmap, loading: heatmapLoading } = useCoverageHeatmap(
         robot.serial, persistentMap, showHeatmap && robot.type === RobotType.NeatoGen3, heatmapRuns)
