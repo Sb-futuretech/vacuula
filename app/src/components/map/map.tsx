@@ -3,12 +3,12 @@ import { useMap } from './useMap'
 import { useRobot } from '../../context/useRobot'
 import { Neato, RobotType } from '../../types'
 import Button from '../button/button'
-import { Http } from '../../http'
+import { Http, type RunCoverage } from '../../http'
 import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
 import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { drawBase, drawMarker, drawRunTrack, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
+import { drawBase, drawMarker, drawMissed, drawRunTrack, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
 import { decodeRLE, pointInPolygon } from './utils'
 import type { ExtraDrawFn } from './useMap'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
@@ -69,17 +69,18 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
     const { data: cleaningData } = useCleaning(runId ?? '')
 
     // gen3: the way the run drove (from its black box, saved by the server); runs without one have none
-    const [loadedTrack, setLoadedTrack] = useState<{ runId: string, cells: [number, number][] }>()
+    const [loadedTrack, setLoadedTrack] = useState<{ runId: string, cells: [number, number][], coverage?: RunCoverage | null }>()
     useEffect(() => {
         if (!runId || robot.type !== RobotType.NeatoGen3) return
         let cancelled = false
         Http.getRunTrack(robot.serial, runId)
-            .then(res => { if (!cancelled) setLoadedTrack({ runId, cells: res.data.cells }) })
+            .then(res => { if (!cancelled) setLoadedTrack({ runId, cells: res.data.cells, coverage: res.data.coverage }) })
             .catch(() => {})
         return () => { cancelled = true }
     }, [robot.serial, robot.type, runId])
     // only the shown run's: another run's track stays hidden until this one has loaded
     const track = loadedTrack && loadedTrack.runId === runId ? loadedTrack.cells : undefined
+    const runCoverage = loadedTrack && loadedTrack.runId === runId ? loadedTrack.coverage ?? undefined : undefined
     const runCells = useMemo(() => zones && cleaningData ? decodeRLE(cleaningData.rle) : undefined, [zones, cleaningData])
 
     // Zones belong to a stored map, but every gen3 run has its own map id. Runs on a stored map share
@@ -143,6 +144,8 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
     const extraDraw = useCallback<ExtraDrawFn>((ctx, _canvas, zoom, offset, mapSize, runMarkers) => {
         if (!persistantMapData) return
         if (runZones.length) drawZoneOverlay(ctx, runZones, visitedZones, zoom, offset, mapSize)
+        // free floor it did not clean, then the way it drove
+        if (runCoverage && runCoverage.width === mapSize.width) drawMissed(ctx, runCoverage.missed, runCoverage.width, zoom, offset)
         if (track) drawRunTrack(ctx, track, zoom, offset)
         // the run's own markers are exact; the stored base is only a fallback (gen3 derives it
         // from the dock and start markers together). The mascot goes where the robot ended.
@@ -162,7 +165,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
 
         const robotAt = runMarkers?.end ? at(runMarkers.end) : dock
         if (markerImage && robotAt) drawMarker(ctx, markerImage, robotAt.pose, zoom, offset, mapSize, robotAt.resolution)
-    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones, startFlag, track])
+    }, [persistantMapData, dockReady, markerImage, runId, runZones, visitedZones, startFlag, track, runCoverage])
 
     const dock = persistantMapData && basePoseFromMapData(persistantMapData, robot.type === RobotType.NeatoGen3)?.pose
 
@@ -189,7 +192,11 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
                         touchAction: 'none'
                     }}
                 />
-
+                {runCoverage && (
+                    <span className={styles.coverageBadge} title={t('map.coverageHint')}>
+                        {t('map.coverageBadge', { percent: Math.round(runCoverage.percent) })}
+                    </span>
+                )}
             </div>
             {robot.type === RobotType.NeatoGen4 && !persistantMapData?.in_maps_list && (
                 <div style={{ padding: '1.5rem' }}>

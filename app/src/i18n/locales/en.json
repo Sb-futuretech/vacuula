@@ -160,7 +160,8 @@
             "mode": "Mode",
             "navigation": "Navigation",
             "cleaning": "Cleaning"
-        }
+        },
+        "livePosition": "Position x {{x}} · y {{y}} · {{heading}}°"
     },
     "notifications": {
         "title": "Notifications",
@@ -281,7 +282,15 @@
         "notMeasurable_one": "{{count}} run not measurable (recharged in between or no battery values)",
         "notMeasurable_other": "{{count}} runs not measurable (recharged in between or no battery values)",
         "details": "Every run",
-        "mapping": "Mapping run"
+        "mapping": "Mapping run",
+        "coverageTitle": "Cleaned share",
+        "coverageHint": "From the robot's black box, with a brush width of 27 cm: zone runs against their zone, other runs against all free floor of their map.",
+        "coverageMean": "Average",
+        "coverageLowest": "Lowest",
+        "coverageZones": "Zones",
+        "coverageWhole": "Whole map",
+        "percent": "{{value}} %",
+        "zoneCoverage": "{{value}} % of the zone cleaned"
     },
     "schedule": {
         "robotScheduleUnavailable": "The robot's own schedule can't be read right now (robot not connected?). Pi entries still work.",
@@ -431,7 +440,9 @@
         "drawHint": "Drawing a line makes a no-go line; using the polygon button to connect the cursor with the first point makes a zone.",
         "promote": "Use map",
         "demote": "Stop using map",
-        "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround"
+        "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround",
+        "coverageBadge": "{{percent}} % cleaned",
+        "coverageHint": "Share of the zone (or the free floor) this run cleaned; red: missed"
     },
     "settings": {
         "serverTime": "Server time: {{time}} ({{timezone}}, {{offset}})",

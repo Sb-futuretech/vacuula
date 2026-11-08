@@ -41,6 +41,7 @@ export default () => {
             <Totals totals={stats.totals} />
             <DailyArea daily={stats.daily} />
             <BatteryCard stats={stats} />
+            <CoverageCard groups={stats.coverageGroups ?? []} />
             <BatteryTrend weekly={stats.batteryWeekly ?? []} />
             {stats.batteryInfo && <BatteryHealth info={stats.batteryInfo} changes={stats.batteryChanges ?? []} />}
             <Zones zones={stats.zones ?? []} />
@@ -274,6 +275,32 @@ function BatteryHealth({ info, changes }: { info: NonNullable<RobotStats['batter
     )
 }
 
+// how much of its area a run cleaned, per zone or whole map and mode + navigation (gen3, black box)
+function CoverageCard({ groups }: { groups: NonNullable<RobotStats['coverageGroups']> }) {
+    const { t } = useTranslation()
+    const label = useComboLabel()
+    if (!groups.length) return null
+    return (
+        <section className={styles.card}>
+            <h3>{t('stats.coverageTitle')}</h3>
+            <span className={styles.muted}>{t('stats.coverageHint')}</span>
+            <table className={styles.table}>
+                <thead><tr><th>{t('stats.combination')}</th><th>{t('stats.coverageMean')}</th><th>{t('stats.coverageLowest')}</th><th>{t('stats.runsCol')}</th></tr></thead>
+                <tbody>
+                    {groups.map(g => (
+                        <tr key={`${g.zone}-${g.mode}-${g.navigationMode}`}>
+                            <td>{t(g.zone ? 'stats.coverageZones' : 'stats.coverageWhole')} · {label(g)}</td>
+                            <td className={styles.num}>{t('stats.percent', { value: Math.round(g.percent) })}</td>
+                            <td className={styles.num}>{t('stats.percent', { value: Math.round(g.lowest) })}</td>
+                            <td className={styles.num}>{g.runs}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </section>
+    )
+}
+
 // per zone: how often, when last, how long and how fast it is cleaned
 function Zones({ zones }: { zones: RobotStats['zones'] }) {
     const { t } = useTranslation()
@@ -295,6 +322,7 @@ function Zones({ zones }: { zones: RobotStats['zones'] }) {
                                 <td className={styles.num}>
                                     <div>{t('stats.minutes', { value: z.minutes })} · {formatArea(z.area)}</div>
                                     {z.areaPerMinute != null && <div className={styles.muted}>{formatAreaPerMinute(z.areaPerMinute)}</div>}
+                                    {z.coverage != null && <div className={styles.muted}>{t('stats.zoneCoverage', { value: Math.round(z.coverage) })}</div>}
                                 </td>
                             </tr>
                         ))}

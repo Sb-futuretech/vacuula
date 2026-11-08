@@ -87,6 +87,18 @@ export interface PiScheduleEntry {
 }
 
 /** GET /api/robot/<serial>/stats (gen3) */
+// how much of its area a run cleaned (gen3, from its black box track); `missed` is RLE [value, count]
+// over the run map, 1 = free floor that was not cleaned
+export interface RunCoverage {
+  percent: number
+  areaM2: number
+  missedM2: number
+  zone: boolean
+  width: number
+  height: number
+  missed: [number, number][]
+}
+
 export interface StatsTotals { runs: number, area: number, hours: number, areaPerMinute: number | null }
 export interface RobotStats {
   totals: { week: StatsTotals, month: StatsTotals, all: StatsTotals }
@@ -96,12 +108,14 @@ export interface RobotStats {
   // every measurable run per mode + navigation the robot reported, summed up
   batteryGroups: { mode: number | null, navigationMode: number | null, runs: number, used: number, minutesPerCharge: number | null, areaPerCharge: number | null }[]
   speedGroups: { mode: number | null, navigationMode: number | null, runs: number, areaPerMinute: number | null }[]
+  // share of its area a run cleaned (its zone, or all free floor), from its black box track
+  coverageGroups?: { zone: boolean, mode: number | null, navigationMode: number | null, runs: number, percent: number, lowest: number }[]
   batteryWeekly: { week: string, index: number | null, runs: number, skipped?: number, newBattery?: boolean, used: number, combos: { mode: number | null, navigationMode: number | null, runs: number }[] }[]
   batteryInfo?: { serial: number | null, vendor: string | null, designCapacity: number | null, totalCharges: number | null,
     timeToEmpty: number | null, level: number | null, runSeconds: number | null, at: string } | null
   batteryChanges?: { at: string, serial: number, totalCharges: number | null }[]
   zones: { id: string, name: string, mapId: string, runs: number, lastAt: string | null, minutes: number, area: number, areaPerMinute: number | null,
-    wallMinutes?: number | null }[] // wallMinutes: start to end of a finished run, recharging included
+    wallMinutes?: number | null, coverage?: number | null }[] // wallMinutes: start to end of a finished run, recharging included; coverage: % of the zone cleaned
   wholeMap?: { runs: number, minutes: number } | null // the same for a whole map run
   batteryNotMeasurable: number // recharged in between or no battery values
   reliability: { runs: number, complete: number, canceled: number, withError: number, recharged: number, pickedUp: number, localizationLost: number }
@@ -265,7 +279,7 @@ export class Http {
 
   // gen3: the way a run drove, from its black box, in cells of the run's map (404 without one)
   static getRunTrack(serial: string, runId: string) {
-    return instance.get<{ cells: [number, number][] }>(`/robot/${serial}/run/${runId}/track`)
+    return instance.get<{ cells: [number, number][], coverage?: RunCoverage | null }>(`/robot/${serial}/run/${runId}/track`)
   }
 
   static demoteFloorplan(serial: string, mapId: string) {

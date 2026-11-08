@@ -136,6 +136,25 @@ def _speed_groups(runs: list[dict]) -> list[dict]:
     } for (mode, nav), g in sorted(groups.items(), key=lambda kv: -kv[1]["seconds"])]
 
 
+def _coverage_groups(runs: list[dict]) -> list[dict]:
+    """How much of its area a run cleaned (its zone, or all free floor), per zone or whole map and per
+    mode + navigation: the runs with a black box track only (gen3/coverage.py)."""
+    groups: dict[tuple, list[float]] = {}
+    for run in runs:
+        cov = run.get("coverage")
+        if not cov or cov.get("percent") is None:
+            continue
+        groups.setdefault((bool(cov.get("zone")), run.get("mode"), run.get("navigation_mode")), []).append(cov["percent"])
+    return [{
+        "zone": zone,
+        "mode": mode,
+        "navigationMode": nav,
+        "runs": len(p),
+        "percent": round(sum(p) / len(p), 1),
+        "lowest": min(p),
+    } for (zone, mode, nav), p in sorted(groups.items(), key=lambda kv: (not kv[0][0], -len(kv[1])))]
+
+
 def _battery_weekly(runs: list[dict], tz: ZoneInfo, today) -> list[dict]:
     """A battery index per week (starting Monday): each run's minutes per % against the average of
     its own mode + navigation (100 = as usual), so weeks with other modes compare. Weighted by the
@@ -206,7 +225,10 @@ def _zones(serial: str, runs: list[dict]) -> list[dict]:
     for run in runs:
         if not (zone := run.get("zone")) or not zone.get("id"):
             continue
-        z = zones.setdefault(zone["id"], {"name": "", "mapId": "", "runs": 0, "seconds": 0.0, "area": 0.0, "lastAt": None, "wall": []})
+        z = zones.setdefault(zone["id"], {"name": "", "mapId": "", "runs": 0, "seconds": 0.0, "area": 0.0, "lastAt": None, "wall": [],
+                                          "coverage": []})
+        if (cov := run.get("coverage")) and cov.get("zone") and cov.get("percent") is not None:
+            z["coverage"].append(cov["percent"])
         z["runs"] += 1
         z["seconds"] += run["_active"]
         z["area"] += run.get("cleaned_area") or 0
@@ -227,6 +249,8 @@ def _zones(serial: str, runs: list[dict]) -> list[dict]:
         "areaPerMinute": _per_minute(z["area"], z["seconds"]),
         # start to end of a finished run, breaks and recharging included: how long it is out
         "wallMinutes": round(median(z["wall"]) / 60) if z["wall"] else None,
+        # share of the zone cleaned, over the runs with a black box track
+        "coverage": round(sum(z["coverage"]) / len(z["coverage"]), 1) if z["coverage"] else None,
     } for zone_id, z in sorted(zones.items(), key=lambda kv: kv[1]["lastAt"] or "", reverse=True)]
 
 
@@ -286,6 +310,7 @@ def gen3_stats(serial: str) -> dict:
         "battery": [p for r in runs if (p := _battery_point(r))],
         "batteryGroups": _battery_groups(runs),
         "speedGroups": _speed_groups(runs),
+        "coverageGroups": _coverage_groups(runs),
         "batteryWeekly": weekly,
         "batteryInfo": battery_info,
         "batteryChanges": battery_changes,

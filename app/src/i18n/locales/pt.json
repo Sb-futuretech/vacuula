@@ -153,7 +153,8 @@
         "modeSpotInfo": "Limpa uma área definida pela altura e largura, sempre em Eco com navegação normal (o robô ignora outras definições).",
         "mapModeHint": "O modo de limpeza Mapa está disponível quando o robot está na base.",
         "height": "Altura",
-        "width": "Largura"
+        "width": "Largura",
+        "livePosition": "Posição x {{x}} · y {{y}} · {{heading}}°"
     },
     "notifications": {
         "title": "Notificações",
@@ -274,7 +275,15 @@
         "notMeasurable_one": "{{count}} limpeza sem medição (recarregou a meio ou sem valores)",
         "notMeasurable_other": "{{count}} limpezas sem medição (recarregou a meio ou sem valores)",
         "details": "Todas as limpezas",
-        "mapping": "Mapeamento"
+        "mapping": "Mapeamento",
+        "coverageTitle": "Parte limpa",
+        "coverageHint": "Da caixa negra do robô, com uma escova de 27 cm: limpezas de zona face à sua zona, as outras face a todo o chão livre do mapa.",
+        "coverageMean": "Média",
+        "coverageLowest": "Mínimo",
+        "coverageZones": "Zonas",
+        "coverageWhole": "Mapa inteiro",
+        "percent": "{{value}} %",
+        "zoneCoverage": "{{value}} % da zona limpos"
     },
     "schedule": {
         "robotScheduleUnavailable": "N\u00e3o \u00e9 poss\u00edvel ler agora o agendamento do pr\u00f3prio rob\u00f4 (rob\u00f4 desligado?). As entradas do Pi continuam a funcionar.",
@@ -424,7 +433,9 @@
         "drawHint": "Desenhar uma linha cria uma linha No-Go; usar o botão de polígono para ligar o cursor ao primeiro ponto cria uma zona ou zona No-Go.",
         "promote": "Usar mapa",
         "demote": "Parar de usar mapa",
-        "gen4UpdateBugHint": "NOTA: a modificação de mapas, zonas ou linhas pode desativar os agendamentos. Isto ocorre no firmware do robot, mas já estamos à procura de uma solução"
+        "gen4UpdateBugHint": "NOTA: a modificação de mapas, zonas ou linhas pode desativar os agendamentos. Isto ocorre no firmware do robot, mas já estamos à procura de uma solução",
+        "coverageBadge": "{{percent}} % limpo",
+        "coverageHint": "Parte da zona (ou do chão livre) que esta limpeza limpou; vermelho: falhado"
     },
     "settings": {
         "serverTime": "Hora do servidor: {{time}} ({{timezone}}, {{offset}})",

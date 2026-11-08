@@ -460,6 +460,36 @@ export function drawBase(
     ctx.restore()
 }
 
+// Free floor a run did not clean (gen3): RLE [value, count] over the run map, 1 = missed
+export function drawMissed(
+    ctx: CanvasRenderingContext2D,
+    rle: [number, number][],
+    width: number,
+    zoom: number,
+    offset: { x: number; y: number },
+) {
+    const path = new Path2D()
+    let i = 0
+    for (const [value, count] of rle) {
+        if (value === 1) {
+            // a run of cells may wrap over rows
+            let left = count, at = i
+            while (left > 0) {
+                const x = at % width, y = Math.floor(at / width)
+                const n = Math.min(left, width - x)
+                path.rect(offset.x + x * zoom, offset.y + y * zoom, n * zoom, zoom)
+                left -= n
+                at += n
+            }
+        }
+        i += count
+    }
+    ctx.save()
+    ctx.fillStyle = 'rgba(230, 60, 60, 0.45)'
+    ctx.fill(path)
+    ctx.restore()
+}
+
 // Small arrows along a line of screen points, pointing the way it was drawn: every `spacing` px of
 // its length, so the direction of a route can be seen.
 function drawArrowsAlong(ctx: CanvasRenderingContext2D, pts: [number, number][], spacing: number, size: number) {

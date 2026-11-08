@@ -26,7 +26,11 @@ import numpy as np
 
 from vacuula_server.constants import DATA_DIR, MAPS_DIR
 from vacuula_server.env import BB_KEY, BB_PORT
-from vacuula_server.gen3 import blackbox
+from vacuula_server.db import get_session
+from vacuula_server.gen3 import blackbox, coverage
+from vacuula_server.gen3.data import Gen3MapBoundaries
+from vacuula_server.models.run import Gen3__Run
+from sqlalchemy import select
 from vacuula_server.state import push_to_app, robot_connections
 
 logger = logging.getLogger(__name__)
@@ -52,6 +56,7 @@ class Session:
     positions: list[tuple[float, float]] = field(default_factory=list)
     ended_at: float | None = None
     run_folder: str | None = None   # where the robot's maps of this run went (its track is saved there)
+    zone_cells: list[list[float]] | None = None  # the zone it cleaned, in cells of its run map
 
 
 @dataclass
@@ -132,7 +137,7 @@ def _run(reader: Reader) -> None:
                             reader.slowest)
         # the maps came while the last blocks were still read: save the track again, complete now
         if session and session.run_folder:
-            _save_track(reader.serial, session.run_folder, list(session.positions))
+            _save_track(reader.serial, session.run_folder, list(session.positions), session.zone_cells)
 
 
 def _poll(reader: Reader) -> None:
@@ -255,7 +260,8 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
         return
     session.run_folder = job_folder
-    _save_track(serial, job_folder, positions)
+    session.zone_cells = _zone_cells(serial, run, Path(job_folder))
+    _save_track(serial, job_folder, positions, session.zone_cells)
     map_id = run.get("persistent_map_id")
     why_not = ("no map id in the run" if not map_id
                else "it did not start on the dock" if not session.docked_at_start
@@ -376,7 +382,40 @@ def calibrate(run_dir: Path, map_dir: Path, positions: list[tuple[float, float]]
 TRACK_EVERY = 5  # every 5th position (2 per second) is plenty for a line
 
 
-def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]]) -> None:
+def _zone_cells(serial: str, run: dict, run_dir: Path) -> list[list[float]] | None:
+    """The zone the run cleaned as cells of its run map, if the run map is its stored map's grid."""
+    zone = run.get("zone") or {}
+    map_id = zone.get("mapId") or run.get("persistent_map_id")
+    if not zone.get("id") or not map_id:
+        return None
+    try:
+        stored = json.loads((MAPS_DIR / serial / map_id / "floormap.json").read_text())
+        runmap = json.loads((run_dir / "runmap.json").read_text())
+    except (OSError, ValueError):
+        return None
+    if (stored["width"], stored["height"]) != (runmap["width"], runmap["height"]):
+        return None
+    with get_session() as db:
+        boundaries = db.execute(select(Gen3MapBoundaries.boundaries).where(Gen3MapBoundaries.map_id == map_id)).scalar()
+    for b in boundaries or []:
+        if isinstance(b, dict) and b.get("id") == zone["id"] and b.get("vertices"):
+            return [[x * runmap["width"], y * runmap["height"]] for x, y in b["vertices"]]
+    return None
+
+
+def _save_coverage(serial: str, run_id: str, result: dict | None) -> None:
+    """The run's cleaned share into its record, for the statistics (without the missed cells)."""
+    with get_session() as db:
+        grun = db.get(Gen3__Run, run_id)
+        if grun is None:
+            return
+        summary = {k: v for k, v in (result or {}).items() if k not in ("missed", "width", "height")} or None
+        grun.run = {**grun.run, "coverage": summary}
+        db.commit()
+
+
+def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]],
+                zone_cells: list[list[float]] | None = None) -> None:
     """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track):
     the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers."""
     try:
@@ -388,8 +427,12 @@ def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float
         u0, v0, c = fit
         cells = [[round(u0 + x / UNITS_PER_CELL, 2), round(v0 - y / UNITS_PER_CELL, 2)]
                  for x, y in positions[::TRACK_EVERY]]
-        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2)}))
-        logger.info("Live position of %s: track of %d points saved for %s (fit %.2f)",
-                    serial, len(cells), Path(run_folder).name, c)
+        floor = _grid(json.loads((Path(run_folder) / "floormap.json").read_text()))
+        cov = coverage.measure(floor, cells, zone_cells)
+        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2), "coverage": cov}))
+        _save_coverage(serial, Path(run_folder).name, cov)
+        logger.info("Live position of %s: track of %d points saved for %s (fit %.2f), cleaned %s%% of %s",
+                    serial, len(cells), Path(run_folder).name, c, cov and cov["percent"],
+                    "its zone" if zone_cells else "the free floor")
     except Exception as e:
         logger.warning("Live position of %s: track for %s not saved: %s", serial, run_folder, e)
