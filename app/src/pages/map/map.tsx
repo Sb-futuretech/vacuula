@@ -671,6 +671,7 @@ export default () => {
                                         </div>
                                         <span className={styles.heatmapInfo}>
                                             {heatmapLoading ? t('common.loading') : t('map.heatmapCount', { runs: heatmap?.runs ?? 0 })}
+                                            {!heatmapLoading && !!heatmap?.blackBoxRuns && ` · ${t('map.heatmapBlackBox', { count: heatmap.blackBoxRuns })}`}
                                         </span>
                                     </>
                                 )}

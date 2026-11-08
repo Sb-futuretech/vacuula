@@ -367,6 +367,7 @@
         "heatmapOften": "frequente",
         "heatmapNever": "nunca",
         "heatmapCount": "{{runs}} limpezas neste mapa",
+        "heatmapBlackBox": "{{count}} delas da caixa negra (largura da escova, caminho real)",
         "mapTitle": "Mapa: {{name}}",
         "editBoundary": "Editar limite",
         "chooseMap": "Escolher mapa",

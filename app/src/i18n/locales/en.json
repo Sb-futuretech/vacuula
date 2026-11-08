@@ -374,6 +374,7 @@
         "heatmapOften": "often",
         "heatmapNever": "never",
         "heatmapCount": "{{runs}} runs on this map",
+        "heatmapBlackBox": "{{count}} of them from the black box (brush width, real way)",
         "mapTitle": "Map: {{name}}",
         "editBoundary": "Edit boundary",
         "chooseMap": "Choose map",

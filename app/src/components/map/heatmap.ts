@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Http } from '../../http'
+import { Http, type RunCoverage } from '../../http'
 import { cleaningLoader, persistentMapLoader } from '../../loaders/resources'
 import { decodeRLE } from './utils'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, ROBOT_RADIUS_MM, basePoint, cellsCentre, runOffset, sameFloorDistance } from './gen3Run'
@@ -11,8 +11,21 @@ export interface Heatmap {
     counts: Uint16Array // per cell: in how many of the runs it was covered
     floor: number[] // the stored map's cells (1 = free), to mark free floor no run reached
     runs: number // runs that went into the counts
+    blackBoxRuns: number // of them, runs counted from their black box track (brush width) instead of the RunMap
     width: number
     height: number
+}
+
+// a run's black box coverage (gen3, track.json): kept per run, runs never change; null when it has none
+const blackBoxCache = new Map<string, RunCoverage | null>()
+async function blackBoxCoverage(serial: string, runId: string): Promise<RunCoverage | null> {
+    if (!blackBoxCache.has(runId)) {
+        const coverage = await Http.getRunTrack(serial, runId).then(res => res.data.coverage ?? null).catch(() => null)
+        // a missing track may still come (the run is being saved): don't keep "none" for good
+        if (coverage) blackBoxCache.set(runId, coverage)
+        return coverage
+    }
+    return blackBoxCache.get(runId) ?? null
 }
 
 // cell offsets of a disc with the robot's radius
@@ -23,8 +36,9 @@ for (let dy = -Math.ceil(ROBOT_RADIUS_CELLS); dy <= Math.ceil(ROBOT_RADIUS_CELLS
 
 // Coverage of the stored map `mapId` over its last `maxRuns` gen3 runs: a run counts if it reports
 // this map (placed by its walls, it may cover only part of it), or, for older runs, if it shares the
-// map's grid (its dock block near the map's dock). Each run's path is widened to the robot's size and
-// limited to free floor, like the home page's covered area.
+// map's grid (its dock block near the map's dock). A run with a black box track counts with what it
+// cleaned by that (the brush width around its real way); others with their RunMap path widened to the
+// robot's size. Both limited to free floor, like the home page's covered area.
 export function useCoverageHeatmap(serial: string, mapId: string | undefined, enabled: boolean, maxRuns: number) {
     const [heatmap, setHeatmap] = useState<Heatmap>()
     const [loading, setLoading] = useState(false)
@@ -50,6 +64,7 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
             const cleanings = ((await Http.getCleanings(serial)).data as Neato.Gen3.CleaningRun[])
                 .sort((a, b) => b.run.start_at.localeCompare(a.run.start_at))
             let runs = 0
+            let blackBoxRuns = 0
             for (const cleaning of cleanings) {
                 if (cancelled || runs >= maxRuns) break
                 const reportedMap = cleaning.run.persistent_map_id
@@ -75,6 +90,24 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 if (!offset) continue
 
                 covered.fill(0)
+                const bb = await blackBoxCoverage(serial, cleaning.id)
+                if (bb?.cleaned && bb.width === runMap.width) {
+                    // what it cleaned by its black box track, cells of the run map
+                    let i = 0
+                    for (const [value, count] of bb.cleaned) {
+                        if (value === 1) for (let k = i; k < i + count; k++) {
+                            const cx = k % runMap.width + offset.dx, cy = Math.floor(k / runMap.width) + offset.dy
+                            if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue
+                            const c = cy * width + cx
+                            if (floor[c] === 1) covered[c] = 1
+                        }
+                        i += count
+                    }
+                    for (let c = 0; c < covered.length; c++) counts[c] += covered[c]
+                    runs++
+                    blackBoxRuns++
+                    continue
+                }
                 for (let i = 0; i < path.length; i++) {
                     if (path[i] === 0 || GEN3_RUN_NOT_PATH.has(path[i])) continue
                     const x = i % runMap.width + offset.dx, y = Math.floor(i / runMap.width) + offset.dy
@@ -88,7 +121,7 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
                 for (let c = 0; c < covered.length; c++) counts[c] += covered[c]
                 runs++
             }
-            if (!cancelled) setHeatmap({ counts, floor, runs, width, height })
+            if (!cancelled) setHeatmap({ counts, floor, runs, blackBoxRuns, width, height })
         })()
             .catch(err => console.error('Failed to build the coverage heatmap', err))
             .finally(() => { if (!cancelled) setLoading(false) })
