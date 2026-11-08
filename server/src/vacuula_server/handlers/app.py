@@ -3,7 +3,7 @@ import re
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position
 from vacuula_server import notifications, telegram
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -195,6 +195,12 @@ def get_run(req: RouterHandler, serial: str, run_id: str) -> None:
 
 
 
+
+
+def get_live_track(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/live-track - the way of the gen3 clean running now (gen3/live_position.py),
+    for an app that opens or reloads during it; null when there is none"""
+    req.send_ok(live_position.live_track(serial))
 
 
 def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:

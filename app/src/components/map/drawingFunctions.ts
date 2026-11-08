@@ -460,6 +460,34 @@ export function drawBase(
     ctx.restore()
 }
 
+// Small arrows along a line of screen points, pointing the way it was drawn: every `spacing` px of
+// its length, so the direction of a route can be seen.
+function drawArrowsAlong(ctx: CanvasRenderingContext2D, pts: [number, number][], spacing: number, size: number) {
+    let next = spacing / 2
+    let walked = 0
+    ctx.beginPath()
+    for (let i = 1; i < pts.length; i++) {
+        const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]
+        const len = Math.hypot(x1 - x0, y1 - y0)
+        if (len === 0) continue
+        const a = Math.atan2(y1 - y0, x1 - x0)
+        while (walked + len >= next) {
+            const f = (next - walked) / len
+            const x = x0 + (x1 - x0) * f, y = y0 + (y1 - y0) * f
+            ctx.moveTo(x + Math.cos(a) * size, y + Math.sin(a) * size)
+            ctx.lineTo(x + Math.cos(a + 2.5) * size, y + Math.sin(a + 2.5) * size)
+            ctx.lineTo(x + Math.cos(a - 2.5) * size, y + Math.sin(a - 2.5) * size)
+            ctx.closePath()
+            next += spacing
+        }
+        walked += len
+    }
+    ctx.fill()
+}
+
+// arrows on a route: about every 40 cm of the way (10 cells), but never closer than 28 px on screen
+const ARROW_EVERY_CELLS = 10
+
 // The way the robot drove during a run (gen3, from its black box): a fine line over the covered area.
 // Points are cells of the run's map.
 export function drawRunTrack(
@@ -481,6 +509,9 @@ export function drawRunTrack(
     ctx.strokeStyle = withAlpha(COLORS.WALL, 0.7)
     ctx.lineWidth = Math.max(1, Math.min(2.5, zoom * 0.25))
     ctx.stroke()
+    ctx.fillStyle = withAlpha(COLORS.WALL, 0.85)
+    drawArrowsAlong(ctx, cells.map(([u, v]) => [offset.x + u * zoom, offset.y + v * zoom]),
+        Math.max(28, ARROW_EVERY_CELLS * zoom), Math.max(3.5, Math.min(7, zoom * 0.9)))
     ctx.restore()
 }
 
@@ -509,6 +540,9 @@ export function drawLiveRobot(
         ctx.strokeStyle = withAlpha(COLORS.CROSSHAIR, 0.45)
         ctx.lineWidth = Math.max(2, rPx * 0.35)
         ctx.stroke()
+        ctx.fillStyle = withAlpha(COLORS.CROSSHAIR, 0.8)
+        drawArrowsAlong(ctx, points.map(at).map(([x, y]) => [x, y] as [number, number]),
+            Math.max(28, ARROW_EVERY_CELLS * zoom), Math.max(3.5, Math.min(7, zoom * 0.9)))
     }
     const [x, y] = at(points[points.length - 1])
     ctx.translate(x, y)

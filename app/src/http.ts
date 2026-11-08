@@ -258,6 +258,11 @@ export class Http {
     return instance.get(`/robot/${serial}/run/${runId}`)
   }
 
+  // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
+  static getLiveTrack(serial: string) {
+    return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
+  }
+
   // gen3: the way a run drove, from its black box, in cells of the run's map (404 without one)
   static getRunTrack(serial: string, runId: string) {
     return instance.get<{ cells: [number, number][] }>(`/robot/${serial}/run/${runId}/track`)

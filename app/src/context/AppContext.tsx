@@ -247,6 +247,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setZoneQueue(null)
         setLivePosition(null)
         setNotifications([])
+        // a clean already running: its way so far, so a reload doesn't lose it
+        if (robot.type === RobotType.NeatoGen3) Http.getLiveTrack(robot.serial).then(res => {
+            const track = res.data
+            if (!track || track.points.length === 0) return
+            const [u, v] = track.points[track.points.length - 1]
+            const [pu, pv] = track.points[Math.max(0, track.points.length - 2)]
+            const heading = Math.atan2(v - pv, u - pu) * 180 / Math.PI
+            // positions that came in meanwhile are newer: keep them on top
+            setLivePosition(cur => cur && cur.last.mapId === track.mapId
+                ? { last: cur.last, points: [...track.points, ...cur.points] }
+                : { last: { mapId: track.mapId, u, v, heading, t: track.t }, points: track.points })
+        }).catch(() => {})
         try { setLastReadNotification(Number(localStorage.getItem(readKey(robot.serial))) || 0) } catch { setLastReadNotification(0) }
 
         const refreshState = () => {

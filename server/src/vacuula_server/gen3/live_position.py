@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 STATE_BUSY = 2
 POLL_S = 1.0
+RETRY_S = 5.0              # after a failed request: don't keep knocking (inetd shuts a port it finds busy)
 FETCH_TIMEOUT_S = 15       # the robot answers in 0.3 s at rest; while cleaning it is busier
 IDLE_STOP_S = 20            # keep reading this long after the robot left BUSY (last blocks)
 MAX_BUFFER = 1 << 20        # raw bytes kept while waiting for a whole block
@@ -120,7 +121,7 @@ def _run(reader: Reader) -> None:
                     reader.failing = True
                     logger.warning("Live position of %s: black box not readable (%s after %.1f s)",
                                    reader.serial, e, time.time() - started)
-            reader.stop.wait(POLL_S)
+            reader.stop.wait(RETRY_S if reader.failing else POLL_S)
     finally:
         with _lock:
             _readers.pop(reader.serial, None)
@@ -191,18 +192,44 @@ def _fetch(host: str, name: str, offset: int) -> tuple[tuple[str, int, int, str]
 
 
 # ---- to the app -------------------------------------------------------------------------------------
+def _to_cells(cal: dict, x: float, y: float) -> tuple[float, float]:
+    """A position in map cells (the map image has y down)."""
+    return cal["u0"] + x / cal["upc"], cal["v0"] - y / cal["upc"]
+
+
 def _send(serial: str, session: Session, pos: blackbox.Coords) -> None:
     cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
     if not cal:
         return
+    u, v = _to_cells(cal, pos.x, pos.y)
     push_to_app(serial, "livePosition", {
         "mapId": session.map_id,
-        # map cells; the map image has y down
-        "u": cal["u0"] + pos.x / cal["upc"],
-        "v": cal["v0"] - pos.y / cal["upc"],
+        "u": u,
+        "v": v,
         "heading": -math.degrees(pos.heading),
         "t": time.time(),
     })
+
+
+def live_track(serial: str) -> dict | None:
+    """The way of the clean running now (or just ended), for an app that opens or reloads meanwhile:
+    map id and points in map cells (2 a second); None if there is none to show."""
+    with _lock:
+        session = _sessions.get(serial)
+        if not session or not session.docked_at_start or not session.map_id:
+            return None
+        if session.ended_at and time.time() - session.ended_at > IDLE_STOP_S:
+            return None
+        positions = list(session.positions)
+    cal = _calibration(serial, session.map_id)
+    if not cal or not positions:
+        return None
+    return {
+        "mapId": session.map_id,
+        "points": [[round(c, 2) for c in _to_cells(cal, x, y)] for x, y in positions[::TRACK_EVERY]]
+                  + [[round(c, 2) for c in _to_cells(cal, *positions[-1])]],
+        "t": time.time(),
+    }
 
 
 # ---- calibration ------------------------------------------------------------------------------------

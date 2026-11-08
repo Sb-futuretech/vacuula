@@ -6,7 +6,7 @@ import re
 from typing import Callable, Optional, Tuple, List
 
 # general
-from .app import get_robots, get_maps, get_map, get_run, get_run_track, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue, post_drive_start, post_drive, post_drive_stop, get_notifications, get_telegram, put_telegram, post_telegram_chats, post_telegram_test, get_stats, get_pi_schedule, post_pi_schedule, put_pi_schedule, delete_pi_schedule
+from .app import get_robots, get_maps, get_map, get_run, get_run_track, get_live_track, post_map, post_robot, get_runs, connect_robot, post_robot_command, get_server_info, get_zone_queue, post_zone_queue, delete_zone_queue, post_drive_start, post_drive, post_drive_stop, get_notifications, get_telegram, put_telegram, post_telegram_chats, post_telegram_test, get_stats, get_pi_schedule, post_pi_schedule, put_pi_schedule, delete_pi_schedule
 from .events import get_events
 from vacuula_server.handlers.setup import get_cert, get_log, get_log_full
 
@@ -48,6 +48,7 @@ APP_ROUTES: List[Tuple[str, str, Handler]] = [
     ("GET", r"/api/robot/(.+)/connect", connect_robot),
     ("GET", r"/api/robot/(.+)/maps", get_maps),
     ("GET", r"/api/robot/([^/]+)/run/([^/]+)/track", get_run_track),
+    ("GET", r"/api/robot/([^/]+)/live-track", get_live_track),
     ("GET", r"/api/robot/(.+)/run/(.+)", get_run),
     ("GET", r"/api/robot/(.+)/runs", get_runs),
     ("GET", r"/api/robot/(.+)/maps/(.+)/boundaries", gen4.get_boundaries),
