@@ -203,6 +203,12 @@ def get_live_track(req: RouterHandler, serial: str) -> None:
     req.send_ok(live_position.live_track(serial))
 
 
+def get_map_problems(req: RouterHandler, serial: str, map_id: str) -> None:
+    """GET /robot/<serial>/maps/<map_id>/problems - bumps, tilts, getting lost or stuck recorded on a
+    gen3 map over the last runs, in map cells (gen3/live_position.py)"""
+    req.send_ok(live_position.problems(serial, map_id))
+
+
 def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:
     """GET /robot/<serial>/run/<run_id>/track - the way a gen3 run drove, from its black box, in the
     cells of its run map (gen3/live_position.py); 404 for runs without one"""

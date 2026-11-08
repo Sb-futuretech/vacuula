@@ -178,7 +178,10 @@
         "scheduleClock": "Relógio do agendamento ajustado",
         "scheduleClockLocal": "O robô executa o agendamento na hora local (configurado com fuso horário). As entradas foram ajustadas e mantêm as horas; uma limpeza pode ter começado uma hora fora.",
         "scheduleClockUtc": "O robô executa o agendamento em UTC. As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado uma hora fora.",
-        "scheduleClockOffset": "O robô executa o agendamento num relógio próprio fixo ({{offset}}). As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado fora de hora."
+        "scheduleClockOffset": "O robô executa o agendamento num relógio próprio fixo ({{offset}}). As entradas foram ajustadas e mantêm as horas locais; uma limpeza pode ter começado fora de hora.",
+        "stuck": "Parece preso: não se mexe há {{minutes}} min",
+        "stuckAt": "em x {{x}} m · y {{y}} m no mapa",
+        "unstuck": "Está a andar outra vez"
     },
     "drive": {
         "connecting": "A ligar ao robot…",
@@ -435,7 +438,16 @@
         "demote": "Parar de usar mapa",
         "gen4UpdateBugHint": "NOTA: a modificação de mapas, zonas ou linhas pode desativar os agendamentos. Isto ocorre no firmware do robot, mas já estamos à procura de uma solução",
         "coverageBadge": "{{percent}} % limpo",
-        "coverageHint": "Parte da zona (ou do chão livre) que esta limpeza limpou; vermelho: falhado"
+        "coverageHint": "Parte da zona (ou do chão livre) que esta limpeza limpou; vermelho: falhado",
+        "problems": "Pontos problemáticos",
+        "problemsCount": "{{count}} problemas nas últimas limpezas",
+        "problem": {
+            "bump": "choque",
+            "tilt": "inclinado",
+            "lost": "perdeu a posição",
+            "stuck": "preso",
+            "dock_tilted": "acoplagem cancelada (inclinado)"
+        }
     },
     "settings": {
         "serverTime": "Hora do servidor: {{time}} ({{timezone}}, {{offset}})",

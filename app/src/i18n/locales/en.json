@@ -185,7 +185,10 @@
         "scheduleClock": "Schedule clock adjusted",
         "scheduleClockLocal": "The robot runs its schedule in local time (set up with a timezone). Its entries were moved back, so they keep their times; one run may have started an hour off.",
         "scheduleClockUtc": "The robot runs its schedule in UTC. Its entries were moved, so they keep their local times; one run may have started an hour off.",
-        "scheduleClockOffset": "The robot runs its schedule on a fixed clock of its own ({{offset}}). Its entries were moved, so they keep their local times; one run may have started off."
+        "scheduleClockOffset": "The robot runs its schedule on a fixed clock of its own ({{offset}}). Its entries were moved, so they keep their local times; one run may have started off.",
+        "stuck": "Seems stuck: has not moved for {{minutes}} min",
+        "stuckAt": "at x {{x}} m · y {{y}} m on the map",
+        "unstuck": "Moving again"
     },
     "drive": {
         "connecting": "Connecting to the robot…",
@@ -442,7 +445,16 @@
         "demote": "Stop using map",
         "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround",
         "coverageBadge": "{{percent}} % cleaned",
-        "coverageHint": "Share of the zone (or the free floor) this run cleaned; red: missed"
+        "coverageHint": "Share of the zone (or the free floor) this run cleaned; red: missed",
+        "problems": "Problem spots",
+        "problemsCount": "{{count}} problems over the last runs",
+        "problem": {
+            "bump": "bumped",
+            "tilt": "tilted",
+            "lost": "lost its position",
+            "stuck": "stuck",
+            "dock_tilted": "docking aborted (tilted)"
+        }
     },
     "settings": {
         "serverTime": "Server time: {{time}} ({{timezone}}, {{offset}})",

@@ -1,5 +1,6 @@
 import { COLORS, DRAWING, readMapToken } from './constants'
 import type { Zone, NoGoLine, Point } from './types'
+import type { Problem } from '../../http'
 import { normalizeHex, withAlpha } from './color'
 import { GEN3_MM_PER_CELL, ROBOT_RADIUS_MM } from './gen3Run'
 import { calcRelevancy } from './utils'
@@ -509,6 +510,47 @@ export function drawMissed(
     ctx.save()
     ctx.fillStyle = 'rgba(230, 60, 60, 0.45)'
     ctx.fill(rleCells(rle, width, zoom, offset))
+    ctx.restore()
+}
+
+// Problems the robot noted (gen3, black box), one symbol each
+export const PROBLEM_ICONS: Record<Problem['kind'], string> = {
+    bump: '💥', tilt: '⚠️', lost: '❓', unreachable: '⛔', slip: '〰️', stuck: '🆘', dock_tilted: '🔌', off_base: '🔌',
+}
+
+// The symbols where problems happened; with `cluster`, the same kind close together (within 4 cells,
+// about 16 cm) is one symbol with a count, so places where it happens often stand out
+export function drawProblems(
+    ctx: CanvasRenderingContext2D,
+    problems: Problem[],
+    zoom: number,
+    offset: { x: number; y: number },
+    cluster = false,
+) {
+    const groups = new Map<string, { kind: Problem['kind'], u: number, v: number, n: number }>()
+    for (const p of problems) {
+        const key = cluster ? `${p.kind}:${Math.round(p.u / 4)}:${Math.round(p.v / 4)}` : `${groups.size}`
+        const g = groups.get(key)
+        if (g) { g.u = (g.u * g.n + p.u) / (g.n + 1); g.v = (g.v * g.n + p.v) / (g.n + 1); g.n++ }
+        else groups.set(key, { kind: p.kind, u: p.u, v: p.v, n: 1 })
+    }
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    for (const g of groups.values()) {
+        const x = offset.x + g.u * zoom, y = offset.y + g.v * zoom
+        const size = Math.min(26, 13 + 3 * Math.log2(g.n))
+        ctx.font = `${size}px sans-serif`
+        ctx.fillText(PROBLEM_ICONS[g.kind] ?? '•', x, y)
+        if (g.n > 1) {
+            ctx.font = 'bold 10px sans-serif'
+            ctx.fillStyle = '#fff'
+            ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+            ctx.lineWidth = 3
+            ctx.strokeText(String(g.n), x + size * 0.55, y - size * 0.45)
+            ctx.fillText(String(g.n), x + size * 0.55, y - size * 0.45)
+        }
+    }
     ctx.restore()
 }
 

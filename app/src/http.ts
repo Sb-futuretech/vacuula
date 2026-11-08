@@ -87,6 +87,16 @@ export interface PiScheduleEntry {
 }
 
 /** GET /api/robot/<serial>/stats (gen3) */
+// a problem the robot noted in its black box (gen3), where it happened: cells of a run map or stored map
+export interface Problem {
+  kind: 'bump' | 'tilt' | 'lost' | 'unreachable' | 'slip' | 'stuck' | 'dock_tilted' | 'off_base'
+  detail: string
+  u: number
+  v: number
+  run?: string | null
+  at?: string
+}
+
 // how much of its area a run cleaned (gen3, from its black box track); `missed` is RLE [value, count]
 // over the run map, 1 = free floor that was not cleaned
 export interface RunCoverage {
@@ -141,7 +151,7 @@ export interface TelegramChat { id: string, name: string, type: string }
 export interface AppNotification {
   id: number
   createdAt: number // unix seconds
-  kind: 'run_done' | 'error' | 'alert' | 'away_from_base' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped' | 'schedule_clock'
+  kind: 'run_done' | 'error' | 'alert' | 'away_from_base' | 'stuck' | 'unstuck' | 'offline' | 'online' | 'robot_push' | 'schedule_overlap' | 'schedule_skipped' | 'schedule_clock'
   code: string | null // robot error / alert / push message code, or the run id for run_done
   data: Record<string, any>
 }
@@ -278,9 +288,14 @@ export class Http {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
   }
 
+  // gen3: bumps, tilts, getting lost or stuck recorded on a map over the last runs (map cells)
+  static getMapProblems(serial: string, mapId: string) {
+    return instance.get<Problem[]>(`/robot/${serial}/maps/${mapId}/problems`)
+  }
+
   // gen3: the way a run drove, from its black box, in cells of the run's map (404 without one)
   static getRunTrack(serial: string, runId: string) {
-    return instance.get<{ cells: [number, number][], coverage?: RunCoverage | null }>(`/robot/${serial}/run/${runId}/track`)
+    return instance.get<{ cells: [number, number][], coverage?: RunCoverage | null, problems?: Problem[] }>(`/robot/${serial}/run/${runId}/track`)
   }
 
   static demoteFloorplan(serial: string, mapId: string) {

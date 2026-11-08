@@ -31,6 +31,7 @@ from vacuula_server.gen3 import blackbox, coverage
 from vacuula_server.gen3.data import Gen3MapBoundaries
 from vacuula_server.models.run import Gen3__Run
 from sqlalchemy import select
+from vacuula_server import notifications
 from vacuula_server.state import push_to_app, robot_connections
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,28 @@ CALIBRATION_FILE = DATA_DIR / "live_position.json"
 
 MAP_ID_RE = re.compile(rb"Using Map ID (\S+) to begin persistent cleaning")
 
+# Problems the robot writes into its black box as text, placed where it was then: (kind, pattern; the
+# pattern's first group, if any, is the detail)
+EVENT_PATTERNS = (
+    ("bump", re.compile(rb"PFEVENT_([A-Z_]*BUMP)")),
+    ("tilt", re.compile(rb"Robot very tilted")),
+    ("lost", re.compile(rb"SET_ALERT UI_ALERT_RECOVERING_LOCATION")),
+    ("unreachable", re.compile(rb"SET_ALERT UI_ALERT_NAV_FLOORPLAN_ZONE_UNREACHABLE")),
+    ("slip", re.compile(rb"Slip detected")),
+    ("stuck", re.compile(rb"(?i)possibly stuck|robot is stuck|(UI_ERROR_[A-Z_]*STUCK[A-Z_]*)")),
+    ("dock_tilted", re.compile(rb"MSG_BASE_DOCKING_TILTED")),
+    ("off_base", re.compile(rb"slipped off my charging base")),
+)
+EVENT_GAP_S = 3            # the same kind again within this time and EVENT_GAP_CELLS is the same event
+EVENT_GAP_CELLS = 2
+CLOCK_HZ = 24_000_000     # the black box packets' clock
+PROBLEMS_FILE = DATA_DIR / "live_problems.json"
+PROBLEMS_KEEP = 3000       # per map, newest kept
+# not moved more than STUCK_MOVE_CELLS for STUCK_S while cleaning: stuck (a Telegram message, once)
+STUCK_S = 120
+STUCK_MOVE_CELLS = 3
+CLEANING_ACTIONS = {1, 2, 11, 12}  # house, spot, map cleaning, exploring (not docking or recharging)
+
 
 @dataclass
 class Session:
@@ -57,6 +80,11 @@ class Session:
     ended_at: float | None = None
     run_folder: str | None = None   # where the robot's maps of this run went (its track is saved there)
     zone_cells: list[list[float]] | None = None  # the zone it cleaned, in cells of its run map
+    events: list[dict] = field(default_factory=list)  # {"kind", "detail", "x", "y", "t"} in robot units
+    last_pos: tuple[float, float] | None = None
+    anchor: tuple[float, float] | None = None  # where it was when it last moved
+    still_since: float = 0.0
+    stuck_reported: bool = False
 
 
 @dataclass
@@ -79,6 +107,7 @@ _lock = threading.Lock()
 _readers: dict[str, Reader] = {}
 _sessions: dict[str, Session] = {}
 _last_docked: dict[str, bool] = {}
+_last_action: dict[str, int | None] = {}
 
 
 # ---- robot state ------------------------------------------------------------------------------------
@@ -86,6 +115,7 @@ def on_state(serial: str, state: dict) -> None:
     if not BB_KEY:
         return
     busy = state.get("state") == STATE_BUSY
+    _last_action[serial] = state.get("action")
     with _lock:
         reader = _readers.get(serial)
         if not busy:
@@ -137,7 +167,10 @@ def _run(reader: Reader) -> None:
                             reader.slowest)
         # the maps came while the last blocks were still read: save the track again, complete now
         if session and session.run_folder:
-            _save_track(reader.serial, session.run_folder, list(session.positions), session.zone_cells)
+            _save_track(reader.serial, session.run_folder, list(session.positions), session.zone_cells,
+                        list(session.events))
+        if session:
+            _save_problems(reader.serial, session)
 
 
 def _poll(reader: Reader) -> None:
@@ -169,15 +202,95 @@ def _poll(reader: Reader) -> None:
         except Exception as e:  # a damaged block costs only itself
             logger.debug("Live position of %s: block not readable: %s", reader.serial, e)
             continue
-        for ptype, _clock, pdata in reader.stream.feed(payload):
+        for ptype, clock, pdata in reader.stream.feed(payload):
             if ptype == blackbox.PKT_COORDS:
                 latest = blackbox.Coords.parse(pdata)
                 if session:
                     session.positions.append((latest.x, latest.y))
-            elif ptype == blackbox.PKT_TEXT and session and (m := MAP_ID_RE.search(pdata)):
-                session.map_id = m.group(1).decode(errors="replace")
+                    session.last_pos = (latest.x, latest.y)
+            elif ptype == blackbox.PKT_TEXT and session:
+                if m := MAP_ID_RE.search(pdata):
+                    session.map_id = m.group(1).decode(errors="replace")
+                _note_events(session, pdata, clock)
     if latest and session:
         _send(reader.serial, session, latest)
+    if session:
+        _check_stuck(reader.serial, session)
+
+
+def _note_events(session: Session, text: bytes, clock: int) -> None:
+    """Problems in one text packet of the black box, at the robot's last position."""
+    if session.last_pos is None:
+        return
+    x, y = session.last_pos
+    now = time.time()
+    tick = clock / CLOCK_HZ  # the robot's clock: events of one block come in together, not seconds apart
+    for kind, pattern in EVENT_PATTERNS:
+        if not (m := pattern.search(text)):
+            continue
+        detail = (m.group(1) or b"").decode(errors="replace") if m.groups() and m.group(1) else ""
+        near = EVENT_GAP_CELLS * UNITS_PER_CELL
+        if any(e["kind"] == kind and abs(tick - e["tick"]) < EVENT_GAP_S and math.hypot(e["x"] - x, e["y"] - y) < near
+               for e in session.events[-20:]):
+            continue
+        session.events.append({"kind": kind, "detail": detail, "x": x, "y": y, "t": now, "tick": tick})
+
+
+def _check_stuck(serial: str, session: Session) -> None:
+    """Telegram (via notifications) when the robot has not moved for STUCK_S while cleaning, and when it
+    moves again."""
+    if session.last_pos is None:
+        return
+    now = time.time()
+    if session.anchor is None or math.hypot(session.last_pos[0] - session.anchor[0],
+                                            session.last_pos[1] - session.anchor[1]) > STUCK_MOVE_CELLS * UNITS_PER_CELL:
+        if session.stuck_reported:
+            session.stuck_reported = False
+            notifications.add(serial, "unstuck", data=_where(serial, session))
+        session.anchor, session.still_since = session.last_pos, now
+        return
+    if (not session.stuck_reported and now - session.still_since > STUCK_S
+            and _last_action.get(serial) in CLEANING_ACTIONS):
+        session.stuck_reported = True
+        notifications.add(serial, "stuck", data={**_where(serial, session), "minutes": STUCK_S // 60})
+
+
+def _where(serial: str, session: Session) -> dict:
+    """The robot's position in map coordinates (metres, like the rulers: a cell is 4 cm) for messages."""
+    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
+    if not cal or session.last_pos is None:
+        return {}
+    u, v = _to_cells(cal, *session.last_pos)
+    return {"mapId": session.map_id, "xM": round(u * 0.04, 2), "yM": round(v * 0.04, 2)}
+
+
+def problems(serial: str, map_id: str) -> list[dict]:
+    """Problems recorded on a map over the last runs: {"kind", "detail", "u", "v", "run", "at"} in map cells."""
+    try:
+        return json.loads(PROBLEMS_FILE.read_text()).get(serial, {}).get(map_id, [])
+    except (OSError, ValueError):
+        return []
+
+
+def _save_problems(serial: str, session: Session) -> None:
+    """The run's problems onto its map, in map cells (needs the map's calibration and a start on the dock)."""
+    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
+    if not cal or not session.events:
+        return
+    run_id = Path(session.run_folder).name if session.run_folder else None
+    at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    new = [{"kind": e["kind"], "detail": e["detail"], "run": run_id, "at": at,
+            **dict(zip(("u", "v"), (round(c, 2) for c in _to_cells(cal, e["x"], e["y"]))))}
+           for e in session.events]
+    try:
+        data = json.loads(PROBLEMS_FILE.read_text())
+    except (OSError, ValueError):
+        data = {}
+    kept = data.setdefault(serial, {}).setdefault(session.map_id, [])
+    kept.extend(new)
+    data[serial][session.map_id] = kept[-PROBLEMS_KEEP:]
+    PROBLEMS_FILE.write_text(json.dumps(data))
+    logger.info("Live position of %s: %d problems of this run kept for map %s", serial, len(new), session.map_id)
 
 
 def _fetch(host: str, name: str, offset: int) -> tuple[tuple[str, int, int, str], bytes]:
@@ -261,7 +374,7 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
         return
     session.run_folder = job_folder
     session.zone_cells = _zone_cells(serial, run, Path(job_folder))
-    _save_track(serial, job_folder, positions, session.zone_cells)
+    _save_track(serial, job_folder, positions, session.zone_cells, list(session.events))
     map_id = run.get("persistent_map_id")
     why_not = ("no map id in the run" if not map_id
                else "it did not start on the dock" if not session.docked_at_start
@@ -415,7 +528,7 @@ def _save_coverage(serial: str, run_id: str, result: dict | None) -> None:
 
 
 def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]],
-                zone_cells: list[list[float]] | None = None) -> None:
+                zone_cells: list[list[float]] | None = None, events: list[dict] | None = None) -> None:
     """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track):
     the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers."""
     try:
@@ -429,7 +542,11 @@ def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float
                  for x, y in positions[::TRACK_EVERY]]
         floor = _grid(json.loads((Path(run_folder) / "floormap.json").read_text()))
         cov = coverage.measure(floor, cells, zone_cells)
-        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2), "coverage": cov}))
+        problems_here = [{"kind": e["kind"], "detail": e["detail"],
+                          "u": round(u0 + e["x"] / UNITS_PER_CELL, 2), "v": round(v0 - e["y"] / UNITS_PER_CELL, 2)}
+                         for e in events or []]
+        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2), "coverage": cov,
+                                                                 "problems": problems_here}))
         _save_coverage(serial, Path(run_folder).name, cov)
         logger.info("Live position of %s: track of %d points saved for %s (fit %.2f), cleaned %s%% of %s",
                     serial, len(cells), Path(run_folder).name, c, cov and cov["percent"],

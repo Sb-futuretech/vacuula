@@ -31,7 +31,7 @@ RETRY_WAIT_S = (2, 10, 30)  # waits before the 2nd, 3rd and 4th try
 # the groups the app offers, and which notification kinds belong to each
 KINDS: dict[str, tuple[str, ...]] = {
     "error": ("error",),
-    "alert": ("alert", "robot_push", "away_from_base"),
+    "alert": ("alert", "robot_push", "away_from_base", "stuck", "unstuck"),
     "offline": ("offline",),
     "online": ("online",),
     "run_done": ("run_done",),
@@ -220,6 +220,11 @@ def message(name: str, kind: str, code: str | None, data: dict) -> str | None:
         return f"💬 {name}: {_code_text(code) if code else data.get('body') or 'message from the robot'}"
     if kind == "away_from_base":
         return f"🏠 {name} stopped away from its base after cleaning (did it fail to dock?), sent it home once"
+    if kind == "stuck":
+        where = f" at x {data['xM']:.2f} m · y {data['yM']:.2f} m" if data.get("xM") is not None else ""
+        return f"🆘 {name} seems stuck: it has not moved for {data.get('minutes', 2)} min{where}"
+    if kind == "unstuck":
+        return f"▶️ {name} is moving again"
     if kind == "offline":
         return f"📴 {name} has been offline for more than {data.get('minutes', 5)} min"
     if kind == "online":

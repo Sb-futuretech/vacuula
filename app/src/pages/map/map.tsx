@@ -9,6 +9,7 @@ import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
 import { Neato, RobotType, type Robot } from '../../types'
+import type { Problem } from '../../http'
 
 import MapCanvas, { type MapMode } from './MapCanvas'
 import { RULER_PX } from './MapRulers'
@@ -21,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, HEATMAP_ALPHAS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawProblems, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
@@ -158,6 +159,18 @@ export default () => {
 
 
     const [showHeatmap, setShowHeatmap] = useState(false)
+    // gen3: bumps, tilts, getting lost or stuck over the last runs, from the black box
+    const [showProblems, setShowProblems] = useState(false)
+    const [loadedProblems, setLoadedProblems] = useState<{ mapId: string, list: Problem[] }>()
+    useEffect(() => {
+        if (!showProblems || !persistentMap || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getMapProblems(robot.serial, persistentMap)
+            .then(res => { if (!cancelled) setLoadedProblems({ mapId: persistentMap, list: res.data }) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [showProblems, persistentMap, robot.serial, robot.type])
+    const problems = showProblems && loadedProblems?.mapId === persistentMap ? loadedProblems.list : undefined
     const [heatmapRuns, setHeatmapRuns] = useState(10)
     const { heatmap, loading: heatmapLoading } = useCoverageHeatmap(
         robot.serial, persistentMap, showHeatmap && robot.type === RobotType.NeatoGen3, heatmapRuns)
@@ -214,6 +227,8 @@ export default () => {
             drawBase(ctx, { x: baseData[0], y: baseData[1], dir: baseData[2] ?? 0 }, currentZoom, currentOffset, mapSize, 0)
         }
 
+        if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, true)
+
         // gen3: the robot where it is now and its way during this clean (fresh positions only)
         if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
             drawLiveRobot(ctx, livePosition.points, livePosition.last.heading, currentZoom, currentOffset, 0)
@@ -226,7 +241,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {
@@ -656,6 +671,24 @@ export default () => {
                                         </div>
                                         <span className={styles.heatmapInfo}>
                                             {heatmapLoading ? t('common.loading') : t('map.heatmapCount', { runs: heatmap?.runs ?? 0 })}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div className={styles.heatmap}>
+                                <Input type="switch" label={t('map.problems')} value={showProblems} onChange={setShowProblems} />
+                                {showProblems && (
+                                    <>
+                                        <div className={styles.heatmapLegend}>
+                                            {([['bump', t('map.problem.bump')], ['tilt', t('map.problem.tilt')], ['lost', t('map.problem.lost')],
+                                                ['stuck', t('map.problem.stuck')], ['dock_tilted', t('map.problem.dock_tilted')]] as const).map(([k, label]) => (
+                                                <span key={k}>{PROBLEM_ICONS[k]} {label}</span>
+                                            ))}
+                                        </div>
+                                        <span className={styles.heatmapInfo}>
+                                            {problems ? t('map.problemsCount', { count: problems.length }) : t('common.loading')}
                                         </span>
                                     </>
                                 )}
