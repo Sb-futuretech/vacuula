@@ -506,7 +506,8 @@ def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: flo
 
 MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
 LEARN_RUNS = 7    # the map's origin is the median of the last this many runs' own fits
-MAX_OFF_CELLS = 3  # once a map has 3 runs, a run this far off its origin is not taken (its fit went wrong)
+MAX_OFF_CELLS = 3  # once a map has 3 runs, a run this far off its origin is not taken (its fit went wrong),
+                   # unless the next run is off the same way: then the dock was moved and the map starts over
 
 
 def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> bool:
@@ -514,13 +515,25 @@ def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> bool:
     if the run's origin is too far off the map's to be trusted (nothing of the run should go onto it)."""
     data = _load()
     cal = data.setdefault(serial, {}).get(map_id) or {}
-    if len(cal.get("runs") or []) >= 3 and math.hypot(origin["u0"] - cal["u0"], origin["v0"] - cal["v0"]) > MAX_OFF_CELLS:
-        logger.info("Live position of %s: map %s origin from run %s (u0 %.2f v0 %.2f) not taken: %.1f cells off the "
-                    "map's", serial, map_id, run_id, origin["u0"], origin["v0"],
-                    math.hypot(origin["u0"] - cal["u0"], origin["v0"] - cal["v0"]))
-        return False
-    runs = (cal.get("runs") or [])[-(LEARN_RUNS - 1):] + [
-        [round(origin["u0"], 2), round(origin["v0"], 2), run_id]]
+    new = [round(origin["u0"], 2), round(origin["v0"], 2), run_id]
+    runs = cal.get("runs") or []
+    if len(runs) >= 3 and math.hypot(new[0] - cal["u0"], new[1] - cal["v0"]) > MAX_OFF_CELLS:
+        last_off = cal.get("off")
+        if last_off and math.hypot(new[0] - last_off[0], new[1] - last_off[1]) <= MAX_OFF_CELLS:
+            # two runs in a row agree on a new place: the dock was moved, start over from these two
+            logger.info("Live position of %s: map %s origin moved (dock moved?): two runs agree on u0 %.2f v0 %.2f",
+                        serial, map_id, new[0], new[1])
+            runs = [last_off]
+        else:
+            # off by itself: kept aside; the next run tells whether it was the dock or a bad fit
+            cal["off"] = new
+            data[serial][map_id] = cal
+            CALIBRATION_FILE.write_text(json.dumps(data, indent=1))
+            logger.info("Live position of %s: map %s origin from run %s (u0 %.2f v0 %.2f) not taken: %.1f cells off "
+                        "the map's", serial, map_id, run_id, new[0], new[1],
+                        math.hypot(new[0] - cal["u0"], new[1] - cal["v0"]))
+            return False
+    runs = runs[-(LEARN_RUNS - 1):] + [new]
     data[serial][map_id] = {
         "u0": round(float(np.median([r[0] for r in runs])), 2),
         "v0": round(float(np.median([r[1] for r in runs])), 2),
