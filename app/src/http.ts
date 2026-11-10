@@ -310,8 +310,13 @@ export class Http {
     return instance.get<{ cells: [number, number][], coverage?: RunCoverage | null, problems?: Problem[] }>(`/robot/${serial}/run/${runId}/track`)
   }
 
-  static demoteFloorplan(serial: string, mapId: string) {
+  static deleteFloorplan(serial: string, mapId: string) {
     return instance.delete(`/robot/${serial}/maps/${mapId}`)
+  }
+
+  // TODO: look over if i want this as a put or not
+  static restoreFloorplan(serial: string, mapId: string) {
+    return instance.put(`/robot/${serial}/maps/${mapId}`)
   }
 
   static getRobots() {

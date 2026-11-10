@@ -73,6 +73,7 @@ export default () => {
     const [pendingCenter, setPendingCenter] = useState<Point | null>(null)
     const [centerOn, setCenterOn] = useState<Point | null>(null)
     const [persistentMap, setPersistentMap] = useState<string>()
+    const firstLoad = useRef(true);
 
     const [mode, setMode] = useState<MapMode>('boundaries')
     useEffect(() => setSelectedPoint(null), [mode])
@@ -157,6 +158,17 @@ export default () => {
         updatePersistentMaps(); // get maps when this page is opened
     }, [])
 
+    useEffect(() => {
+        if (!persistentMaps) return;
+        if (!firstLoad.current) return;
+        firstLoad.current = false;
+
+        if (robot.type === RobotType.NeatoGen4) getPromotedFloorplan().then((promoted) => promoted && setPersistentMap(promoted.id))
+        else {
+            const enabledMaps = (persistentMaps as Neato.Gen3.PersistentMap[]).filter(f => f.enabled)
+            if (enabledMaps.length === 1) setPersistentMap(enabledMaps[0].id);
+        }
+    }, [persistentMaps])
 
     const [showHeatmap, setShowHeatmap] = useState(false)
     // gen3: bumps, tilts, getting lost or stuck over the last runs, from the black box
@@ -632,6 +644,12 @@ export default () => {
                                         })} />
                                 </div>
                             )}
+
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div style={{ padding: '1rem 0' }}>
+                                <Button text={t('common.delete')} style='fail' onClick={() => withFeedback(Http.deleteFloorplan(robot.serial, persistentMap)).then(updatePersistentMaps).then(() => setMode('boundaries'))} />
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1010,7 +1028,7 @@ interface PromoteDemoteBtnProps {
 const PromoteDemoteBtn = ({ robot, map, onSuccess }: PromoteDemoteBtnProps) => {
     const { t } = useTranslation()
     return <Button text={map.promoted ? t('map.demote') : t('map.promote')} onClick={() => {
-        withFeedback(map.promoted ? Http.demoteFloorplan(robot.serial, map.id) : Http.promoteFloorplan(robot.serial, map.id))
+        withFeedback(map.promoted ? Http.deleteFloorplan(robot.serial, map.id) : Http.promoteFloorplan(robot.serial, map.id))
             .finally(() => onSuccess())
     }} style={map.promoted ? 'fail' : 'success'} />
 }
