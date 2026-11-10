@@ -12,7 +12,7 @@ packets:
     01 02 | length u16 | 02 | type u8 | sequence u16 | clock u32 (24 MHz) | payload
 
 Packet type 1 ("Coords", every 100 ms while the robot moves) is the robot's position: x, y as int32 in
-a fixed unit (about 445,000 per map cell on a D7), the heading as a 32-bit binary angle, and a status.
+a fixed unit (about 525,000 per map cell on a D7), the heading as a 32-bit binary angle, and a status.
 """
 from __future__ import annotations
 

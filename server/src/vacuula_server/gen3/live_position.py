@@ -6,10 +6,11 @@ out the newest log file from a byte offset. While the robot is busy this module 
 for the new bytes, decodes the newest position and sends it to the app as event "livePosition".
 
 Positions are in the robot's own unit and frame (y up); once it has found itself on its map after
-leaving the dock that frame is the same on every run (the dock lies at the same place in it, within a
-cell or two). Where its origin lies on the map is learnt per map: every run's positions are matched
-against its RunMap track, and the median of the last LEARN_RUNS runs is kept, so a single run whose
-track fits one lane off doesn't move it. Until a map has one nothing is sent for it.
+leaving the dock that frame is the same on every run (the dock lies at the same place in it). Where its
+origin lies on the map comes from the marks the robot draws into every RunMap: where it started
+cleaning (value 150, its first position on the map) and where it ended (value 200, its last). Each run
+gives the origin to a third of a cell; a map keeps the median of its last LEARN_RUNS runs. Until a map
+has one nothing is sent for it.
 """
 from __future__ import annotations
 
@@ -44,7 +45,8 @@ FETCH_TIMEOUT_S = 15       # the robot answers in 0.3 s at rest; while cleaning 
 IDLE_STOP_S = 20            # keep reading this long after the robot left BUSY (last blocks)
 MAX_BUFFER = 1 << 20        # raw bytes kept while waiting for a whole block
 CATCH_UP = 256 * 1024       # joining a run late: start this far before the end of the file
-UNITS_PER_CELL = 445_400    # D7: robot units per map cell, fitted on two runs together (2026-11-08)
+UNITS_PER_CELL = 525_000    # D7: robot units per map cell; 12 runs over all rooms lie on their RunMap tracks
+                            # with one origin at this scale (2026-11-10; 445,400 before was a false fit)
 SESSION_KEEP_S = 15 * 60    # a run's positions wait this long for its map upload
 CALIBRATION_FILE = DATA_DIR / "live_position.json"
 
@@ -94,12 +96,7 @@ class Session:
     stuck_reported: bool = False
     floor: list[tuple[float, float, int, float]] = field(default_factory=list)  # (x, y, load, heading) where the brush was
     last_heading: float = 0.0
-    # where this run's origin lies on its stored map, fitted on the run's own RunMap track (None: the run
-    # map is not the stored map's grid, or the track does not fit); problems and floor type go there
-    origin: dict | None = None
-    # the stored map the run's upload names; None: the robot cleaned without its map (it built a new one
-    # on the way, in another grid, and its position drifts), so nothing of the run goes onto a stored map
-    run_map_id: str | None = None
+    from_start: bool = False        # positions[0] is where it started on its map (read from the run's start)
     saved: bool = False             # problems and floor type of this run are on its map
 
 
@@ -181,10 +178,6 @@ def _run(reader: Reader) -> None:
                 logger.info("Live position of %s: run ended, %d positions (map %s); %d reads, %d failed, slowest %.1f s",
                             reader.serial, len(session.positions), session.map_id, reader.reads, reader.failed,
                             reader.slowest)
-        # the maps came while the last blocks were still read: save the track again, complete now
-        if session and session.run_folder:
-            session.origin = _save_track(reader.serial, session.run_folder, list(session.positions),
-                                         session.zone_cells, list(session.events), session.run_map_id)
         if session:
             _save_run(reader.serial, session)
 
@@ -229,6 +222,7 @@ def _poll(reader: Reader) -> None:
                     session.floor.clear()
                     session.events.clear()
                     session.anchor = None
+                    session.from_start = True
                 if session:
                     session.positions.append((latest.x, latest.y))
                     session.last_pos = (latest.x, latest.y)
@@ -297,26 +291,37 @@ def _where(serial: str, session: Session) -> dict:
 
 
 def _save_run(serial: str, session: Session) -> None:
-    """Once the run is read to its end and its maps are here: its problems and floor type onto its map,
-    placed with the origin fitted on this run's own track. Not with the map's calibration: that one
-    assumes the run started on the dock, which the robot reports now and then when it did not, and
-    everything would land shifted, off the map too."""
-    if session.saved or not session.ended_at or not session.run_folder:
+    """Once the run is read to its end and its maps are here: where its origin lies (from its RunMap's
+    marks), its track for the run view, and its problems and floor type onto its stored map."""
+    if session.saved or not session.ended_at or not session.run_folder or len(session.positions) < 2:
         return
     session.saved = True
-    if not session.run_map_id:
-        logger.info("Live position of %s: run cleaned without its stored map (none named in its upload): "
-                    "its problems and floor type are not kept", serial)
+    run_id = Path(session.run_folder).name
+    try:
+        runmap = json.loads((Path(session.run_folder) / "runmap.json").read_text())
+    except (OSError, ValueError) as e:
+        logger.info("Live position of %s: run %s has no run map (%s)", serial, run_id, e)
         return
-    session.map_id = session.run_map_id
-    if not session.origin:
-        logger.info("Live position of %s: problems and floor type of this run not kept: its track does not "
-                    "fit its stored map (other grid, e.g. doors closed, or no fit)", serial)
+    origin = _marker_origin(_grid(runmap), session)
+    if not origin:
+        logger.info("Live position of %s: run %s has no start or end mark in its run map: not placed", serial, run_id)
         return
-    if not _learn(serial, session.map_id, session.origin, Path(session.run_folder).name):
+    _save_track(serial, session, origin)
+    if not session.map_id:
         return
-    _save_problems(serial, session, session.origin)
-    _save_floor(serial, session, session.origin)
+    try:
+        stored = json.loads((MAPS_DIR / serial / session.map_id / "floormap.json").read_text())
+    except (OSError, ValueError):
+        logger.info("Live position of %s: map %s of run %s not stored here", serial, session.map_id, run_id)
+        return
+    if (stored["width"], stored["height"]) != (runmap["width"], runmap["height"]):
+        logger.info("Live position of %s: run %s is not in the grid of its map (doors closed?): problems and "
+                    "floor type not kept", serial, run_id)
+        return
+    if not _learn(serial, session.map_id, origin, run_id):
+        return
+    _save_problems(serial, session, origin)
+    _save_floor(serial, session, origin)
 
 
 def _save_floor(serial: str, session: Session, cal: dict) -> None:
@@ -425,7 +430,8 @@ def _load() -> dict:
 
 
 def _calibration(serial: str, map_id: str) -> dict | None:
-    return _load().get(serial, {}).get(map_id)
+    cal = _load().get(serial, {}).get(map_id)
+    return cal if cal and cal.get("upc") == UNITS_PER_CELL else None  # learnt at another scale: not used
 
 
 def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
@@ -433,16 +439,15 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     where the robot's origin lies on its map."""
     with _lock:
         session = _sessions.get(serial)
-        positions = list(session.positions) if session else []
     # the robot uploads its maps right at the end, while this server still reads its last blocks: a run
     # still being read counts, an older one only for SESSION_KEEP_S
     if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
         return
     session.run_folder = job_folder
     session.zone_cells = _zone_cells(serial, run, Path(job_folder))
-    session.run_map_id = run.get("persistent_map_id")
-    session.origin = _save_track(serial, job_folder, positions, session.zone_cells, list(session.events),
-                                 session.run_map_id)
+    # the robot leaves its map's id out of some uploads although it cleaned on it (2026-11-08: 7 of 31,
+    # their positions on the map as well as the others'): the id it named in its black box then
+    session.map_id = run.get("persistent_map_id") or session.map_id
     _save_run(serial, session)
 
 
@@ -452,60 +457,30 @@ def _grid(meta: dict) -> np.ndarray:
     return flat.reshape(meta["height"], meta["width"])
 
 
-def _distance_map(mask: np.ndarray) -> np.ndarray:
-    """Distance in cells to the nearest True cell (two-pass chamfer, 1 and sqrt 2)."""
-    h, w = mask.shape
-    big = float(h + w)
-    d = np.where(mask, 0.0, big)
-    for y in range(h):
-        for x in range(w):
-            if y:
-                d[y, x] = min(d[y, x], d[y - 1, x] + 1, d[y - 1, x - 1] + 1.414 if x else big,
-                              d[y - 1, x + 1] + 1.414 if x + 1 < w else big)
-            if x:
-                d[y, x] = min(d[y, x], d[y, x - 1] + 1)
-    for y in range(h - 1, -1, -1):
-        for x in range(w - 1, -1, -1):
-            if y + 1 < h:
-                d[y, x] = min(d[y, x], d[y + 1, x] + 1, d[y + 1, x + 1] + 1.414 if x + 1 < w else big,
-                              d[y + 1, x - 1] + 1.414 if x else big)
-            if x + 1 < w:
-                d[y, x] = min(d[y, x], d[y, x + 1] + 1)
-    return d
+RUN_START, RUN_END = 150, 200  # marks in a RunMap: where the robot started on its map, and where it ended
+MARKS_AGREE_CELLS = 2          # start and end mark give the same origin within this; else the end counts
 
 
-def _fit_origin(grid: np.ndarray, positions: list[tuple[float, float]], upc: float) -> tuple[float, float, float] | None:
-    """Where the robot's origin lies in `grid` (u0, v0, in cells) so its positions run along the grid's
-    track (value 3), and the mean distance to it in cells (clipped at 3). None without a track."""
-    track = np.argwhere(grid == 3)
-    if len(track) < 50 or len(positions) < 20:
+def _marker_origin(runmap: np.ndarray, session: Session) -> dict | None:
+    """Where the robot's origin lies in the run map's cells, from its start and end marks and the
+    positions it had there ({"u0", "v0", "upc"}). The start counts only if this server read the run from
+    its start; if the two disagree, the end counts (the positions were read to the run's end)."""
+    found = []
+    for mark, pos in ((RUN_END, session.positions[-1]), (RUN_START, session.positions[0] if session.from_start else None)):
+        cells = np.argwhere(runmap == mark)
+        if pos is None or len(cells) == 0:
+            continue
+        cv, cu = cells.mean(0)
+        found.append((float(cu - pos[0] / UNITS_PER_CELL), float(cv + pos[1] / UNITS_PER_CELL)))
+    if not found:
         return None
-    dist = _distance_map(grid == 3)
-    h, w = grid.shape
-    pts = np.array(positions[:: max(1, len(positions) // 600)], dtype=float)
-    pts[:, 1] *= -1
-
-    def cost(u0: float, v0: float) -> float:
-        q = pts / upc + (u0, v0)
-        u = np.clip(np.rint(q[:, 0]).astype(int), 0, w - 1)
-        v = np.clip(np.rint(q[:, 1]).astype(int), 0, h - 1)
-        return float(np.minimum(dist[v, u], 3).mean())
-
-    # start with the track's centre against the positions' centre, then a coarse and finer searches
-    cv, cu = track.mean(0)
-    best = (math.inf, cu - (pts[:, 0] / upc).mean(), cv - (pts[:, 1] / upc).mean())
-    for step, reach in ((1.0, 30), (0.25, 2), (0.05, 0.5)):
-        _, cu0, cv0 = best
-        for du in np.arange(-reach, reach + step / 2, step):
-            for dv in np.arange(-reach, reach + step / 2, step):
-                c = cost(cu0 + du, cv0 + dv)
-                if c < best[0]:
-                    best = (c, cu0 + du, cv0 + dv)
-    return float(best[1]), float(best[2]), best[0]
+    u0, v0 = found[0]
+    if len(found) == 2 and math.hypot(found[0][0] - found[1][0], found[0][1] - found[1][1]) <= MARKS_AGREE_CELLS:
+        u0, v0 = (found[0][0] + found[1][0]) / 2, (found[0][1] + found[1][1]) / 2
+    return {"u0": u0, "v0": v0, "upc": UNITS_PER_CELL}
 
 
-MAX_FIT = 1.5  # mean distance of the positions to the track, cells: worse is not trusted
-LEARN_RUNS = 7    # the map's origin is the median of the last this many runs' own fits
+LEARN_RUNS = 7    # the map's origin is the median of the last this many runs' origins
 MAX_OFF_CELLS = 3  # once a map has 3 runs, a run this far off its origin is not taken (its fit went wrong),
                    # unless the next run is off the same way: then the dock was moved and the map starts over
 
@@ -583,36 +558,23 @@ def _save_coverage(serial: str, run_id: str, result: dict | None) -> None:
         db.commit()
 
 
-def _save_track(serial: str, run_folder: str, positions: list[tuple[float, float]],
-                zone_cells: list[list[float]] | None = None, events: list[dict] | None = None,
-                map_id: str | None = None) -> dict | None:
-    """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track):
-    the positions laid onto the run's RunMap track, so it fits whatever part of the map the run covers.
-    Returns the fitted origin ({"u0", "v0", "upc"}) if the run map is the grid of stored map `map_id`."""
+def _save_track(serial: str, session: Session, origin: dict) -> None:
+    """The run's way as cells of its own run map (track.json next to it, see GET .../run/<id>/track),
+    with its coverage and problems."""
+    folder = Path(session.run_folder)
     try:
-        run = json.loads((Path(run_folder) / "runmap.json").read_text())
-        fit = _fit_origin(_grid(run), positions, UNITS_PER_CELL)
-        if fit is None or fit[2] > MAX_FIT:
-            logger.info("Live position of %s: no track for %s: positions do not fit its run map", serial, run_folder)
-            return
-        u0, v0, c = fit
-        cells = [[round(u0 + x / UNITS_PER_CELL, 2), round(v0 - y / UNITS_PER_CELL, 2)]
-                 for x, y in positions[::TRACK_EVERY]]
-        floor = _grid(json.loads((Path(run_folder) / "floormap.json").read_text()))
-        cov = coverage.measure(floor, cells, zone_cells)
-        problems_here = [{"kind": e["kind"], "detail": e["detail"],
-                          "u": round(u0 + e["x"] / UNITS_PER_CELL, 2), "v": round(v0 - e["y"] / UNITS_PER_CELL, 2)}
-                         for e in events or []]
-        (Path(run_folder) / "track.json").write_text(json.dumps({"cells": cells, "fit": round(c, 2), "coverage": cov,
-                                                                 "problems": problems_here}))
-        _save_coverage(serial, Path(run_folder).name, cov)
-        logger.info("Live position of %s: track of %d points saved for %s (fit %.2f), cleaned %s%% of %s",
-                    serial, len(cells), Path(run_folder).name, c, cov and cov["percent"],
-                    "its zone" if zone_cells else "the free floor")
-        if map_id:
-            stored = json.loads((MAPS_DIR / serial / map_id / "floormap.json").read_text())
-            if (stored["width"], stored["height"]) == (run["width"], run["height"]):
-                return {"u0": u0, "v0": v0, "upc": UNITS_PER_CELL}
+        def cells(x: float, y: float) -> list[float]:
+            u, v = _to_cells(origin, x, y)
+            return [round(u, 2), round(v, 2)]
+        track = [cells(x, y) for x, y in session.positions[::TRACK_EVERY]] + [cells(*session.positions[-1])]
+        floor = _grid(json.loads((folder / "floormap.json").read_text()))
+        cov = coverage.measure(floor, track, session.zone_cells)
+        problems_here = [{"kind": e["kind"], "detail": e["detail"], **dict(zip(("u", "v"), cells(e["x"], e["y"])))}
+                         for e in session.events]
+        (folder / "track.json").write_text(json.dumps({"cells": track, "coverage": cov, "problems": problems_here}))
+        _save_coverage(serial, folder.name, cov)
+        logger.info("Live position of %s: track of %d points saved for %s (origin u0 %.2f v0 %.2f), cleaned %s%% of %s",
+                    serial, len(track), folder.name, origin["u0"], origin["v0"], cov and cov["percent"],
+                    "its zone" if session.zone_cells else "the free floor")
     except Exception as e:
-        logger.warning("Live position of %s: track for %s not saved: %s", serial, run_folder, e)
-    return None
+        logger.warning("Live position of %s: track for %s not saved: %s", serial, folder.name, e)
