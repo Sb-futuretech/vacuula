@@ -490,6 +490,8 @@ def _learn(serial: str, map_id: str, origin: dict, run_id: str | None) -> bool:
     if the run's origin is too far off the map's to be trusted (nothing of the run should go onto it)."""
     data = _load()
     cal = data.setdefault(serial, {}).get(map_id) or {}
+    if cal.get("upc") != UNITS_PER_CELL:
+        cal = {}  # runs at another scale: start over
     new = [round(origin["u0"], 2), round(origin["v0"], 2), run_id]
     runs = cal.get("runs") or []
     if len(runs) >= 3 and math.hypot(new[0] - cal["u0"], new[1] - cal["v0"]) > MAX_OFF_CELLS:
