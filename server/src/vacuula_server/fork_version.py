@@ -8,5 +8,5 @@ from __future__ import annotations
 
 import os
 
-FORK_VERSION = "1.2.0"
+FORK_VERSION = "1.3.0"
 FORK_COMMIT = os.environ.get("VACUULA_FORK_COMMIT", "")

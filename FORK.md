@@ -2,7 +2,7 @@
 
 This is a fork of [Vacuula](https://github.com/vacuula/vacuula) by Philip, the custom server for
 Neato robot vacuums whose cloud is gone. It follows upstream closely (currently based on
-**1.1.0**) and adds features and fixes on top, mostly for **Gen3 robots**.
+**1.1.1**, beta 4) and adds features and fixes on top, mostly for **Gen3 robots**.
 
 Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**. Other
 Gen3 models (D3–D6) will probably behave similarly, but have not been tested. Gen4 robots (D8–D10)
@@ -43,6 +43,18 @@ be offered back as pull requests.
   enforced (the robot silently drops the rest).
 - **Coverage heatmap** on the map page: how often each part of the floor was cleaned in the last
   10 / 30 runs, and which free floor no run reached.
+
+### Live position and black box (Gen3)
+- **Where the robot is, live on the map** while it cleans, with the way it took, read from the
+  robot's own black box log over WLAN (needs the black box key and the port opened by the
+  installer). The robot is drawn as your mascot, turned the way it faces.
+- **Outside a run** it sits on its dock, or stands faded where it was last seen ("Last here,
+  14:32") when it stopped away from the dock. The robot logs its position only while cleaning.
+- Each run's **track** as a line, its **cleaned share**, **problem spots** (bumps, tilts, lost
+  position, stuck, failed docking) and the **floor type** from the brush load (carpet areas offered
+  as zones).
+- The position on the map is learnt per map from the run maps' start and end marks (median of the
+  last runs; a moved dock restarts it).
 
 ### Home page
 - Optional **map of the last cleaning** instead of the mascot (*Settings → Home page*): the covered
@@ -96,10 +108,16 @@ Useful if you work on Gen3 support yourself:
   `mapId`, a map run first tries the last used floor plan (`nav_floorplan_localization_fail` if the
   robot now stands at another base).
 - RunMap pixel values: `128` background, a thin `3` track of the robot's centre, and 4×4 marker
-  blocks: `100` dock (only in completed runs), `200` start and `150` end position (the last two from
-  little data so far). FloorMap and RunMap of a run have the same size and line up cell for cell.
+  blocks: `100` dock (only in completed runs), `150` start (its first position on the map after
+  leaving the dock) and `200` end position (checked against the black box over 14 runs). FloorMap and RunMap of a run have the same size and line up cell for cell.
   A run's grid only covers the part of its stored map it reached (smaller with doors closed); the
   run names the map in `persistent_map_id`, and the app places it by matching the walls.
+- Black box (decrypted with the robot's key): packet type 1 is the robot's own position estimate
+  (x, y, heading), about **525,000 units per map cell**; type 44 the motors (6 × 7 int32: wheels,
+  main brush with load and rpm, vacuum, lidar, side brush); type 8 text. Positions are logged only
+  while a run is active (not idle, not paused). After leaving the dock the robot moves about 8
+  cells in its own frame, then jumps onto its map. "Using Map ID … to begin persistent cleaning"
+  names the map; the state's `cleaning.mapId` does too while it cleans.
 - Manual drive: `getRobotManualCleaningInfo` returns the robot's IP and port (8081). The robot then
   accepts a WebSocket at `ws://<ip>:8081/drive` with `Authorization: NEATOAPP <hmac>`, where the
   HMAC-SHA256 is over `lowercase(serial) + "\n" + date + "\n"` with the robot's secret, and a
@@ -154,16 +172,19 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 - `sb 1.0.0` is this fork's version, set in
   [`fork_version.py`](server/src/vacuula_server/fork_version.py). Raise the minor number for new
   features and the last one for fixes, and the major one when the fork moves to a new upstream
-  release. Tag the release `sb-<version>`.
+  minor or major release (an upstream patch like 1.1.0 → 1.1.1 is a minor step here). Tag the
+  release `sb-<version>`.
 - In brackets is the commit the image was built from. `deploy.sh` passes it in; without it (for
   example from source) it is left out.
 
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
-- *Not released yet* (since sb 1.2.0): the fork's own code simplified (shared helpers, one way
-  to send a robot command and wait), and zones and lines saved explicitly: the map shows a change
-  once the robot has it, and a failed save keeps the drawing.
+- **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
+  restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
+  robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
+  notification, fixes from the server log, the fork's own code simplified, and zones and lines
+  saved explicitly.
 - **sb 1.2.0** (2026-11-04): sheets over the whole app, *Saved* / *Not saved* messages, the map tab
   opening on a map with a chip to switch, guided exploring, drawing with a bar on top, and the
   schedule working with the robot offline.
@@ -172,6 +193,25 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - **sb 1.0.0** (2026-11-01): the fork's first numbered version, everything before.
 
 ### New features at a glance
+
+**Live position (sb 1.3.0, Gen3)**
+- **The robot moves on the map while it cleans,** as your mascot turned the way it faces, with its
+  way as a line with arrows. A reload keeps the way. Tested on a D7 on 2026-11-11, also with a
+  pause in the middle of a run.
+- **When it does not clean:** on its dock, or faded with *Last here, 14:32* where it stopped
+  (stuck, error, battery). If someone carried it away since, that is no longer right.
+- **Each run:** its track as a line, the share it cleaned, its problem spots on the map, and the
+  floor type from the brush load (hard floor, runner, high pile), with carpet areas offered as
+  zones.
+- **Notifications:** stuck for 2 minutes and moving again; idle away from its base after a run
+  (sent home once, to see whether it docks).
+- The server log says why the live position is not shown (not started at the dock, no map named,
+  no position learnt for the map yet).
+
+**From upstream 1.1.1 (beta 4)**
+- **German and French** in *Settings → Language*. The fork's own texts are still English.
+- D7 floor plans can be **deleted** on the map page and restored.
+- Installed as an app (PWA): safe areas respected, the loading note as a small toast.
 
 **Whole app**
 - **Saved or not:** every change sent to the robot or the Pi (zones and lines, maps, schedule)
@@ -275,6 +315,36 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
+| 2026-11-11 | [`sb-1.3.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.3.0) | Release | **sb 1.3.0** |
+| 2026-11-11 | [`cf4419c`](https://github.com/Sb-futuretech/vacuula/commit/cf4419c) | Map | The robot mascot turns the way the robot faces |
+| 2026-11-11 | [`8b34b66`](https://github.com/Sb-futuretech/vacuula/commit/8b34b66) | Map | The robot drawn as the mascot (live, on its dock, last seen) |
+| 2026-11-11 | [`0a04a57`](https://github.com/Sb-futuretech/vacuula/commit/0a04a57) | Map, Server | Robot on the map while it does not clean: on its dock, or faded where it was last seen |
+| 2026-11-11 | [`2f2b79a`](https://github.com/Sb-futuretech/vacuula/commit/2f2b79a) | Live position | The map id also from the robot's state |
+| 2026-11-11 | [`62fe342`](https://github.com/Sb-futuretech/vacuula/commit/62fe342) | Live position | Log once why it is not shown |
+| 2026-11-11 | [`5c9f11a`](https://github.com/Sb-futuretech/vacuula/commit/5c9f11a) | Live position | A run that goes on after a pause or error keeps its session |
+| 2026-11-10 | [`e98c5d9`](https://github.com/Sb-futuretech/vacuula/commit/e98c5d9) | Upstream | Upstream 1.1.1-b4 merged: German and French, delete and restore D7 floor plans, PWA |
+| 2026-11-10 | [`e776b1a`](https://github.com/Sb-futuretech/vacuula/commit/e776b1a) | Live position | Origins learnt at the old scale don't enter the median |
+| 2026-11-10 | [`e2e8185`](https://github.com/Sb-futuretech/vacuula/commit/e2e8185) | Live position | Right scale, origin from the run map's start and end marks |
+| 2026-11-09 | [`7cf5647`](https://github.com/Sb-futuretech/vacuula/commit/7cf5647) | Live position | A moved dock restarts the map's origin |
+| 2026-11-08 | [`2702ca5`](https://github.com/Sb-futuretech/vacuula/commit/2702ca5) | Live position | The map's origin is the median of the last runs |
+| 2026-11-08 | [`91e1d5d`](https://github.com/Sb-futuretech/vacuula/commit/91e1d5d) | Floor type | Classify each brush sample by the median load around it |
+| 2026-11-08 | [`092de2a`](https://github.com/Sb-futuretech/vacuula/commit/092de2a) | Floor type | Carpet rectangle without single spots sticking out of its edges |
+| 2026-11-08 | [`1b122e9`](https://github.com/Sb-futuretech/vacuula/commit/1b122e9) | Live position | Drop the positions of leaving the dock |
+| 2026-11-08 | [`673b21e`](https://github.com/Sb-futuretech/vacuula/commit/673b21e) | Live position | Problems and floor type placed with the run's own origin |
+| 2026-11-08 | [`304685b`](https://github.com/Sb-futuretech/vacuula/commit/304685b) | Floor type | Samples where the brush acts, gaps between lanes filled |
+| 2026-11-08 | [`f1e1e97`](https://github.com/Sb-futuretech/vacuula/commit/f1e1e97) | Floor type | Floor type from the brush load: carpet map and carpet zones to add |
+| 2026-11-08 | [`6145485`](https://github.com/Sb-futuretech/vacuula/commit/6145485) | Map | Coverage heatmap counts what runs cleaned by their black box track |
+| 2026-11-08 | [`36bc469`](https://github.com/Sb-futuretech/vacuula/commit/36bc469) | Map, Server | Problem spots from the black box: bumps, tilts, lost position, stuck, failed docking |
+| 2026-11-08 | [`88f4915`](https://github.com/Sb-futuretech/vacuula/commit/88f4915) | Runs | The cleaned area from the black box track (brush width) replaces the RunMap's |
+| 2026-11-08 | [`3911700`](https://github.com/Sb-futuretech/vacuula/commit/3911700) | Runs, Home | Cleaned share of each run; live coordinates on the home page |
+| 2026-11-08 | [`4834a79`](https://github.com/Sb-futuretech/vacuula/commit/4834a79) | Live position | Ask the robot every 2 s (below inetd's limit) |
+| 2026-11-08 | [`cda4e63`](https://github.com/Sb-futuretech/vacuula/commit/cda4e63) | Live position | Running track survives a reload, arrows show the direction |
+| 2026-11-08 | [`3a02dfe`](https://github.com/Sb-futuretech/vacuula/commit/3a02dfe) | Runs | Track of each run from its black box, drawn as a line |
+| 2026-11-08 | [`490bab7`](https://github.com/Sb-futuretech/vacuula/commit/490bab7) | Home | The last run's track as a fine line over its covered area |
+| 2026-11-08 | [`c176741`](https://github.com/Sb-futuretech/vacuula/commit/c176741) | Live position | Live position of Gen3 robots on the map, from their black box |
+| 2026-11-05 | [`872c49d`](https://github.com/Sb-futuretech/vacuula/commit/872c49d) | Notifications | Send the robot home once when it stopped away from its base (test) |
+| 2026-11-05 | [`0466c11`](https://github.com/Sb-futuretech/vacuula/commit/0466c11) | Server | Fixes from the server log: back online after a restart, commands end with their connection, away-from-base notification |
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
 | 2026-11-04 | [`0fd081b`](https://github.com/Sb-futuretech/vacuula/commit/0fd081b) | App, Server | Simplify the fork's own code: shared helpers instead of copies, less wasted work |
 | 2026-11-04 | [`sb-1.2.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.2.0) | Release | **sb 1.2.0** |
