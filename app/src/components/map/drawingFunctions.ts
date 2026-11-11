@@ -627,14 +627,23 @@ export function drawRunTrack(
     ctx.restore()
 }
 
-// The robot itself at the origin of ctx: the mascot (upright, so it never stands on its head) with a
-// small arrow outside it the way it faces, or without an image a disc with a line that way. Heading in
-// degrees on screen (0 = right, clockwise); null: no direction known.
+// The mascot drawn as the robot; `turns`: it is the robot seen from above with its bumper (front) at the
+// bottom of the image, so it is turned the way the robot faces; else it stays upright (a figure).
+export interface RobotImage { img: HTMLImageElement, turns: boolean }
+
+// The robot itself at the origin of ctx: the mascot (turned the way it faces, or upright with a small
+// arrow outside it that way), or without an image a disc with a line that way. Heading in degrees on
+// screen (0 = right, clockwise); null: no direction known.
 function drawRobotBody(ctx: CanvasRenderingContext2D, rPx: number, heading: number | null,
-    img: HTMLImageElement | undefined, dashed: boolean) {
-    if (img) {
+    robotImg: RobotImage | undefined, dashed: boolean) {
+    if (robotImg) {
         const size = Math.max(30, rPx * 2.6)
-        ctx.drawImage(img, -size / 2, -size / 2, size, size)
+        if (robotImg.turns) {
+            if (heading !== null) ctx.rotate((heading - 90) * Math.PI / 180)
+            ctx.drawImage(robotImg.img, -size / 2, -size / 2, size, size)
+            return
+        }
+        ctx.drawImage(robotImg.img, -size / 2, -size / 2, size, size)
         if (heading !== null) {
             ctx.rotate(heading * Math.PI / 180)
             const r = size / 2 + 2
@@ -679,7 +688,7 @@ export function drawLiveRobot(
     zoom: number,
     offset: { x: number; y: number },
     resolution: number,
-    img?: HTMLImageElement,
+    img?: RobotImage,
 ) {
     const at = ([u, v]: [number, number]) => [offset.x + u * zoom, offset.y + v * zoom] as const
     const rPx = Math.max(6, (ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)) * zoom)
@@ -717,7 +726,7 @@ export function drawRestRobot(
     offset: { x: number; y: number },
     faded: boolean,
     label?: string,
-    img?: HTMLImageElement,
+    img?: RobotImage,
 ) {
     const rPx = Math.max(6, (ROBOT_RADIUS_MM / GEN3_MM_PER_CELL) * zoom)
     ctx.save()

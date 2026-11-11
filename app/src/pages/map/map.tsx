@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
@@ -98,12 +98,12 @@ export default () => {
     const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
     // the robot on the map is drawn as the mascot chosen in the settings
     const { mascot } = useMascot()
-    const [mascotImg, setMascotImg] = useState<HTMLImageElement>()
+    const [mascotImg, setMascotImg] = useState<RobotImage>()
     useEffect(() => {
         const img = new Image()
-        img.onload = () => setMascotImg(img)
+        img.onload = () => setMascotImg({ img, turns: mascot.id === 'robot' })
         img.src = mascot.src
-    }, [mascot.src])
+    }, [mascot.src, mascot.id])
     // loadedMapId: the map the shown list belongs to; until the shown map's load has succeeded nothing can
     // be edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const [loadedMapId, setLoadedMapId] = useState<string>()
