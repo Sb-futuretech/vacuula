@@ -331,8 +331,18 @@ def _save_run(serial: str, session: Session) -> None:
         logger.info("Live position of %s: map %s of run %s not stored here", serial, session.map_id, run_id)
         return
     if (stored["width"], stored["height"]) != (runmap["width"], runmap["height"]):
+        # doors closed: its run map is a smaller cut of the stored map, so its marks don't give the stored
+        # map's origin. The robot still counts in its stored map's frame: the origin learnt for the map
+        # places the run (it does not learn from it).
+        cal = _calibration(serial, session.map_id) if session.docked_at_start else None
+        if not cal:
+            logger.info("Live position of %s: run %s is not in the grid of its map (doors closed?) and the map "
+                        "has no origin yet: problems and floor type not kept", serial, run_id)
+            return
         logger.info("Live position of %s: run %s is not in the grid of its map (doors closed?): problems and "
-                    "floor type not kept", serial, run_id)
+                    "floor type placed with the map's origin", serial, run_id)
+        _save_problems(serial, session, cal)
+        _save_floor(serial, session, cal)
         return
     if not _learn(serial, session.map_id, origin, run_id):
         return
