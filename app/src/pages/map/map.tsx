@@ -25,6 +25,7 @@ import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types
 import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import type { LivePosition } from '../../context/AppContext'
+import { useMascot } from '../../mascot'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
 import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
@@ -95,6 +96,14 @@ export default () => {
     const { robot } = useRobot()
     const { livePosition } = useApp()
     const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
+    // the robot on the map is drawn as the mascot chosen in the settings
+    const { mascot } = useMascot()
+    const [mascotImg, setMascotImg] = useState<HTMLImageElement>()
+    useEffect(() => {
+        const img = new Image()
+        img.onload = () => setMascotImg(img)
+        img.src = mascot.src
+    }, [mascot.src])
     // loadedMapId: the map the shown list belongs to; until the shown map's load has succeeded nothing can
     // be edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const [loadedMapId, setLoadedMapId] = useState<string>()
@@ -274,7 +283,7 @@ export default () => {
         // gen3: the robot where it is now and its way during this clean (fresh positions only); else on
         // its dock, or faded where it was last seen (it logs its position only while it cleans)
         if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
-            drawLiveRobot(ctx, livePosition.points, livePosition.last.heading, currentZoom, currentOffset, 0)
+            drawLiveRobot(ctx, livePosition.points, livePosition.last.heading, currentZoom, currentOffset, 0, mascotImg)
         } else if (robot.type === RobotType.NeatoGen3) {
             const seen = [lastSeen, livePosition?.last].filter((p): p is LivePosition => !!p && p.mapId === persistentMap)
                 .sort((a, b) => b.t - a.t)[0]
@@ -282,13 +291,13 @@ export default () => {
                 ? [baseData[0] * mapSize.width, baseData[1] * mapSize.height] as [number, number] : null
             if (isDocked(robot)) {
                 if (seen && dock && Math.hypot(seen.u - dock[0], seen.v - dock[1]) < DOCK_NEAR_CELLS) {
-                    drawRestRobot(ctx, [seen.u, seen.v], seen.heading, currentZoom, currentOffset, false)
+                    drawRestRobot(ctx, [seen.u, seen.v], seen.heading, currentZoom, currentOffset, false, undefined, mascotImg)
                 } else if (dock) {
-                    drawRestRobot(ctx, dock, null, currentZoom, currentOffset, false)
+                    drawRestRobot(ctx, dock, null, currentZoom, currentOffset, false, undefined, mascotImg)
                 }
             } else if (seen && robot.state !== Neato.Gen3.RobotState.BUSY) {
                 drawRestRobot(ctx, [seen.u, seen.v], seen.heading, currentZoom, currentOffset, true,
-                    t('map.lastSeen', { time: seenTime(seen.t) }))
+                    t('map.lastSeen', { time: seenTime(seen.t) }), mascotImg)
             }
         }
 
@@ -299,7 +308,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType, lastSeen, robot])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType, lastSeen, robot, mascotImg])
 
     // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
     const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''

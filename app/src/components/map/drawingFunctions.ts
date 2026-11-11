@@ -627,6 +627,49 @@ export function drawRunTrack(
     ctx.restore()
 }
 
+// The robot itself at the origin of ctx: the mascot (upright, so it never stands on its head) with a
+// small arrow outside it the way it faces, or without an image a disc with a line that way. Heading in
+// degrees on screen (0 = right, clockwise); null: no direction known.
+function drawRobotBody(ctx: CanvasRenderingContext2D, rPx: number, heading: number | null,
+    img: HTMLImageElement | undefined, dashed: boolean) {
+    if (img) {
+        const size = Math.max(30, rPx * 2.6)
+        ctx.drawImage(img, -size / 2, -size / 2, size, size)
+        if (heading !== null) {
+            ctx.rotate(heading * Math.PI / 180)
+            const r = size / 2 + 2
+            const w = Math.max(4, size * 0.14)
+            ctx.beginPath()
+            ctx.moveTo(r + w * 1.4, 0)
+            ctx.lineTo(r, -w)
+            ctx.lineTo(r, w)
+            ctx.closePath()
+            ctx.fillStyle = COLORS.CROSSHAIR
+            ctx.fill()
+            ctx.lineWidth = 1.5
+            ctx.strokeStyle = '#ffffff'
+            ctx.stroke()
+        }
+        return
+    }
+    ctx.beginPath()
+    ctx.arc(0, 0, rPx, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.CROSSHAIR
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#ffffff'
+    if (dashed) ctx.setLineDash([4, 3])
+    ctx.stroke()
+    ctx.setLineDash([])
+    if (heading !== null) {
+        ctx.rotate(heading * Math.PI / 180)
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(rPx, 0)
+        ctx.stroke()
+    }
+}
+
 // The robot where it is now (live, gen3) and the way it took during this clean. Positions are map
 // cells; heading in degrees on screen (0 = right, clockwise).
 export function drawLiveRobot(
@@ -636,6 +679,7 @@ export function drawLiveRobot(
     zoom: number,
     offset: { x: number; y: number },
     resolution: number,
+    img?: HTMLImageElement,
 ) {
     const at = ([u, v]: [number, number]) => [offset.x + u * zoom, offset.y + v * zoom] as const
     const rPx = Math.max(6, (ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)) * zoom)
@@ -658,19 +702,8 @@ export function drawLiveRobot(
     }
     const [x, y] = at(points[points.length - 1])
     ctx.translate(x, y)
-    ctx.beginPath()
-    ctx.arc(0, 0, rPx, 0, Math.PI * 2)
-    ctx.fillStyle = withAlpha(COLORS.CROSSHAIR, 0.9)
-    ctx.fill()
-    ctx.lineWidth = 2
-    ctx.strokeStyle = '#ffffff'
-    ctx.stroke()
-    // which way it faces
-    ctx.rotate(heading * Math.PI / 180)
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.lineTo(rPx, 0)
-    ctx.stroke()
+    ctx.globalAlpha = img ? 1 : 0.9
+    drawRobotBody(ctx, rPx, heading, img, false)
     ctx.restore()
 }
 
@@ -684,35 +717,20 @@ export function drawRestRobot(
     offset: { x: number; y: number },
     faded: boolean,
     label?: string,
+    img?: HTMLImageElement,
 ) {
     const rPx = Math.max(6, (ROBOT_RADIUS_MM / GEN3_MM_PER_CELL) * zoom)
     ctx.save()
     ctx.translate(offset.x + u * zoom, offset.y + v * zoom)
-    ctx.globalAlpha = faded ? 0.45 : 0.9
-    ctx.beginPath()
-    ctx.arc(0, 0, rPx, 0, Math.PI * 2)
-    ctx.fillStyle = COLORS.CROSSHAIR
-    ctx.fill()
-    ctx.lineWidth = 2
-    ctx.strokeStyle = '#ffffff'
-    if (faded) ctx.setLineDash([4, 3])
-    ctx.stroke()
-    ctx.setLineDash([])
-    if (heading !== null) {
-        ctx.save()
-        ctx.rotate(heading * Math.PI / 180)
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(rPx, 0)
-        ctx.stroke()
-        ctx.restore()
-    }
+    ctx.save()
+    ctx.globalAlpha = faded ? 0.45 : (img ? 1 : 0.9)
+    drawRobotBody(ctx, rPx, heading, img, faded)
+    ctx.restore()
     if (label) {
-        ctx.globalAlpha = 1
         ctx.font = '600 12px system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
-        const y = rPx + 6
+        const y = (img ? Math.max(30, rPx * 2.6) / 2 : rPx) + 6
         const w = ctx.measureText(label).width + 12
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
         ctx.beginPath()
