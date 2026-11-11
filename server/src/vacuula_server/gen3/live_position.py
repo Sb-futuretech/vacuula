@@ -143,7 +143,14 @@ def on_state(serial: str, state: dict) -> None:
         host = getattr(conn, "host", None) if conn else None
         if not host:
             return
-        _sessions[serial] = Session(docked_at_start=_last_docked.get(serial, False))
+        prev = _sessions.get(serial)
+        if prev and prev.ended_at and not prev.saved and not prev.run_folder and not _last_docked.get(serial):
+            # it went on after a pause or an error (stuck, brush cleaned) away from the dock: the same run
+            prev.ended_at = None
+            logger.info("Live position of %s: run goes on after a pause, %d positions so far",
+                        serial, len(prev.positions))
+        else:
+            _sessions[serial] = Session(docked_at_start=_last_docked.get(serial, False))
         reader = _readers[serial] = Reader(serial, host)
     threading.Thread(target=_run, args=(reader,), name=f"live-position-{serial}", daemon=True).start()
 
@@ -214,7 +221,7 @@ def _poll(reader: Reader) -> None:
         for ptype, clock, pdata in reader.stream.feed(payload):
             if ptype == blackbox.PKT_COORDS:
                 latest = blackbox.Coords.parse(pdata)
-                if session and session.last_pos and len(session.positions) < START_POSITIONS and math.hypot(
+                if session and session.last_pos and not session.from_start and len(session.positions) < START_POSITIONS and math.hypot(
                         latest.x - session.last_pos[0], latest.y - session.last_pos[1]) > JUMP_CELLS * UNITS_PER_CELL:
                     logger.info("Live position of %s: on its map now, %d positions of leaving the dock dropped",
                                 reader.serial, len(session.positions))
