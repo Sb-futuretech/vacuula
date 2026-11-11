@@ -98,6 +98,7 @@ class Session:
     last_heading: float = 0.0
     from_start: bool = False        # positions[0] is where it started on its map (read from the run's start)
     saved: bool = False             # problems and floor type of this run are on its map
+    hidden_why: str | None = None   # why the live position is not shown (logged once per reason)
 
 
 @dataclass
@@ -396,6 +397,12 @@ def _to_cells(cal: dict, x: float, y: float) -> tuple[float, float]:
 def _send(serial: str, session: Session, pos: blackbox.Coords) -> None:
     cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
     if not cal:
+        why = ("it did not start at the dock" if not session.docked_at_start else
+               "no map id in the black box yet" if not session.map_id else
+               f"no origin at this scale for map {session.map_id}")
+        if why != session.hidden_why:
+            session.hidden_why = why
+            logger.info("Live position of %s: not shown, %s", serial, why)
         return
     u, v = _to_cells(cal, pos.x, pos.y)
     push_to_app(serial, "livePosition", {
