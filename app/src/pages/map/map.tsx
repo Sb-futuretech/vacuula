@@ -22,8 +22,9 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
+import type { LivePosition } from '../../context/AppContext'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
 import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
 import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
@@ -38,6 +39,17 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 // gen3 robot actions of an exploration (exploring, paused, getting map ids, uploading the map)
 // a live position older than this (seconds) is not drawn: the clean has ended or the link is gone
 const LIVE_FRESH_S = 60
+// docked: its last position is where it stands if that is this close to the dock symbol (cells); else
+// it was carried home after its last run and stands on the dock symbol
+const DOCK_NEAR_CELLS = 10
+
+// "14:32" today, else "10.11. 14:32" (in the browser's language)
+function seenTime(t: number): string {
+    const d = new Date(t * 1000)
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    return d.toDateString() === new Date().toDateString()
+        ? time : `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' })} ${time}`
+}
 
 const EXPLORE_ACTIONS = [Neato.Gen3.RobotAction.EXPLORING_MAP, Neato.Gen3.RobotAction.SUSPENDED_EXPLORATION,
     Neato.Gen3.RobotAction.ACQUIRING_PERSISTENT_MAP_IDS, Neato.Gen3.RobotAction.CREATING_UPLOADING_MAP]
@@ -82,6 +94,7 @@ export default () => {
 
     const { robot } = useRobot()
     const { livePosition } = useApp()
+    const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
     // loadedMapId: the map the shown list belongs to; until the shown map's load has succeeded nothing can
     // be edited or saved (a save would replace everything on the robot with an empty or another map's list)
     const [loadedMapId, setLoadedMapId] = useState<string>()
@@ -258,9 +271,25 @@ export default () => {
 
         if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, true)
 
-        // gen3: the robot where it is now and its way during this clean (fresh positions only)
+        // gen3: the robot where it is now and its way during this clean (fresh positions only); else on
+        // its dock, or faded where it was last seen (it logs its position only while it cleans)
         if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
             drawLiveRobot(ctx, livePosition.points, livePosition.last.heading, currentZoom, currentOffset, 0)
+        } else if (robot.type === RobotType.NeatoGen3) {
+            const seen = [lastSeen, livePosition?.last].filter((p): p is LivePosition => !!p && p.mapId === persistentMap)
+                .sort((a, b) => b.t - a.t)[0]
+            const dock = Array.isArray(baseData) && baseData[0] !== NO_BASE && baseData[1] !== NO_BASE
+                ? [baseData[0] * mapSize.width, baseData[1] * mapSize.height] as [number, number] : null
+            if (isDocked(robot)) {
+                if (seen && dock && Math.hypot(seen.u - dock[0], seen.v - dock[1]) < DOCK_NEAR_CELLS) {
+                    drawRestRobot(ctx, [seen.u, seen.v], seen.heading, currentZoom, currentOffset, false)
+                } else if (dock) {
+                    drawRestRobot(ctx, dock, null, currentZoom, currentOffset, false)
+                }
+            } else if (seen && robot.state !== Neato.Gen3.RobotState.BUSY) {
+                drawRestRobot(ctx, [seen.u, seen.v], seen.heading, currentZoom, currentOffset, true,
+                    t('map.lastSeen', { time: seenTime(seen.t) }))
+            }
         }
 
         if (mode === 'boundary-edit') {
@@ -270,7 +299,14 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType, lastSeen, robot])
+
+    // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
+    const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''
+    useEffect(() => {
+        if (robot.type !== RobotType.NeatoGen3) return
+        Http.getLastPosition(robot.serial).then(res => setLastSeen(res.data)).catch(() => {})
+    }, [robot.serial, robotState])
 
     // Fetch boundaries when persistentMap changes
     useEffect(() => {

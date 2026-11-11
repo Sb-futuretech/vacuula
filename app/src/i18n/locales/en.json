@@ -437,6 +437,7 @@
         "noGo": "No-Go",
         "cleaning": "Cleaning",
         "cleanZone": "Clean zone",
+        "lastSeen": "Last here, {{time}}",
         "addSchedule": "Add schedule",
         "zoneType": "Zone type",
         "color": "Color",

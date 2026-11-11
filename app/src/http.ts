@@ -290,6 +290,11 @@ export class Http {
     return instance.get(`/robot/${serial}/run/${runId}`)
   }
 
+  // gen3: where the robot was last shown on its map, also while it does not clean (null if never)
+  static getLastPosition(serial: string) {
+    return instance.get<{ mapId: string, u: number, v: number, heading: number, t: number } | null>(`/robot/${serial}/last-position`)
+  }
+
   // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
   static getLiveTrack(serial: string) {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)

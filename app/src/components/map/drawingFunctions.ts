@@ -674,6 +674,56 @@ export function drawLiveRobot(
     ctx.restore()
 }
 
+// The robot while it does not clean: on its dock (solid), or faded where it was last seen, with a label
+// (it logs its position only while cleaning, so it may have been carried away since).
+export function drawRestRobot(
+    ctx: CanvasRenderingContext2D,
+    [u, v]: [number, number],
+    heading: number | null,
+    zoom: number,
+    offset: { x: number; y: number },
+    faded: boolean,
+    label?: string,
+) {
+    const rPx = Math.max(6, (ROBOT_RADIUS_MM / GEN3_MM_PER_CELL) * zoom)
+    ctx.save()
+    ctx.translate(offset.x + u * zoom, offset.y + v * zoom)
+    ctx.globalAlpha = faded ? 0.45 : 0.9
+    ctx.beginPath()
+    ctx.arc(0, 0, rPx, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.CROSSHAIR
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#ffffff'
+    if (faded) ctx.setLineDash([4, 3])
+    ctx.stroke()
+    ctx.setLineDash([])
+    if (heading !== null) {
+        ctx.save()
+        ctx.rotate(heading * Math.PI / 180)
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(rPx, 0)
+        ctx.stroke()
+        ctx.restore()
+    }
+    if (label) {
+        ctx.globalAlpha = 1
+        ctx.font = '600 12px system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        const y = rPx + 6
+        const w = ctx.measureText(label).width + 12
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+        ctx.beginPath()
+        ctx.roundRect(-w / 2, y - 3, w, 20, 6)
+        ctx.fill()
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(label, 0, y + 1)
+    }
+    ctx.restore()
+}
+
 // An image (e.g. the mascot) where the robot docks, drawn instead of the dock symbol.
 export function drawMarker(
     ctx: CanvasRenderingContext2D,

@@ -157,6 +157,7 @@
         "noGo": "Sperrung",
         "cleaning": "Reinigung",
         "cleanZone": "Reinigungszone",
+        "lastSeen": "Zuletzt hier, {{time}}",
         "addSchedule": "Zeitplan hinzufügen",
         "zoneType": "Zonentyp",
         "color": "Farbe",

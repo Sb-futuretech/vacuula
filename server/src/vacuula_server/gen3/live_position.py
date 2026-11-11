@@ -68,6 +68,7 @@ EVENT_GAP_S = 3            # the same kind again within this time and EVENT_GAP_
 EVENT_GAP_CELLS = 2
 CLOCK_HZ = 24_000_000     # the black box packets' clock
 PROBLEMS_FILE = DATA_DIR / "live_problems.json"
+LAST_SEEN_FILE = DATA_DIR / "live_last.json"  # per robot: its last position shown on its map
 PROBLEMS_KEEP = 3000       # per map, newest kept
 # not moved more than STUCK_MOVE_CELLS for STUCK_S while cleaning: stuck (a Telegram message, once)
 STUCK_S = 120
@@ -122,6 +123,7 @@ _readers: dict[str, Reader] = {}
 _sessions: dict[str, Session] = {}
 _last_docked: dict[str, bool] = {}
 _last_action: dict[str, int | None] = {}
+_last_seen: dict[str, dict] = {}
 
 
 # ---- robot state ------------------------------------------------------------------------------------
@@ -191,6 +193,7 @@ def _run(reader: Reader) -> None:
                 logger.info("Live position of %s: run ended, %d positions (map %s); %d reads, %d failed, slowest %.1f s",
                             reader.serial, len(session.positions), session.map_id, reader.reads, reader.failed,
                             reader.slowest)
+        _keep_last_seen(reader.serial)
         if session:
             _save_run(reader.serial, session)
 
@@ -410,13 +413,35 @@ def _send(serial: str, session: Session, pos: blackbox.Coords) -> None:
             logger.info("Live position of %s: not shown, %s", serial, why)
         return
     u, v = _to_cells(cal, pos.x, pos.y)
-    push_to_app(serial, "livePosition", {
-        "mapId": session.map_id,
-        "u": u,
-        "v": v,
-        "heading": -math.degrees(pos.heading),
-        "t": time.time(),
-    })
+    shown = {"mapId": session.map_id, "u": u, "v": v, "heading": -math.degrees(pos.heading), "t": time.time()}
+    _last_seen[serial] = shown
+    push_to_app(serial, "livePosition", shown)
+
+
+def last_seen(serial: str) -> dict | None:
+    """Where the robot was last shown on its map ({"mapId", "u", "v", "heading", "t"}), also after the
+    run: it logs its position only while it cleans, so this is where it stopped (or the dock)."""
+    if serial in _last_seen:
+        return _last_seen[serial]
+    try:
+        return json.loads(LAST_SEEN_FILE.read_text()).get(serial)
+    except (OSError, ValueError):
+        return None
+
+
+def _keep_last_seen(serial: str) -> None:
+    """The last position into LAST_SEEN_FILE, so a restart of this server keeps it."""
+    if serial not in _last_seen:
+        return
+    try:
+        data = json.loads(LAST_SEEN_FILE.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data[serial] = _last_seen[serial]
+    try:
+        LAST_SEEN_FILE.write_text(json.dumps(data))
+    except OSError as e:
+        logger.warning("Live position of %s: last position not kept: %s", serial, e)
 
 
 def live_track(serial: str) -> dict | None:

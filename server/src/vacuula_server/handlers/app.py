@@ -246,6 +246,12 @@ def get_live_track(req: RouterHandler, serial: str) -> None:
     req.send_ok(live_position.live_track(serial))
 
 
+def get_last_position(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/last-position - where the gen3 robot was last shown on its map, also when it
+    is not cleaning (gen3/live_position.py); null when it never was"""
+    req.send_ok(live_position.last_seen(serial))
+
+
 def get_map_problems(req: RouterHandler, serial: str, map_id: str) -> None:
     """GET /robot/<serial>/maps/<map_id>/problems - bumps, tilts, getting lost or stuck recorded on a
     gen3 map over the last runs, in map cells (gen3/live_position.py)"""
