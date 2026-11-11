@@ -137,8 +137,13 @@ def on_state(serial: str, state: dict) -> None:
             if reader and reader.idle_since is None:
                 reader.idle_since = time.time()
             return
+        # the robot names its map in every state while cleaning on it, as well as once in its black box
+        # (which this server misses if it starts reading late): either will do
+        map_id = (state.get("cleaning") or {}).get("mapId") or None
         if reader:
             reader.idle_since = None
+            if (session := _sessions.get(serial)) and map_id and not session.map_id:
+                session.map_id = map_id
             return
         conn = robot_connections.get(serial)
         host = getattr(conn, "host", None) if conn else None
@@ -151,7 +156,7 @@ def on_state(serial: str, state: dict) -> None:
             logger.info("Live position of %s: run goes on after a pause, %d positions so far",
                         serial, len(prev.positions))
         else:
-            _sessions[serial] = Session(docked_at_start=_last_docked.get(serial, False))
+            _sessions[serial] = Session(docked_at_start=_last_docked.get(serial, False), map_id=map_id)
         reader = _readers[serial] = Reader(serial, host)
     threading.Thread(target=_run, args=(reader,), name=f"live-position-{serial}", daemon=True).start()
 
