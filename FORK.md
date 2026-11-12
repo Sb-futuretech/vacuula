@@ -180,7 +180,8 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
-- *Not released yet* (since sb 1.3.0): the fork's own texts in German.
+- *Not released yet* (since sb 1.3.0): the fork's own texts in German; a zone deleted from the
+  map can be taken out of a schedule entry.
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -274,7 +275,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   **overlapping runs** are marked, and the edit sheet warns before saving.
 - Days picked as seven chips; repeating robot events edited as one entry; Pi entries can be paused.
 - Zone names come from the maps as they are now. Once all maps are loaded, a zone that is no
-  longer on any of them shows as *unknown zone*.
+  longer on any of them shows as *unknown zone*. Editing and saving such an entry drops it (before,
+  the picker hid it, it was saved again and the robot answered *wrong floor*).
 - With the robot offline the page still shows the week and the Pi's entries, which can be edited;
   the robot's own schedule says it can't be read, with *Try again*.
 - Mode and navigation explained under their fields; Save says what is still missing.
@@ -318,6 +320,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 | Date | Commit | Area | Change |
 |---|---|---|---|
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
+| 2026-11-12 | [`f517ec2`](https://github.com/Sb-futuretech/vacuula/commit/f517ec2) | Schedule | A zone deleted from the map can be taken out of a Pi entry (it was hidden and saved again) |
 | 2026-11-11 | [`289adee`](https://github.com/Sb-futuretech/vacuula/commit/289adee) | App | German for the fork's own texts (303): statistics, map, schedule, notifications, Telegram, drive |
 | 2026-11-11 | [`sb-1.3.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.3.0) | Release | **sb 1.3.0** |
 | 2026-11-11 | [`cf4419c`](https://github.com/Sb-futuretech/vacuula/commit/cf4419c) | Map | The robot mascot turns the way the robot faces |
