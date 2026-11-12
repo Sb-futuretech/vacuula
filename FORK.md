@@ -180,6 +180,7 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
+- *Not released yet* (since sb 1.3.0): the fork's own texts in German.
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -209,7 +210,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   no position learnt for the map yet).
 
 **From upstream 1.1.1 (beta 4)**
-- **German and French** in *Settings → Language*. The fork's own texts are still English.
+- **German and French** in *Settings → Language*. The fork's own texts are in German too (since
+  289adee), in French still English.
 - D7 floor plans can be **deleted** on the map page and restored.
 - Installed as an app (PWA): safe areas respected, the loading note as a small toast.
 
@@ -316,6 +318,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 | Date | Commit | Area | Change |
 |---|---|---|---|
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
+| 2026-11-11 | [`289adee`](https://github.com/Sb-futuretech/vacuula/commit/289adee) | App | German for the fork's own texts (303): statistics, map, schedule, notifications, Telegram, drive |
 | 2026-11-11 | [`sb-1.3.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.3.0) | Release | **sb 1.3.0** |
 | 2026-11-11 | [`cf4419c`](https://github.com/Sb-futuretech/vacuula/commit/cf4419c) | Map | The robot mascot turns the way the robot faces |
 | 2026-11-11 | [`8b34b66`](https://github.com/Sb-futuretech/vacuula/commit/8b34b66) | Map | The robot drawn as the mascot (live, on its dock, last seen) |

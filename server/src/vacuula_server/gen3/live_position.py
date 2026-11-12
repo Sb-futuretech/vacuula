@@ -14,6 +14,7 @@ has one nothing is sent for it.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import logging
 import math
@@ -86,6 +87,7 @@ START_POSITIONS = 900  # house, spot, map cleaning, exploring (not docking or re
 class Session:
     docked_at_start: bool
     map_id: str | None = None
+    started: float = field(default_factory=time.time)  # when the robot went BUSY for it
     positions: list[tuple[float, float]] = field(default_factory=list)
     ended_at: float | None = None
     run_folder: str | None = None   # where the robot's maps of this run went (its track is saved there)
@@ -124,6 +126,7 @@ _sessions: dict[str, Session] = {}
 _last_docked: dict[str, bool] = {}
 _last_action: dict[str, int | None] = {}
 _last_seen: dict[str, dict] = {}
+_ended: dict[str, Session] = {}  # the run before the current one (its maps may still be on their way)
 
 
 # ---- robot state ------------------------------------------------------------------------------------
@@ -132,6 +135,7 @@ def on_state(serial: str, state: dict) -> None:
         return
     busy = state.get("state") == STATE_BUSY
     _last_action[serial] = state.get("action")
+    finished: Session | None = None
     with _lock:
         reader = _readers.get(serial)
         if not busy:
@@ -143,9 +147,27 @@ def on_state(serial: str, state: dict) -> None:
         # (which this server misses if it starts reading late): either will do
         map_id = (state.get("cleaning") or {}).get("mapId") or None
         if reader:
+            # back on its dock and idle, then off again within IDLE_STOP_S (the next zone of a queue): a run
+            # of its own, though this server never stopped reading
+            next_run = reader.idle_since is not None and _last_docked.get(serial)
             reader.idle_since = None
-            if (session := _sessions.get(serial)) and map_id and not session.map_id:
+            session = _sessions.get(serial)
+            if next_run and session:
+                session.ended_at = time.time()
+                _ended[serial] = session
+                _sessions[serial] = Session(docked_at_start=True, map_id=map_id)
+                logger.info("Live position of %s: next run from the dock, %d positions of the last one",
+                            serial, len(session.positions))
+                finished = session
+            elif session and map_id and not session.map_id:
                 session.map_id = map_id
+    if reader:
+        if finished:
+            _keep_last_seen(serial)
+            _save_run(serial, finished)
+        return
+    with _lock:
+        if serial in _readers:
             return
         conn = robot_connections.get(serial)
         host = getattr(conn, "host", None) if conn else None
@@ -493,6 +515,15 @@ def run_uploaded(serial: str, run: dict, job_folder: str) -> None:
     where the robot's origin lies on its map."""
     with _lock:
         session = _sessions.get(serial)
+        before = _ended.get(serial)
+    # a queue's next zone may start before this one's maps arrive: the run whose start is nearest the
+    # run's id (its start time)
+    try:
+        run_t = calendar.timegm(time.strptime(Path(job_folder).name, "%Y-%m-%dT%H:%M:%SZ"))
+    except ValueError:
+        run_t = None
+    if run_t and before and session and abs(before.started - run_t) < abs(session.started - run_t):
+        session = before
     # the robot uploads its maps right at the end, while this server still reads its last blocks: a run
     # still being read counts, an older one only for SESSION_KEEP_S
     if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
