@@ -62,11 +62,15 @@ function ScheduleGen3() {
     }, [robot.serial, persistentMaps])
 
     const zoneOptions = gen3ZoneOptions(robot.serial, persistentMaps)
+    const allZonesLoaded = !!persistentMaps && persistentMaps.every(m => isGen3MapCached(robot.serial, m.id))
 
 
     type ScheduleForm = { startTime: string, mode: CleaningMode, navigationMode: CleaningNavigationMode, zones: string[] }
     const emptyForm: ScheduleForm = { startTime: '', mode: CleaningMode.ECO, navigationMode: CleaningNavigationMode.NORMAL, zones: [] }
     const [scheduleForm, SetScheduleForm] = useState<ScheduleForm>(emptyForm)
+    // an entry's zones without those deleted from the maps since: the picker cannot show them, so they
+    // could not be taken out, and the robot answers them with "wrong floor". Kept until all zones are loaded.
+    const formZones = allZonesLoaded ? scheduleForm.zones.filter(v => zoneOptions.some(o => o.value === v)) : scheduleForm.zones
     const [editing, setEditing] = useState<Editing>(null)
     const { mascot } = useMascot()
     const [piEntries, setPiEntries] = useState<PiScheduleEntry[]>([])
@@ -101,7 +105,7 @@ function ScheduleGen3() {
 
     // what the robot's own schedule cannot keep goes to the Pi (FORK.md: only mode, day, time and one zone)
     const piNeedsNavigation = scheduleForm.navigationMode !== CleaningNavigationMode.NORMAL
-    const piNeedsZones = scheduleForm.zones.length > 1
+    const piNeedsZones = formZones.length > 1
     const needsPi = piNeedsNavigation || piNeedsZones
 
     // robot events (local time, from the server) close to a Pi entry on one of its days
@@ -159,7 +163,7 @@ function ScheduleGen3() {
         if (needsPi) {
             const entry = {
                 days, startTime: scheduleForm.startTime, mode: scheduleForm.mode, navigationMode: scheduleForm.navigationMode,
-                zones: scheduleForm.zones.map(value => {
+                zones: formZones.map(value => {
                     const [mapId, boundaryId] = splitZoneValue(value)
                     return { mapId, boundaryId, name: zoneOptions.find(o => o.value === value)?.label ?? '' }
                 }),
@@ -174,7 +178,7 @@ function ScheduleGen3() {
                 .finally(() => { getPiEntries(); if (editedRobotEvents.length) getSchedule() })
             return
         }
-        const zone = scheduleForm.zones[0] && splitZoneValue(scheduleForm.zones[0])[1]
+        const zone = formZones[0] && splitZoneValue(formZones[0])[1]
         const added: ScheduleEvent[] = days.map(day => ({ mode: scheduleForm.mode, startTime: scheduleForm.startTime, day, ...(zone && { boundaryId: zone }) }))
         // an identical day/time/zone entry is replaced instead of duplicated
         const kept = robotEvents.filter(e => !added.some(a => a.day === e.day && a.startTime === e.startTime && zoneOf(a) === zoneOf(e)))
@@ -216,7 +220,6 @@ function ScheduleGen3() {
     // names from the maps as they are now. Until every map's zones are loaded, a zone not found yet keeps
     // the name it was saved with; once they are, it is gone from the maps: "unknown zone".
     const zoneNameById = new Map((persistentMaps ?? []).flatMap(m => getCachedZones(robot.serial, m.id).map(z => [z.id, z.name] as const)))
-    const allZonesLoaded = !!persistentMaps && persistentMaps.every(m => isGen3MapCached(robot.serial, m.id))
     const zoneNamesOf = ({ zoneIds, zoneNames }: { zoneIds: string[], zoneNames: string[] }) => zoneIds.map((id, i) => {
         const current = zoneNameById.get(id)
         if (current !== undefined) return decodeRobotText(current) || t('schedule.week.unnamedZone')
@@ -234,7 +237,7 @@ function ScheduleGen3() {
     const dayWord = (daysAhead: number, day: number) => daysAhead === 0 ? t('schedule.week.today') : daysAhead === 1 ? t('schedule.week.tomorrow') : dayName(day)
 
     // the drawer's entry: how long it takes and what it runs into
-    const formZoneIds = scheduleForm.zones.map(value => splitZoneValue(value)[1])
+    const formZoneIds = formZones.map(value => splitZoneValue(value)[1])
     const formMinutes = estimate(scheduleForm.mode, needsPi ? scheduleForm.navigationMode : CleaningNavigationMode.NORMAL, formZoneIds)
     const formFallbacks = scheduleForm.startTime ? fallbacks(days, scheduleForm.startTime) : []
     const formOverlaps = scheduleForm.startTime && days.length
@@ -431,7 +434,7 @@ function ScheduleGen3() {
                         label={t('schedule.selectZones')}
                         extraInfo={t('schedule.selectZonesHelp')}
                         options={zoneOptions}
-                        value={scheduleForm.zones}
+                        value={formZones}
                         onChange={(zones) => updateForm(SetScheduleForm, { zones })}
                     />
 
