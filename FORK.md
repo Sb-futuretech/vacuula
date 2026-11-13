@@ -165,6 +165,20 @@ docker compose and keeps the last builds for a rollback:
 
 Set `REPO_DIR` and `COMPOSE_DIR` at the top of the script (or when calling it) to your paths.
 
+**One robot per address** (two households on one server): `VACUULA_ROBOT_PORTS` gives a robot a port
+of its own, as `port=serial`, several separated by commas:
+
+```yaml
+      - VACUULA_PORT=80
+      - VACUULA_ROBOT_PORTS=8081=GPC43118-…,8082=GPC47720-…
+```
+
+The app on such a port only sees and controls that robot: the robot list and its events are
+filtered, other robots, the server log and the certificate answer *Not Found*. Each port is its own
+site for the browser (settings, home screen app, notifications). Port 80 (`VACUULA_PORT`) stays the
+full view, and the robots keep uploading their maps to it. It is a convenience, not access control:
+whoever reaches port 80 still sees every robot, so limit that in the VPN or firewall.
+
 ## Versions
 The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a7274e5)`:
 - `1.1.0` is the upstream version this fork is built on. It stays upstream's, because the installer
@@ -181,7 +195,7 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
 - *Not released yet* (since sb 1.3.0): the fork's own texts in German; a zone deleted from the
-  map can be taken out of a schedule entry.
+  map can be taken out of a schedule entry; one robot per address (`VACUULA_ROBOT_PORTS`).
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -311,6 +325,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
   `api.telegram.org`.
 
 **Connection**
+- **One robot per address:** with `VACUULA_ROBOT_PORTS` each robot gets a port of its own on which
+  the app sees only that robot, for a second household on the same server (see *Running it*).
 - Fixed: the robot kept disconnecting after saving zones (messages split over several chunks).
 - The log says why a connection ended; a successful state poll counts as a heartbeat.
 
@@ -320,6 +336,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 | Date | Commit | Area | Change |
 |---|---|---|---|
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
+| 2026-11-13 | [`a48f52c`](https://github.com/Sb-futuretech/vacuula/commit/a48f52c) | Server | One robot per extra port (`VACUULA_ROBOT_PORTS`): the app there sees and controls only that robot |
 | 2026-11-12 | [`f517ec2`](https://github.com/Sb-futuretech/vacuula/commit/f517ec2) | Schedule | A zone deleted from the map can be taken out of a Pi entry (it was hidden and saved again) |
 | 2026-11-11 | [`289adee`](https://github.com/Sb-futuretech/vacuula/commit/289adee) | App | German for the fork's own texts (303): statistics, map, schedule, notifications, Telegram, drive |
 | 2026-11-11 | [`sb-1.3.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.3.0) | Release | **sb 1.3.0** |
