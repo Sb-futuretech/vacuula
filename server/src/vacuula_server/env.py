@@ -78,6 +78,19 @@ LOG_LEVEL: str = _get_str_env("LOG_LEVEL", "INFO").upper()
 BB_KEY: bytes = bytes.fromhex(_get_str_env("VACUULA_BB_KEY", "") or "")
 BB_PORT: int = _get_int_env("VACUULA_BB_PORT", 4447)
 
+# One robot per extra port (fork): "8082=GPC47720-…,8083=…". The app on such a port sees and controls only
+# that robot, so a second household gets its own address (handlers/init.py, handlers/router.py).
+def _robot_ports(raw: str) -> dict[int, str]:
+    ports: dict[int, str] = {}
+    for item in filter(None, (part.strip() for part in raw.split(","))):
+        port, _, serial = item.partition("=")
+        if not port.strip().isdigit() or not serial.strip():
+            raise ValueError(f"VACUULA_ROBOT_PORTS: expected port=serial, got {item!r}")
+        ports[int(port)] = serial.strip()
+    return ports
+
+ROBOT_PORTS: dict[int, str] = _robot_ports(_get_str_env("VACUULA_ROBOT_PORTS", "") or "")
+
 # HA Ingress stuff
 # By config.yaml default for this value will be true, but others not running via HA App it never even has to pass this check
 # SUPERVISOR_TOKEN is injected, should not be set by user
@@ -91,6 +104,8 @@ if len(set([GEN3_PORT, GEN4_PORT, VACUULA_PORT])) != 3:
         "GEN3_PORT, GEN4_PORT and VACUULA_PORT must be unique for the server to work. "
         f"Got GEN3_PORT={GEN3_PORT}, GEN4_PORT={GEN4_PORT}, VACUULA_PORT={VACUULA_PORT}"
     )
+if set(ROBOT_PORTS) & {GEN3_PORT, GEN4_PORT, VACUULA_PORT} or not all(1 <= p <= 65535 for p in ROBOT_PORTS):
+    raise ValueError(f"VACUULA_ROBOT_PORTS must be free ports other than GEN3_PORT, GEN4_PORT and VACUULA_PORT. Got {sorted(ROBOT_PORTS)}")
 if not (100 <= GEN3_PORT <= 999):
     raise ValueError(
         "GEN3_PORT must be in port range (100-999). "
