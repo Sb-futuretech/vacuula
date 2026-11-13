@@ -20,17 +20,18 @@ KEEPALIVE_S = 15
 
 CLIENT_QUEUE_MAX = 100       # frames buffered per client before the oldest is dropped
 
-_clients: list = []          # one bounded Queue per connected event-stream client
+_clients: list = []          # per connected event-stream client: (bounded Queue, robot it may see or None)
 _lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
 
 # TODO: since this function runs quite a lot, look into if it needs to be optimized!
-def robots_snapshot() -> dict:
-    """Robot list with connection status, keyed by serial (also used by GET /app/robots)."""
+def robots_snapshot(only_serial: str | None = None) -> dict:
+    """Robot list with connection status, keyed by serial (also used by GET /app/robots); on a robot's
+    own port only that robot."""
     with get_session() as session:
-        robots = session.execute(select(Robot)).scalars().all()
+        robots = [r for r in session.execute(select(Robot)).scalars().all() if only_serial in (None, r.serial)]
         installed_with_map = {
             robot: installed_with
             for robot, installed_with in session.execute(select(Gen3Data.robot, Gen3Data.installed_with))
@@ -57,11 +58,15 @@ def _frame(event: str, data) -> bytes:
 
 
 def broadcast(event: str, data) -> None:
+    """To every event-stream client; the robot list only with the robots each may see."""
     frame = _frame(event, data)
     with _lock:
         clients = list(_clients)
-    for q in clients:
-        put_drop_oldest(q, frame)
+    for q, only_serial in clients:
+        if only_serial is not None and event == "robots":
+            put_drop_oldest(q, _frame(event, {s: r for s, r in data.items() if s == only_serial}))
+        else:
+            put_drop_oldest(q, frame)
 
 
 def notify_robots_changed() -> None:
@@ -82,10 +87,11 @@ def get_events(req: "RouterHandler") -> None:
 
     q: queue.Queue = queue.Queue(maxsize=CLIENT_QUEUE_MAX)
 
+    client = (q, req.only_serial)
     with _lock:
-        _clients.append(q)
+        _clients.append(client)
     try:
-        req.wfile.write(_frame("robots", robots_snapshot()))
+        req.wfile.write(_frame("robots", robots_snapshot(req.only_serial)))
         req.wfile.flush()
         while True:
             try:
@@ -98,5 +104,5 @@ def get_events(req: "RouterHandler") -> None:
         pass # client went away (reload, tab closed, phone in background)
     finally:
         with _lock:
-            if q in _clients:
-                _clients.remove(q)
+            if client in _clients:
+                _clients.remove(client)

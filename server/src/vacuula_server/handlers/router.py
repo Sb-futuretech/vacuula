@@ -4,8 +4,10 @@ import logging
 from vacuula_server.constants import BASE_DIR
 from vacuula_server.handlers.route_matcher import BrainslugHandler, BEEHIVE_ROUTES, NUCLEO_ROUTES, APP_ROUTES, S3_ROUTES
 import json
+import re
 import socket
 import uuid
+from urllib.parse import unquote
 
 from pathlib import Path
 import mimetypes
@@ -26,8 +28,23 @@ def _is_within_web_root(path: Path) -> bool:
         return False
 
 
+# on a robot's own port (VACUULA_ROBOT_PORTS) the app may only use these server-wide routes; the log and
+# the certificate are for the main port
+ROBOT_PORT_ROUTES = {"/api/server", "/api/robots", "/api/events"}
+ROBOT_PATH = re.compile(r"^/api/robot/([^/?]+)")
+
+
 class RouterHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    only_serial: str | None = None  # set on a robot's own port: everything else is hidden there
+
+    def allowed_here(self) -> bool:
+        """On a robot's own port: only its own robot routes and a few server-wide ones."""
+        if self.only_serial is None:
+            return True
+        path = self.path.split("?", 1)[0]
+        match = ROBOT_PATH.match(path)
+        return unquote(match.group(1)) == self.only_serial if match else path in ROBOT_PORT_ROUTES
 
     def end_headers(self):
         """Override to add CORS headers to app responses"""
@@ -124,6 +141,8 @@ class RouterHandler(BaseHTTPRequestHandler):
         accept = self.headers.get("Accept", "")
         
         if self.path.startswith("/api/"):
+            if not self.allowed_here():
+                return self.send_not_found()
             return BrainslugHandler(APP_ROUTES, self)
         elif accept == "application/vnd.neato.beehive.v1+json":
             return BrainslugHandler(BEEHIVE_ROUTES, self)

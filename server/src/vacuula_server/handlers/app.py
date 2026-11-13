@@ -52,7 +52,7 @@ def get_server_info(req: RouterHandler) -> None:
 
 def get_robots(req: RouterHandler) -> None:
     """GET /robots - list all robots with connection status (empty object when none)"""
-    req.send_ok(robots_snapshot())
+    req.send_ok(robots_snapshot(req.only_serial))
 
 
 def get_maps(req: RouterHandler, serial: str) -> None:
