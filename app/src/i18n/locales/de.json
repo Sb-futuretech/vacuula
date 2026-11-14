@@ -204,6 +204,12 @@
         "entryTitle": "{{startedBy}} Reinigung | {{date}}",
         "batteryUsed": "{{percent}}% verbraucht",
         "noRuns": "Dein Roboter hat bisher noch nicht gearbeitet. Mache es sauber!",
+        "changes": {
+            "obstacle": "Neues Hindernis, etwa {{length}} cm (sonst ist hier frei)",
+            "door": "Tür zu oder Absperrung, etwa {{length}} cm",
+            "none": "Keine Veränderung gegenüber den anderen Läufen auf dieser Karte",
+            "cantTell": "Für diesen Lauf nicht auswertbar (zu wenige andere Läufe auf der Karte, oder er lag nicht genau)"
+        },
         "viewMap": "Karte",
         "viewLidar": "Lidar",
         "openMap": "Karte im Vollbild öffnen",

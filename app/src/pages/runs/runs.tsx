@@ -10,7 +10,7 @@ import { biEnum } from '../../types/.helpers'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http, type LiveLidar } from '../../http'
-import LidarView from '../../components/map/LidarView'
+import LidarView, { CHANGE_COLORS } from '../../components/map/LidarView'
 import { useApp } from '../../context/useApp'
 import type { UseState } from '../map/types'
 import { Neato, RobotType } from '../../types'
@@ -181,6 +181,19 @@ export default () => {
                             <FaExpand />
                         </button>
                     </div>
+
+                    {showLidar && runLidar && (
+                        <div className={styles.changes}>
+                            {runLidar.changes == null ? <span>{t('runs.changes.cantTell')}</span>
+                                : runLidar.changes.length === 0 ? <span>{t('runs.changes.none')}</span>
+                                : runLidar.changes.map((ch, i) => (
+                                    <span key={i}>
+                                        <b style={{ background: CHANGE_COLORS[ch.kind] }}>{i + 1}</b>
+                                        {t(`runs.changes.${ch.kind}`, { length: ch.lengthCm })}
+                                    </span>
+                                ))}
+                        </div>
+                    )}
 
                     {/* TODO: Explain the differnet colors meaning */}
 

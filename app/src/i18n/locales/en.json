@@ -204,6 +204,12 @@
         "entryTitle": "{{startedBy}} cleaning | {{date}}",
         "batteryUsed": "{{percent}}% used",
         "noRuns": "Your robot has not worked yet, make it sweat!",
+        "changes": {
+            "obstacle": "New obstacle, about {{length}} cm (usually free here)",
+            "door": "Door closed or barrier, about {{length}} cm",
+            "none": "Nothing changed compared with the other runs on this map",
+            "cantTell": "Can't be told for this run (too few other runs on the map, or it lay off)"
+        },
         "viewMap": "Map",
         "viewLidar": "Lidar",
         "openMap": "Open the map full screen",

@@ -395,7 +395,13 @@ def run_lidar(serial: str, run_id: str) -> dict | None:
     file = MAPS_DIR / serial / run_id / LIDAR_FILE
     if not file.is_file():
         return None
-    return lidar.load(file)
+    data = lidar.load(file)
+    try:
+        data["changes"] = lidar_map.changes(serial, run_id, (data.get("map") or {}).get("mapId"))
+    except Exception as e:
+        logger.warning("Lidar changes of run %s not worked out: %s", run_id, e)
+        data["changes"] = None
+    return data
 
 
 def _save_floor(serial: str, session: Session, cal: dict) -> None:

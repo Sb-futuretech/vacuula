@@ -118,6 +118,18 @@ export interface LiveLidar {
   grid: { png: string, x0: number, y0: number, cell: number, width: number, height: number }
   pose: [number, number, number]
   track: [number, number][]
+  // finished runs: what stood where the map's other runs agree it is free (null: can't be told)
+  changes?: LidarChange[] | null
+}
+
+// a new obstacle or a closed door in a run (server gen3/lidar_map.changes): the length of the side the
+// lidar saw, its middle and box in mm of the robot's frame
+export interface LidarChange {
+  kind: 'obstacle' | 'door'
+  lengthCm: number
+  x: number
+  y: number
+  box: [number, number, number, number]
 }
 
 // what the lidar saw over all runs on a stored map (server gen3/lidar_map.py): a grey PNG whose `values`

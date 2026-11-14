@@ -453,3 +453,26 @@
         }
     }
 }
+
+// what changed in a run (lidar): numbered like the frames in the view
+.changes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+    font-size: 1.3rem;
+    color: $text-muted;
+
+    span { display: flex; align-items: center; gap: 0.6rem; }
+
+    b {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.8rem;
+        height: 1.8rem;
+        border-radius: 50%;
+        color: #fff;
+        font-size: 1.1rem;
+    }
+}

@@ -14,6 +14,8 @@ import { lidarImage } from './lidarImage'
 // (the same viewport: fingers, wheel, trackpad, double click); until then it fits itself to the grid.
 
 const PAD_PX = 14
+// a run's changes: new obstacle red, closed door blue
+export const CHANGE_COLORS = { obstacle: '#e5484d', door: '#3b82f6' }
 
 interface Props {
     data: LiveLidar
@@ -109,6 +111,32 @@ export default function LidarView({ data, scan, caption }: Props) {
             ctx.drawImage(gridImg, offset.x, offset.y, g.width * zoom, g.height * zoom)
         }
         if (scan) drawLidarPoints(ctx, scan.pts.map(toCell), zoom, offset)
+        // what changed in the run: numbered frames (red: obstacle, blue: door), numbers upright
+        data.changes?.forEach((ch, i) => {
+            const [u1, v1] = toCell([ch.box[0], ch.box[3]]), [u2, v2] = toCell([ch.box[2], ch.box[1]])
+            const pad = 4
+            const x = offset.x + u1 * zoom - pad, y = offset.y + v1 * zoom - pad
+            const w = (u2 - u1) * zoom + 2 * pad, h = (v2 - v1) * zoom + 2 * pad
+            const col = ch.kind === 'door' ? CHANGE_COLORS.door : CHANGE_COLORS.obstacle
+            ctx.save()
+            ctx.strokeStyle = col
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.roundRect(x, y, w, h, 4)
+            ctx.stroke()
+            ctx.translate(x + w, y)
+            ctx.rotate(-angle)
+            ctx.fillStyle = col
+            ctx.beginPath()
+            ctx.arc(0, 0, 9, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.fillStyle = '#fff'
+            ctx.font = 'bold 11px system-ui, sans-serif'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(String(i + 1), 0, 0.5)
+            ctx.restore()
+        })
         const pose = scan?.pose ?? data.pose
         const way = [...data.track.map(toCell), toCell([pose[0], pose[1]])]
         // heading on screen: clockwise from right, y down
