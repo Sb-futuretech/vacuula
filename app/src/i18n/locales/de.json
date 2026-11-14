@@ -456,6 +456,14 @@
         "gen4UpdateBugHint": "Hinweis: Das Bearbeiten von Karten, Zonen oder Linien kann verwendete Zeitpläne deaktivieren. Dies geschieht auf der Firmware des Roboters. Wir sind auf der Suche nach einem Workaround.",
         "coverageBadge": "{{percent}} % gereinigt",
         "coverageHint": "Anteil der Zone (oder der freien Fläche), den diese Reinigung geschafft hat; rot: verpasst",
+        "lidar": {
+            "title": "Lidar-Karte",
+            "fixed": "fest (Wände)",
+            "movable": "beweglich (Stühle, Türen)",
+            "none": "Noch keine Läufe mit Lidar auf dieser Karte",
+            "runs_one": "Aus {{count}} Lauf",
+            "runs_other": "Aus {{count}} Läufen"
+        },
         "problems": "Problemstellen",
         "bumpHaze": "Orange Schleier: wo der Roboter oft anstößt (je dunkler, desto öfter)",
         "problemsCount": "{{count}} Probleme in den letzten Reinigungen",

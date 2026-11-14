@@ -294,6 +294,23 @@ def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:
     req.send_ok(data)
 
 
+def get_map_lidar(req: RouterHandler, serial: str, map_id: str) -> None:
+    """GET /robot/<serial>/maps/<map_id>/lidar - what the lidar saw over all runs on a gen3 map
+    (gen3/lidar_map.py): fixed, movable and free as a grey PNG and where it lies on the map; 404 without"""
+    if not re.fullmatch(r"[0-9A-Za-z:.\-]+", serial) or not re.fullmatch(r"[0-9A-Za-z:.\-]+", map_id):
+        req.send_not_found("Lidar map not found")
+        return
+    try:
+        data = live_position.map_lidar(serial, map_id)
+    except Exception as e:
+        logger.warning("Lidar map of %s not readable: %s", map_id, e)
+        data = None
+    if data is None:
+        req.send_not_found("Lidar map not found")
+        return
+    req.send_ok(data)
+
+
 def get_run_lidar(req: RouterHandler, serial: str, run_id: str) -> None:
     """GET /robot/<serial>/run/<run_id>/lidar - what the lidar saw in a gen3 run (gen3/lidar.py), like
     live-lidar; 404 for runs without one"""

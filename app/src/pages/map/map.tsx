@@ -9,7 +9,7 @@ import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
 import { Neato, RobotType, type Robot } from '../../types'
-import type { MapFloor, Problem } from '../../http'
+import type { MapFloor, MapLidar, Problem } from '../../http'
 
 import MapCanvas, { type MapMode } from './MapCanvas'
 import { RULER_PX } from './MapRulers'
@@ -25,6 +25,8 @@ import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types
 import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import { useLiveScan } from '../../context/liveScan'
+import { lidarImage } from '../../components/map/lidarImage'
+import { COLORS } from '../../components/map/constants'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
@@ -43,6 +45,8 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 const LIVE_FRESH_S = 60
 // a lidar turn older than this (s) is not drawn: the robot stopped or the connection is gone
 const LIVE_SCAN_FRESH_S = 5
+// the lidar map's movable things (chairs, doors): amber, apart from walls and zones
+const LIDAR_MOVABLE = '#f0a030'
 // docked: its last position is where it stands if that is this close to the dock symbol (cells); else
 // it was carried home after its last run and stands on the dock symbol
 const DOCK_NEAR_CELLS = 10
@@ -222,6 +226,23 @@ export default () => {
         return next
     })
 
+    // gen3: what the lidar saw over the runs on this map: fixed (walls) and movable (chairs, doors)
+    const [showLidar, setShowLidar] = useState(false)
+    const [lidarLayer, setLidarLayer] = useState<{ mapId: string, data: MapLidar, img: HTMLCanvasElement } | null | 'none'>()
+    useEffect(() => {
+        if (!showLidar || !persistentMap || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getMapLidar(robot.serial, persistentMap)
+            .then(async res => {
+                const v = res.data.values
+                const img = await lidarImage(res.data.png, [[v.fixed, COLORS.WALL], [v.movable, LIDAR_MOVABLE]])
+                if (!cancelled) setLidarLayer({ mapId: persistentMap, data: res.data, img })
+            })
+            .catch(() => { if (!cancelled) setLidarLayer('none') })
+        return () => { cancelled = true }
+    }, [showLidar, persistentMap, robot.serial, robot.type])
+    const lidarShown = showLidar && lidarLayer && lidarLayer !== 'none' && lidarLayer.mapId === persistentMap ? lidarLayer : null
+
     // gen3: floor type from the brush load over the runs (black box), and carpet areas to add as a zone
     const [showFloor, setShowFloor] = useState(false)
     const [loadedFloor, setLoadedFloor] = useState<{ mapId: string, floor: MapFloor }>()
@@ -245,6 +266,16 @@ export default () => {
         if (floorType) drawFloorType(ctx, floorType.cells, currentZoom, currentOffset)
         // coverage of the recent runs under the zones (gen3, switched on in the panel)
         if (heatmap && heatmap.width === mapSize.width) drawHeatmap(ctx, heatmap, currentZoom, currentOffset)
+        // the lidar map over the runs: placed by where the robot's frame lies on the map
+        if (lidarShown) {
+            const { data, img } = lidarShown, { u0, v0, mmPerCell } = data.map
+            const u = u0 + data.x0 / mmPerCell, v = v0 - data.y0 / mmPerCell, k = data.cell / mmPerCell
+            ctx.save()
+            ctx.imageSmoothingEnabled = false
+            ctx.drawImage(img, currentOffset.x + u * currentZoom, currentOffset.y + v * currentZoom,
+                data.width * k * currentZoom, data.height * k * currentZoom)
+            ctx.restore()
+        }
 
         const showBoundaries = mode === 'boundary-edit'
             ? boundaries.filter(b => b.id !== activeBoundaryId)
@@ -330,7 +361,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, liveScan, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, lidarShown, livePosition, liveScan, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
 
     // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
     const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''
@@ -818,6 +849,23 @@ export default () => {
                                                 </div>
                                             )
                                         })}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div className={styles.heatmap}>
+                                <Input type="switch" label={t('map.lidar.title')} value={showLidar} onChange={setShowLidar} />
+                                {showLidar && (
+                                    <>
+                                        <div className={styles.heatmapLegend}>
+                                            <i style={{ background: COLORS.WALL }} /><span>{t('map.lidar.fixed')}</span>
+                                            <i style={{ background: LIDAR_MOVABLE }} /><span>{t('map.lidar.movable')}</span>
+                                        </div>
+                                        <span className={styles.heatmapInfo}>
+                                            {lidarLayer === 'none' ? t('map.lidar.none')
+                                                : lidarShown ? t('map.lidar.runs', { count: lidarShown.data.runs }) : t('common.loading')}
+                                        </span>
                                     </>
                                 )}
                             </div>

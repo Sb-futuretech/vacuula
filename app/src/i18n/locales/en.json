@@ -456,6 +456,14 @@
         "gen4UpdateBugHint": "NOTE: modifying maps, zones, or lines may disable affected schedules. This is something that happens on the robot firmware, and we are looking into a workaround",
         "coverageBadge": "{{percent}} % cleaned",
         "coverageHint": "Share of the zone (or the free floor) this run cleaned; red: missed",
+        "lidar": {
+            "title": "Lidar map",
+            "fixed": "fixed (walls)",
+            "movable": "movable (chairs, doors)",
+            "none": "No runs with lidar on this map yet",
+            "runs_one": "From {{count}} run",
+            "runs_other": "From {{count}} runs"
+        },
         "problems": "Problem spots",
         "bumpHaze": "Orange haze: where the robot often bumps (the darker, the more often)",
         "problemsCount": "{{count}} problems over the last runs",

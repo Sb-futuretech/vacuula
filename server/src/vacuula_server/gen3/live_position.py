@@ -29,7 +29,7 @@ import numpy as np
 from vacuula_server.constants import DATA_DIR, MAPS_DIR
 from vacuula_server.env import BB_KEY, BB_PORT
 from vacuula_server.db import get_session
-from vacuula_server.gen3 import blackbox, coverage, floor_type, lidar
+from vacuula_server.gen3 import blackbox, coverage, floor_type, lidar, lidar_map
 from vacuula_server.gen3.data import Gen3MapBoundaries
 from vacuula_server.models.run import Gen3__Run
 from sqlalchemy import select
@@ -370,10 +370,24 @@ def _save_lidar(serial: str, session: Session) -> None:
     """What the lidar saw in the run (gen3/lidar.py), for the run view and to put runs together later."""
     try:
         track = [[round(x / lidar.UNITS_PER_MM), round(y / lidar.UNITS_PER_MM)] for x, y in session.positions[::TRACK_EVERY]]
-        if session.lidar.save(Path(session.run_folder) / LIDAR_FILE, track, _lidar_map(serial, session)):
+        on_map = _lidar_map(serial, session)
+        if session.lidar.save(Path(session.run_folder) / LIDAR_FILE, track, on_map):
             logger.info("Live position of %s: lidar grid of the run saved (%d turns)", serial, session.lidar.scans)
+            lidar_map.rebuild_later(serial, on_map["mapId"] if on_map else None)
     except Exception as e:  # the rest of the run's results must not depend on it
         logger.warning("Live position of %s: lidar grid not saved: %s", serial, e)
+
+
+def map_lidar(serial: str, map_id: str) -> dict | None:
+    """A stored map's lidar map (gen3/lidar_map.py) with where the robot's frame lies on the map, None
+    without one (no runs with lidar on it, or no origin for it yet)."""
+    cal = _calibration(serial, map_id)
+    if not cal:
+        return None
+    pic = lidar_map.picture(serial, map_id)
+    if not pic:
+        return None
+    return {**pic, "map": {"mapId": map_id, "u0": cal["u0"], "v0": cal["v0"], "mmPerCell": cal["upc"] / lidar.UNITS_PER_MM}}
 
 
 def run_lidar(serial: str, run_id: str) -> dict | None:

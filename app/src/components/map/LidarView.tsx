@@ -5,6 +5,7 @@ import { COLORS } from './constants'
 import { drawLidarPoints, drawLiveRobot, type RobotImage } from './drawingFunctions'
 import styles from './LidarView.module.scss'
 import { useCanvasViewport } from './useCanvasViewport'
+import { lidarImage } from './lidarImage'
 
 // What a gen3 robot's lidar saw in a clean (server gen3/lidar.py), drawn on its own: the grid (free
 // floor, and where something stands), its way, the robot, and optionally the turn it sees right now.
@@ -43,25 +44,10 @@ export default function LidarView({ data, scan, caption }: Props) {
 
     // the grid's PNG (grey: 0 unknown, 128 free, 255 something there) in the map's colours, once per grid
     useEffect(() => {
-        const img = new Image()
-        img.onload = () => {
-            const c = document.createElement('canvas')
-            c.width = img.width
-            c.height = img.height
-            const ctx = c.getContext('2d')!
-            ctx.drawImage(img, 0, 0)
-            const px = ctx.getImageData(0, 0, c.width, c.height)
-            const free = rgba(COLORS.EMPTY), wall = rgba(COLORS.WALL)
-            for (let i = 0; i < px.data.length; i += 4) {
-                const v = px.data[i]
-                const col = v > 191 ? wall : v > 64 ? free : null
-                if (col) { px.data[i] = col[0]; px.data[i + 1] = col[1]; px.data[i + 2] = col[2]; px.data[i + 3] = col[3] }
-                else px.data[i + 3] = 0
-            }
-            ctx.putImageData(px, 0, 0)
-            setGridImg(c)
-        }
-        img.src = `data:image/png;base64,${data.grid.png}`
+        let cancelled = false
+        lidarImage(data.grid.png, [[128, COLORS.EMPTY], [255, COLORS.WALL]])
+            .then(c => { if (!cancelled) setGridImg(c) }).catch(() => { })
+        return () => { cancelled = true }
     }, [data.grid.png])
 
     // canvas size follows its box
@@ -147,13 +133,4 @@ export default function LidarView({ data, scan, caption }: Props) {
 // the turn the map page keeps for a map on this device (components/map/useMap.ts)
 function storedAngle(mapId: string): number {
     try { return Number(localStorage.getItem(`vacuula.mapAngle.${mapId}`)) || 0 } catch { return 0 }
-}
-
-// a CSS colour as [r, g, b, a 0-255]
-function rgba(color: string): [number, number, number, number] {
-    const c = document.createElement('canvas').getContext('2d')!
-    c.fillStyle = color
-    c.fillRect(0, 0, 1, 1)
-    const d = c.getImageData(0, 0, 1, 1).data
-    return [d[0], d[1], d[2], d[3]]
 }

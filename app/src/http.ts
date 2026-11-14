@@ -120,6 +120,21 @@ export interface LiveLidar {
   track: [number, number][]
 }
 
+// what the lidar saw over all runs on a stored map (server gen3/lidar_map.py): a grey PNG whose `values`
+// mark free, movable (something there in some runs) and fixed (in nearly all), its top left corner
+// (x0, y0) and cell size in mm of the robot's frame, and where that frame lies on the map
+export interface MapLidar {
+  png: string
+  x0: number
+  y0: number
+  cell: number
+  width: number
+  height: number
+  runs: number
+  values: { free: number, movable: number, fixed: number }
+  map: LidarMap
+}
+
 // a problem the robot noted in its black box (gen3), where it happened: cells of a run map or stored map
 export interface Problem {
   kind: 'bump' | 'tilt' | 'lost' | 'unreachable' | 'slip' | 'stuck' | 'dock_tilted' | 'off_base'
@@ -342,6 +357,11 @@ export class Http {
   }
 
   // gen3: bumps, tilts, getting lost or stuck recorded on a map over the last runs (map cells)
+  // gen3: what the lidar saw over all runs on a map (fixed, movable, free), 404 without
+  static getMapLidar(serial: string, mapId: string) {
+    return instance.get<MapLidar>(`/robot/${serial}/maps/${mapId}/lidar`)
+  }
+
   static getMapProblems(serial: string, mapId: string) {
     return instance.get<Problem[]>(`/robot/${serial}/maps/${mapId}/problems`)
   }
