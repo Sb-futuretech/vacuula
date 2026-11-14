@@ -87,11 +87,12 @@
     }
 }
 
+// zone forms in the map's sheet: their natural height (the sheet sizes itself to them); in the
+// desktop side panel the buttons go to the bottom of the column
 .editBoundaryDetails {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
+    gap: 2rem;
 }
 
 .editBoundaryActionButtons {
@@ -105,10 +106,9 @@
 }
 
 .boundaryDetails {
-    height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    gap: 1rem;
 
 
     .zoneActions {
@@ -812,4 +812,11 @@ $memory-full: #e8b24a;
     }
     .chip { background: rgba(128, 128, 128, 0.15); }
     .chipOff { opacity: 0.45; border-color: $text-muted; text-decoration: line-through; }
+}
+
+@media (min-width: $desktop) {
+    .editBoundaryDetails, .boundaryDetails {
+        flex: 1;
+        justify-content: space-between;
+    }
 }

@@ -1,17 +1,44 @@
 
 @use '../../variables.scss' as *;
 
+// handle sheet: lives in a clipped layer over its page, so it can slide down out of sight
+.sheetArea {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 999;
+}
+
+// as tall as its content, at most --sheet-max of the page; closed it is moved down until only the
+// handle (6rem) and its 2 px border show. `translate`, so the desktop centring `transform` stays.
 .drawer {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
+    max-height: var(--sheet-max, 88%);
     background: $bg;
-    z-index: 999;
+    border-top: 2px solid $border-strong;
     touch-action: none;
+    pointer-events: auto;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    translate: 0 calc(100% - 6rem - 2px);
+    transition: translate 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.drawerOpen {
+        translate: 0 0;
+    }
+
+    .drawerHandle {
+        height: 6rem;
+        flex-shrink: 0;
+    }
+
+    .drawerContent {
+        flex: 0 1 auto;
+    }
 }
 
 .drawerHandle {

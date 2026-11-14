@@ -675,7 +675,7 @@ export default () => {
                 showBackButton={['map-edit', 'boundary-info'].includes(mode)}
                 onBackButtonClick={handleBackBtn}
                 onOpenChange={setDrawerOpen}
-                openHeightPercent={mode === 'boundary-edit' ? 60 : mode === 'boundary-info' ? 30 : 70}
+                maxHeightPercent={mode === 'boundary-edit' ? 60 : undefined} // editing: the zone stays in sight
                 title={getTitle()}
             >
                 {mode === 'map-edit' && mapEditform && persistentMap && (
