@@ -230,43 +230,56 @@ def _poll(reader: Reader) -> None:
             logger.debug("Live position of %s: block not readable: %s", reader.serial, e)
             continue
         for ptype, clock, pdata in reader.stream.feed(payload):
+            if session is None:
+                continue
+            got = feed(reader.serial, session, ptype, clock, pdata)
             if ptype == blackbox.PKT_COORDS:
-                latest = blackbox.Coords.parse(pdata)
-                if session and session.last_pos and not session.from_start and len(session.positions) < START_POSITIONS and math.hypot(
-                        latest.x - session.last_pos[0], latest.y - session.last_pos[1]) > JUMP_CELLS * UNITS_PER_CELL:
-                    logger.info("Live position of %s: on its map now, %d positions of leaving the dock dropped",
-                                reader.serial, len(session.positions))
-                    session.positions.clear()
-                    session.floor.clear()
-                    session.events.clear()
-                    session.anchor = None
-                    session.from_start = True
-                    session.lidar = lidar.Run()  # its scans so far are in the other frame too
-                if session:
-                    session.lidar.pose(clock, latest.x, latest.y, latest.heading)
-                    session.positions.append((latest.x, latest.y))
-                    session.last_pos = (latest.x, latest.y)
-                    session.last_heading = latest.heading
-            elif ptype == floor_type.PKT_MOTORS and session and session.last_pos is not None:
-                if (load := floor_type.sample(pdata)) is not None:
-                    # where the brush is: ahead of the centre, in the robot's frame (heading counter-clockwise)
-                    ahead = floor_type.BRUSH_AHEAD_CELLS * UNITS_PER_CELL
-                    x, y = session.last_pos
-                    session.floor.append((x + ahead * math.cos(session.last_heading),
-                                          y + ahead * math.sin(session.last_heading), load, session.last_heading))
-            elif ptype == lidar.PKT_LDS and session:
-                if session.lidar.scan(clock, pdata) and session.lidar.last:
-                    scans.append(session.lidar.last)
-            elif ptype == blackbox.PKT_TEXT and session:
-                if m := MAP_ID_RE.search(pdata):
-                    session.map_id = m.group(1).decode(errors="replace")
-                _note_events(session, pdata, clock)
+                latest = got
+            elif got:
+                scans.append(got)
     if latest and session:
         _send(reader.serial, session, latest)
     if scans and session:
         _send_scans(reader.serial, session, scans)
     if session:
         _check_stuck(reader.serial, session)
+
+
+def feed(serial: str, session: Session, ptype: int, clock: int, pdata: bytes):
+    """One black box packet into a run's session (live, and when a run is read afterwards, see
+    gen3/backfill.py). Returns the position of a Coords packet, the turn of a lidar packet, else None."""
+    if ptype == blackbox.PKT_COORDS:
+        pos = blackbox.Coords.parse(pdata)
+        if session.last_pos and not session.from_start and len(session.positions) < START_POSITIONS and math.hypot(
+                pos.x - session.last_pos[0], pos.y - session.last_pos[1]) > JUMP_CELLS * UNITS_PER_CELL:
+            logger.info("Live position of %s: on its map now, %d positions of leaving the dock dropped",
+                        serial, len(session.positions))
+            session.positions.clear()
+            session.floor.clear()
+            session.events.clear()
+            session.anchor = None
+            session.from_start = True
+            session.lidar = lidar.Run()  # its scans so far are in the other frame too
+        session.lidar.pose(clock, pos.x, pos.y, pos.heading)
+        session.positions.append((pos.x, pos.y))
+        session.last_pos = (pos.x, pos.y)
+        session.last_heading = pos.heading
+        return pos
+    if ptype == floor_type.PKT_MOTORS and session.last_pos is not None:
+        if (load := floor_type.sample(pdata)) is not None:
+            # where the brush is: ahead of the centre, in the robot's frame (heading counter-clockwise)
+            ahead = floor_type.BRUSH_AHEAD_CELLS * UNITS_PER_CELL
+            x, y = session.last_pos
+            session.floor.append((x + ahead * math.cos(session.last_heading),
+                                  y + ahead * math.sin(session.last_heading), load, session.last_heading))
+    elif ptype == lidar.PKT_LDS:
+        if session.lidar.scan(clock, pdata):
+            return session.lidar.last
+    elif ptype == blackbox.PKT_TEXT:
+        if m := MAP_ID_RE.search(pdata):
+            session.map_id = m.group(1).decode(errors="replace")
+        _note_events(session, pdata, clock)
+    return None
 
 
 def _note_events(session: Session, text: bytes, clock: int) -> None:
