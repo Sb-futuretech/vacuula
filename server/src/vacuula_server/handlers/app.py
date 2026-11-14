@@ -294,6 +294,23 @@ def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:
     req.send_ok(data)
 
 
+def get_run_lidar(req: RouterHandler, serial: str, run_id: str) -> None:
+    """GET /robot/<serial>/run/<run_id>/lidar - what the lidar saw in a gen3 run (gen3/lidar.py), like
+    live-lidar; 404 for runs without one"""
+    if not re.fullmatch(r"[0-9A-Za-z:.\-]+", serial) or not re.fullmatch(r"[0-9A-Za-z:.\-]+", run_id):
+        req.send_not_found("Lidar not found")
+        return
+    try:
+        data = live_position.run_lidar(serial, run_id)
+    except Exception as e:
+        logger.warning("Lidar of run %s not readable: %s", run_id, e)
+        data = None
+    if data is None:
+        req.send_not_found("Lidar not found")
+        return
+    req.send_ok(data)
+
+
 def connect_robot(req: RouterHandler, serial: str) -> None:
     """GET /robots/{serial}/connect - SSE stream for client"""
     if get_robot_by_serial(serial) is None:

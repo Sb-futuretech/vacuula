@@ -9,7 +9,8 @@ import { PiBoundingBox } from "react-icons/pi";
 import { biEnum } from '../../types/.helpers'
 import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
-import { Http } from '../../http'
+import { Http, type LiveLidar } from '../../http'
+import LidarView from '../../components/map/LidarView'
 import { useApp } from '../../context/useApp'
 import type { UseState } from '../map/types'
 import { Neato, RobotType } from '../../types'
@@ -33,6 +34,19 @@ export default () => {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [tab, setTab] = useState<'runs' | 'stats'>('runs')
     const [fullMap, setFullMap] = useState(false)
+    // gen3: what the lidar saw in the selected run, if it was recorded; shown instead of the map on request
+    const [runLidar, setRunLidar] = useState<LiveLidar | null>(null)
+    const [showLidar, setShowLidar] = useState(false)
+    useEffect(() => {
+        setRunLidar(null)
+        setShowLidar(false)
+        if (!selectedCleaning || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getRunLidar(robot.serial, selectedCleaning.id)
+            .then(res => { if (!cancelled) setRunLidar(res.data) })
+            .catch(() => { }) // 404: no lidar for this run
+        return () => { cancelled = true }
+    }, [selectedCleaning?.id, robot.serial, robot.type])
 
     // Escape closes the full-screen map. It takes the focus, so the key doesn't also reach the run's
     // sheet below it (which would close too).
@@ -153,11 +167,19 @@ export default () => {
 
                     <hr style={{ width: '100%' }} />
 
+                    {runLidar && (
+                        <div className={styles.viewSwitch} role="tablist">
+                            <button role="tab" aria-selected={!showLidar} onClick={() => setShowLidar(false)}>{t('runs.viewMap')}</button>
+                            <button role="tab" aria-selected={showLidar} onClick={() => setShowLidar(true)}>{t('runs.viewLidar')}</button>
+                        </div>
+                    )}
                     <div className={styles.mapWrap}>
-                        <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />
-                        <button className={styles.expandMap} onClick={() => setFullMap(true)} aria-label={t('runs.openMap')} title={t('runs.openMap')}>
-                            <FaExpand />
-                        </button>
+                        {showLidar && runLidar ? <LidarView data={runLidar} /> : <>
+                            <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />
+                            <button className={styles.expandMap} onClick={() => setFullMap(true)} aria-label={t('runs.openMap')} title={t('runs.openMap')}>
+                                <FaExpand />
+                            </button>
+                        </>}
                     </div>
 
                     {/* TODO: Explain the differnet colors meaning */}

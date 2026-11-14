@@ -327,6 +327,11 @@ export class Http {
     return instance.get<LiveLidar | null>(`/robot/${serial}/live-lidar`, { skipLoader: true }) // every few s: no spinner
   }
 
+  // gen3: what the lidar saw in a finished run, like getLiveLidar (404 without one)
+  static getRunLidar(serial: string, runId: string) {
+    return instance.get<LiveLidar>(`/robot/${serial}/run/${runId}/lidar`, { skipLoader: true })
+  }
+
   static getLiveTrack(serial: string) {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
   }

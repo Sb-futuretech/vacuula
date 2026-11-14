@@ -427,3 +427,29 @@
         height: 100%;
     }
 }
+
+// map or lidar of a run (gen3 runs with a recorded lidar)
+.viewSwitch {
+    display: flex;
+    align-self: center;
+    gap: 0.4rem;
+    padding: 0.3rem;
+    margin-bottom: 0.8rem;
+    border-radius: 999px;
+    border: 1px solid $border;
+
+    button {
+        padding: 0.5rem 1.4rem;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: $text-muted;
+        font-size: 1.3rem;
+        cursor: pointer;
+
+        &[aria-selected="true"] {
+            background: $accent;
+            color: $bg;
+        }
+    }
+}

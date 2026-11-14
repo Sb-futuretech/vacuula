@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import math
 from collections import deque
 
@@ -154,25 +155,49 @@ class Run:
         g[flat] = np.minimum(g[flat].astype(np.uint32) + 1, 65535).astype(np.uint16)
 
     def picture(self) -> dict | None:
-        """The grid as seen so far, cropped to what was seen: a grey PNG of 0 unknown, PNG_FREE free,
-        PNG_HIT something there, with where its top left corner lies (mm, robot frame) and the cell size."""
+        """The grid as seen so far, cropped to what was seen (see grid_picture)."""
         if self.hits is None or self.box is None:
             return None
+        hits, free, x0, y0 = self._crop()
+        return grid_picture(hits, free, x0, y0)
+
+    def _crop(self) -> tuple[np.ndarray, np.ndarray, int, int]:
+        """The seen part of the grid and where its top left corner lies (mm, robot frame)."""
         r0, r1, c0, c1 = self.box
-        hits = self.hits[r0:r1, c0:c1].astype(np.float32)
-        free = self.free[r0:r1, c0:c1].astype(np.float32)
-        # far apart, so a browser's colour handling of the PNG can't turn one into the other
-        img = np.zeros(hits.shape, dtype=np.uint8)
-        img[free > 0] = PNG_FREE
-        img[(hits >= HIT_MIN) & (hits >= HIT_SHARE * (hits + free))] = PNG_HIT
-        buf = io.BytesIO()
-        Image.fromarray(img, mode="L").save(buf, format="PNG", compress_level=6)
         half = GRID_CELLS // 2
-        return {
-            "png": base64.b64encode(buf.getvalue()).decode(),
-            "x0": round(self.centre[0] + (c0 - half) * CELL_MM),      # left edge, mm
-            "y0": round(self.centre[1] + (half - r0) * CELL_MM),      # top edge, mm (y up)
-            "cell": CELL_MM,
-            "width": int(c1 - c0),
-            "height": int(r1 - r0),
-        }
+        return (self.hits[r0:r1, c0:c1], self.free[r0:r1, c0:c1],
+                round(self.centre[0] + (c0 - half) * CELL_MM), round(self.centre[1] + (half - r0) * CELL_MM))
+
+    def save(self, path, track: list[list[int]], map_info: dict | None) -> bool:
+        """The run's grid (the counts, so runs can be put together later), its way (mm) and the stored map
+        its frame lay on, as one compressed file. False if nothing was seen."""
+        if self.hits is None or self.box is None or not self.last:
+            return False
+        hits, free, x0, y0 = self._crop()
+        meta = {"x0": x0, "y0": y0, "cell": CELL_MM, "pose": self.last["pose"], "map": map_info, "scans": self.scans}
+        np.savez_compressed(path, hits=hits, free=free, track=np.array(track, dtype=np.int32).reshape(-1, 2),
+                            meta=np.frombuffer(json.dumps(meta).encode(), dtype=np.uint8))
+        return True
+
+
+def load(path) -> dict:
+    """A saved run (Run.save) in the shape of the live view: grid picture, pose, way and map."""
+    with np.load(path) as f:
+        meta = json.loads(f["meta"].tobytes())
+        return {"running": False, "map": meta.get("map"), "pose": meta["pose"], "scans": meta.get("scans"),
+                "grid": grid_picture(f["hits"], f["free"], meta["x0"], meta["y0"]), "track": f["track"].tolist()}
+
+
+def grid_picture(hits: np.ndarray, free: np.ndarray, x0: int, y0: int) -> dict:
+    """A grid of counts as a grey PNG of 0 unknown, PNG_FREE free, PNG_HIT something there, with where
+    its top left corner lies (mm, robot frame) and the cell size."""
+    hits = hits.astype(np.float32)
+    free = free.astype(np.float32)
+    # far apart, so a browser's colour handling of the PNG can't turn one into the other
+    img = np.zeros(hits.shape, dtype=np.uint8)
+    img[free > 0] = PNG_FREE
+    img[(hits >= HIT_MIN) & (hits >= HIT_SHARE * (hits + free))] = PNG_HIT
+    buf = io.BytesIO()
+    Image.fromarray(img, mode="L").save(buf, format="PNG", compress_level=6)
+    return {"png": base64.b64encode(buf.getvalue()).decode(), "x0": int(x0), "y0": int(y0), "cell": CELL_MM,
+            "width": int(img.shape[1]), "height": int(img.shape[0])}

@@ -204,6 +204,8 @@
         "entryTitle": "{{startedBy}} Reinigung | {{date}}",
         "batteryUsed": "{{percent}}% verbraucht",
         "noRuns": "Dein Roboter hat bisher noch nicht gearbeitet. Mache es sauber!",
+        "viewMap": "Karte",
+        "viewLidar": "Lidar",
         "openMap": "Karte im Vollbild öffnen",
         "closeMap": "Schließen",
         "duration": "Dauer",

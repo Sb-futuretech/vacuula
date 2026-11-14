@@ -322,6 +322,7 @@ def _save_run(serial: str, session: Session) -> None:
         return
     session.saved = True
     run_id = Path(session.run_folder).name
+    _save_lidar(serial, session)
     try:
         runmap = json.loads((Path(session.run_folder) / "runmap.json").read_text())
     except (OSError, ValueError) as e:
@@ -347,6 +348,27 @@ def _save_run(serial: str, session: Session) -> None:
         return
     _save_problems(serial, session, origin)
     _save_floor(serial, session, origin)
+
+
+LIDAR_FILE = "lidar.npz"  # a run's lidar grid, next to its maps
+
+
+def _save_lidar(serial: str, session: Session) -> None:
+    """What the lidar saw in the run (gen3/lidar.py), for the run view and to put runs together later."""
+    try:
+        track = [[round(x / lidar.UNITS_PER_MM), round(y / lidar.UNITS_PER_MM)] for x, y in session.positions[::TRACK_EVERY]]
+        if session.lidar.save(Path(session.run_folder) / LIDAR_FILE, track, _lidar_map(serial, session)):
+            logger.info("Live position of %s: lidar grid of the run saved (%d turns)", serial, session.lidar.scans)
+    except Exception as e:  # the rest of the run's results must not depend on it
+        logger.warning("Live position of %s: lidar grid not saved: %s", serial, e)
+
+
+def run_lidar(serial: str, run_id: str) -> dict | None:
+    """A run's saved lidar grid in the shape of live_lidar, None without one."""
+    file = MAPS_DIR / serial / run_id / LIDAR_FILE
+    if not file.is_file():
+        return None
+    return lidar.load(file)
 
 
 def _save_floor(serial: str, session: Session, cal: dict) -> None:
