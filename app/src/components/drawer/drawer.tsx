@@ -16,7 +16,7 @@ interface DrawerProps {
     open: boolean,
     openHeightPercent?: number // handle sheets only: how far they open
     // handle sheets only: open further when the content needs it (openHeightPercent is then the least,
-    // at most nearly the screen), so short screens don't cut it off
+    // at most nearly the page), so short screens don't cut it off
     fitContent?: boolean
     onOpenChange?: (open: boolean) => void,
     children?: React.ReactNode,
@@ -33,11 +33,19 @@ interface DrawerProps {
 const HANDLE_HEIGHT = 60
 // a modal sheet pulled down further than this closes
 const CLOSE_DRAG = 80
+// a handle sheet never covers more of its page than this, so a strip of the map stays to drag on
+const MAX_SHARE = 0.88
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
     const isPanel = useIsDesktop() && !!props.sidePanel
     const [drawerHeight, setDrawerHeight] = useState(HANDLE_HEIGHT)
+    // A handle sheet sits at the bottom of its page (the map area), which on a phone is much smaller
+    // than the window (header, navbar), and window.innerHeight is wrong in the installed iOS app.
+    // So every height is a share of the room the page gives it.
+    const sheetRef2 = useRef<HTMLDivElement>(null)
+    // (offsetParent: what the absolutely placed sheet is positioned in)
+    const room = () => (sheetRef2.current?.offsetParent as HTMLElement | null)?.clientHeight || window.innerHeight
     const [isDraggingDrawer, setIsDraggingDrawer] = useState(false)
 
     // Per-gesture values, inside the event handlers
@@ -89,7 +97,7 @@ export default function Drawer(props: DrawerProps) {
         if (!movedRef.current) return
         lastDeltaRef.current = lastYRef.current - e.clientY // flick detection
         lastYRef.current = e.clientY
-        const newHeight = Math.min(window.innerHeight * 0.9, Math.max(HANDLE_HEIGHT, startHeightRef.current + total))
+        const newHeight = Math.min(room() * MAX_SHARE, Math.max(HANDLE_HEIGHT, startHeightRef.current + total))
         currentHeightRef.current = newHeight
         setDrawerHeight(newHeight)
     }
@@ -102,7 +110,7 @@ export default function Drawer(props: DrawerProps) {
         const lastDelta = lastDeltaRef.current
         if (lastDelta < -15) closeDrawer()
         else if (lastDelta > 15) openDrawer()
-        else if ((currentHeightRef.current - HANDLE_HEIGHT) > window.innerHeight * 0.2) openDrawer()
+        else if ((currentHeightRef.current - HANDLE_HEIGHT) > room() * 0.2) openDrawer()
         else closeDrawer()
     }
 
@@ -113,7 +121,7 @@ export default function Drawer(props: DrawerProps) {
     }
 
     const openDrawer = () => {
-        setDrawerHeight(window.innerHeight * ((props.openHeightPercent ?? 70) / 100));
+        setDrawerHeight(room() * ((props.openHeightPercent ?? 70) / 100));
         props.onOpenChange?.(true);
     }
     const closeDrawer = () => {
@@ -121,6 +129,20 @@ export default function Drawer(props: DrawerProps) {
         props.onOpenChange?.(false);
     }
     const isDrawerOpen = () => drawerHeight > 100;
+
+    // the page changes size (phone turned, browser bars, keyboard): open sheets follow it
+    useEffect(() => {
+        const page = sheetRef2.current?.offsetParent
+        if (!page || isPanel || isModal) return
+        const ro = new ResizeObserver(() => {
+            if (!props.open || isDraggingDrawer) return
+            const least = room() * ((props.openHeightPercent ?? 70) / 100)
+            // fitContent keeps the height it grew to, only within the new room
+            setDrawerHeight(h => Math.min(room() * MAX_SHARE, props.fitContent ? Math.max(least, h) : least))
+        })
+        ro.observe(page)
+        return () => ro.disconnect()
+    }, [props.open, props.openHeightPercent, props.fitContent, isDraggingDrawer, isPanel, isModal])
 
     // fitContent: grow to the content (it can load later, so its size is watched)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -131,7 +153,7 @@ export default function Drawer(props: DrawerProps) {
             if (movedRef.current) return // the user is dragging it
             // the sheet's height minus what the content gets of it = handle and border
             const sheet = el.parentElement?.getBoundingClientRect().height ?? 0
-            const want = Math.min(window.innerHeight * 0.85, sheet - el.clientHeight + el.scrollHeight)
+            const want = Math.min(room() * MAX_SHARE, sheet - el.clientHeight + el.scrollHeight)
             setDrawerHeight(h => want > h + 2 ? want : h)
         }
         fit()
@@ -147,7 +169,7 @@ export default function Drawer(props: DrawerProps) {
 
     useEffect(() => {
         if (isDraggingDrawer) return
-        setDrawerHeight(props.open ? window.innerHeight * ((props.openHeightPercent ?? 70) / 100) : HANDLE_HEIGHT)
+        setDrawerHeight(props.open ? room() * ((props.openHeightPercent ?? 70) / 100) : HANDLE_HEIGHT)
     }, [props.openHeightPercent])
 
     const backButton = props.showBackButton && (props.open || isPanel) && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
@@ -222,6 +244,7 @@ export default function Drawer(props: DrawerProps) {
 
     return (
         <div
+            ref={sheetRef2}
             className={styles.drawer}
             style={{
                 height: `${drawerHeight}px`,
