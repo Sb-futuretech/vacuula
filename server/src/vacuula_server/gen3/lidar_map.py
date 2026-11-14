@@ -251,6 +251,7 @@ def changes(serial: str, run_id: str, map_id: str | None) -> list[dict] | None:
             continue
         bx1, bx2 = x0 + c0 * cell, x0 + c1 * cell
         by1, by2 = y0 - r1 * cell, y0 - r0 * cell
-        found.append({"kind": kind, "lengthCm": round(length), "x": (bx1 + bx2) // 2, "y": (by1 + by2) // 2,
-                      "box": [int(bx1), int(by1), int(bx2), int(by2)]})
+        # plain ints: numpy's don't go into JSON
+        found.append({"kind": kind, "lengthCm": int(round(float(length))), "x": int(bx1 + bx2) // 2,
+                      "y": int(by1 + by2) // 2, "box": [int(bx1), int(by1), int(bx2), int(by2)]})
     return sorted(found, key=lambda f: -f["lengthCm"])
