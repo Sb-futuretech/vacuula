@@ -676,6 +676,7 @@ export default () => {
                 onBackButtonClick={handleBackBtn}
                 onOpenChange={setDrawerOpen}
                 openHeightPercent={mode === 'boundary-edit' ? 60 : mode === 'boundary-info' ? 30 : 70}
+                fitContent={mode === 'boundary-info'}
                 title={getTitle()}
             >
                 {mode === 'map-edit' && mapEditform && persistentMap && (

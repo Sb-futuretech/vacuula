@@ -15,6 +15,9 @@ interface DrawerProps {
     handle: boolean
     open: boolean,
     openHeightPercent?: number // handle sheets only: how far they open
+    // handle sheets only: open further when the content needs it (openHeightPercent is then the least,
+    // at most nearly the screen), so short screens don't cut it off
+    fitContent?: boolean
     onOpenChange?: (open: boolean) => void,
     children?: React.ReactNode,
     footer?: React.ReactNode
@@ -119,6 +122,24 @@ export default function Drawer(props: DrawerProps) {
     }
     const isDrawerOpen = () => drawerHeight > 100;
 
+    // fitContent: grow to the content (it can load later, so its size is watched)
+    const contentRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const el = contentRef.current
+        if (!props.fitContent || !props.open || !el) return
+        const fit = () => {
+            if (movedRef.current) return // the user is dragging it
+            // the sheet's height minus what the content gets of it = handle and border
+            const sheet = el.parentElement?.getBoundingClientRect().height ?? 0
+            const want = Math.min(window.innerHeight * 0.85, sheet - el.clientHeight + el.scrollHeight)
+            setDrawerHeight(h => want > h + 2 ? want : h)
+        }
+        fit()
+        const ro = new ResizeObserver(fit)
+        for (const child of Array.from(el.children)) ro.observe(child)
+        return () => ro.disconnect()
+    }, [props.fitContent, props.open, props.children, drawerHeight > 100])
+
     useEffect(() => {
         if (props.open) openDrawer()
         else closeDrawer()
@@ -220,7 +241,7 @@ export default function Drawer(props: DrawerProps) {
             </div>
 
             {drawerHeight > 100 && (
-                <div className={styles.drawerContent}>
+                <div ref={contentRef} className={styles.drawerContent}>
                     {props.children}
                 </div>
             )}
