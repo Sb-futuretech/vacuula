@@ -191,9 +191,9 @@ def _run(reader: Reader) -> None:
             _readers.pop(reader.serial, None)
             if session := _sessions.get(reader.serial):
                 session.ended_at = time.time()
-                logger.info("Live position of %s: run ended, %d positions (map %s); %d reads, %d failed, slowest %.1f s",
-                            reader.serial, len(session.positions), session.map_id, reader.reads, reader.failed,
-                            reader.slowest)
+                logger.info("Live position of %s: run ended, %d positions, %d lidar turns (map %s); %d reads, %d failed, "
+                            "slowest %.1f s", reader.serial, len(session.positions), session.lidar.scans,
+                            session.map_id, reader.reads, reader.failed, reader.slowest)
         _keep_last_seen(reader.serial)
         if session:
             _save_run(reader.serial, session)
