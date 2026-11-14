@@ -174,12 +174,12 @@ export default () => {
                         </div>
                     )}
                     <div className={styles.mapWrap}>
-                        {showLidar && runLidar ? <LidarView data={runLidar} /> : <>
-                            <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />
-                            <button className={styles.expandMap} onClick={() => setFullMap(true)} aria-label={t('runs.openMap')} title={t('runs.openMap')}>
-                                <FaExpand />
-                            </button>
-                        </>}
+                        {showLidar && runLidar
+                            ? <LidarView data={runLidar} />
+                            : <Map mapId={selectedCleaning?.id || ''} runId={selectedCleaning?.id || ''} />}
+                        <button className={styles.expandMap} onClick={() => setFullMap(true)} aria-label={t('runs.openMap')} title={t('runs.openMap')}>
+                            <FaExpand />
+                        </button>
                     </div>
 
                     {/* TODO: Explain the differnet colors meaning */}
@@ -239,7 +239,9 @@ export default () => {
                         <button onClick={() => setFullMap(false)} aria-label={t('runs.closeMap')} title={t('runs.closeMap')}><FaTimes /></button>
                     </div>
                     <div className={styles.fullMapBody}>
-                        <Map mapId={selectedCleaning.id} runId={selectedCleaning.id} />
+                        {showLidar && runLidar
+                            ? <LidarView data={runLidar} />
+                            : <Map mapId={selectedCleaning.id} runId={selectedCleaning.id} />}
                     </div>
                 </div>
             )}

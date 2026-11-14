@@ -7,7 +7,7 @@ interface Props {
     initialZoom: number
     initialOffset: Offset
     // the canvas, for its centre: the view turns around the middle of the canvas
-    canvasRef?: React.RefObject<HTMLCanvasElement | undefined>
+    canvasRef?: React.RefObject<HTMLCanvasElement | null | undefined>
 }
 
 // a two-finger twist turns the map only once it passed this, so a pinch to zoom does not turn it
