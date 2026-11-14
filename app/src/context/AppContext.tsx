@@ -1,7 +1,8 @@
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { BASE_PATH, Http, type AppNotification, type LidarMap, type LidarScan, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
 import { GEN3_COMMANDS } from '../http/gen3'
+import { clearLiveScan, playLiveScans } from './liveScan'
 import type { UseState } from '../pages/map/types'
 import { Neato, RobotType, type QuickRobotInfo, type Robot } from '../types'
 import { GEN4_COMMANDS } from '../http/gen4'
@@ -44,8 +45,6 @@ interface AppContextType {
 
     // gen3: where the robot is while it cleans (from its black box, sent by the server)
     livePosition: LiveTrack | null
-    // gen3: the lidar turn shown now while it cleans (played back from the server's batches)
-    liveScan: LiveScan | null
 
     // notification centre: newest first; read state is remembered per device
     notifications: AppNotification[]
@@ -85,16 +84,6 @@ export interface LiveTrack {
     points: [number, number][]
 }
 
-// one lidar turn as shown: the turn, the stored map its frame lies on (or none) and when it was shown (s)
-export interface LiveScan {
-    scan: LidarScan
-    map: LidarMap | null
-    t: number
-}
-
-// the server reads the black box every 2 s and sends that time's turns at once: played back over it
-const LIVE_SCAN_SPAN_MS = 2000
-
 // a new clean (or a gap this long, in seconds) starts a new track
 const LIVE_TRACK_GAP_S = 120
 
@@ -113,8 +102,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [message, setMessage] = useState<string | null>(null)
     const [zoneQueue, setZoneQueue] = useState<ZoneQueueStatus | null>(null)
     const [livePosition, setLivePosition] = useState<LiveTrack | null>(null)
-    const [liveScan, setLiveScan] = useState<LiveScan | null>(null)
-    const liveScanTimers = useRef<number[]>([])
     const [notifications, setNotifications] = useState<AppNotification[]>([])
     const [lastReadNotification, setLastReadNotification] = useState(0)
     const readKey = (serial: string) => `vacuula.notificationsRead.${serial}`
@@ -260,7 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         setZoneQueue(null)
         setLivePosition(null)
-        setLiveScan(null)
+        clearLiveScan()
         setNotifications([])
         // a clean already running: its way so far, so a reload doesn't lose it
         if (robot.type === RobotType.NeatoGen3) Http.getLiveTrack(robot.serial).then(res => {
@@ -346,9 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
             if (parsed.event === 'liveScan') {
                 const { map, scans } = parsed.data as { map: LidarMap | null, scans: LidarScan[] }
-                liveScanTimers.current.forEach(clearTimeout)
-                liveScanTimers.current = scans.map((scan, i) => window.setTimeout(
-                    () => setLiveScan({ scan, map, t: Date.now() / 1000 }), i * LIVE_SCAN_SPAN_MS / scans.length))
+                playLiveScans(map, scans)
                 return
             }
             if (parsed.event === 'notification') {
@@ -399,7 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         return () => {
             events.close();
-            liveScanTimers.current.forEach(clearTimeout)
+            clearLiveScan()
             clearInterval(poll);
             document.removeEventListener('visibilitychange', onVisibility);
         };
@@ -427,7 +412,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         zoneQueue,
         setZoneQueue,
         livePosition,
-        liveScan,
         notifications,
         unreadNotifications,
         markNotificationsRead,

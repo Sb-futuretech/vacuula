@@ -16,7 +16,6 @@ import { FaGaugeHigh, FaHouse } from 'react-icons/fa6'
 import { BiTargetLock } from "react-icons/bi";
 import { useApp } from '../../context/useApp'
 import LiveLidarView from '../../components/map/LiveLidarView'
-import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
 import TimeAgo from 'react-timeago'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import Input from '../../components/input/input'
@@ -148,7 +147,7 @@ const navName = (v: CleaningNavigationMode) => `modes.${GEN3_NAV_KEY[v] ?? 'norm
 const cleanName = (v: CleaningMode) => `modes.${GEN3_MODE_KEY[v] ?? 'eco'}`
 
 export default function Home() {
-    const { lastHeartbeat, getGen3State, livePosition, liveScan } = useApp()
+    const { lastHeartbeat, getGen3State } = useApp()
     const { robot } = useRobot();
     const { t } = useTranslation()
     const navigate = useNavigate()
@@ -234,11 +233,6 @@ export default function Home() {
     const shownMode = spotFixed ? CleaningMode.ECO : gen3__cleaningMode
     const shownNavigation = spotFixed ? CleaningNavigationMode.NORMAL : gen3__navigationMode
 
-    // gen3: where the robot is now, in map coordinates like the map page's rulers (a cell is 4 cm),
-    // while it cleans
-    const livePos = robot.type === RobotType.NeatoGen3 && robot.state === Neato.Gen3.RobotState.BUSY
-        && livePosition ? livePosition.last : null
-
     // gen3: what the robot is cleaning right now (zone or map, mode, navigation), next to the state
     const cleaningInfo = (() => {
         if (robot.type !== RobotType.NeatoGen3 || !robot.cleaning) return null
@@ -314,7 +308,7 @@ export default function Home() {
 
             {/* ── Mascot + ring ── */}
             <div className={`${styles.mascotZone} ${showLidar || (showLastRun && lastCleaning) ? styles.withMap : ''}`}>
-                {cleaningNow && <LiveLidarView serial={robot.serial} scan={liveScan} onAvailable={setLidarShown} />}
+                {cleaningNow && <LiveLidarView serial={robot.serial} onAvailable={setLidarShown} />}
                 {showLidar ? null : showLastRun && lastCleaning ? (
                     <LastRun
                         cleaning={lastCleaning}
@@ -334,15 +328,6 @@ export default function Home() {
                         {t(getRobotStateKey(robot))}
                     </span>
                     {cleaningInfo && <span className={styles.statusDetail}>{cleaningInfo}</span>}
-                    {livePos && (
-                        <span className={styles.statusDetail}>
-                            {t('home.livePosition', {
-                                x: formatLength(livePos.u * GEN3_MM_PER_CELL / 10),
-                                y: formatLength(livePos.v * GEN3_MM_PER_CELL / 10),
-                                heading: Math.round(((livePos.heading % 360) + 360) % 360),
-                            })}
-                        </span>
-                    )}
                     <hr />
                     <span className={styles.timeAgo}>
                         {lastHeartbeat ? <TimeAgo date={lastHeartbeat} formatter={timeAgoFormatter} /> : t('common.notAvailable')}

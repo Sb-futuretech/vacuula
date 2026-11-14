@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Http, type LiveLidar } from '../../http'
-import type { LiveScan } from '../../context/AppContext'
+import { useLiveScan } from '../../context/liveScan'
 import { useMascot } from '../../mascot'
 import { COLORS } from './constants'
 import { drawLidarPoints, drawLiveRobot, type RobotImage } from './drawingFunctions'
@@ -17,13 +17,13 @@ const SCAN_FRESH_S = 5
 
 interface Props {
     serial: string
-    scan: LiveScan | null   // the turn shown now (the app's live scan)
     // false: nothing to show (yet) -> the caller shows something else
     onAvailable?: (available: boolean) => void
 }
 
-export default function LiveLidarView({ serial, scan: liveScan, onAvailable }: Props) {
+export default function LiveLidarView({ serial, onAvailable }: Props) {
     const { t } = useTranslation()
+    const liveScan = useLiveScan()
     const { mascot } = useMascot()
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [data, setData] = useState<LiveLidar | null>(null)

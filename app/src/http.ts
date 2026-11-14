@@ -324,7 +324,7 @@ export class Http {
   // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
   // gen3: what the lidar saw in the clean running now (grid so far, pose, way), null without one
   static getLiveLidar(serial: string) {
-    return instance.get<LiveLidar | null>(`/robot/${serial}/live-lidar`)
+    return instance.get<LiveLidar | null>(`/robot/${serial}/live-lidar`, { skipLoader: true }) // every few s: no spinner
   }
 
   static getLiveTrack(serial: string) {

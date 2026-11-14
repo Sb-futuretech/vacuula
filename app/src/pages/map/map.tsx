@@ -24,6 +24,7 @@ import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
 import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
+import { useLiveScan } from '../../context/liveScan'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
@@ -96,7 +97,8 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
-    const { livePosition, liveScan } = useApp()
+    const { livePosition } = useApp()
+    const liveScan = useLiveScan()
     const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
     // the robot on the map is drawn as the mascot chosen in the settings
     const { mascot } = useMascot()
