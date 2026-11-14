@@ -53,16 +53,41 @@ function getShape(type: CellShape, size: number): Path2D {
 
 /* ---------------- VIEWPORT ---------------- */
 
+// The view's rotation (radians), set by useMap before each draw: labels and symbols are turned back
+// by it, so text stays upright on a turned map
+let viewAngle = 0
+export function setViewAngle(a: number) { viewAngle = a }
+// draw `fn` at x/y upright (not turned with the map)
+function upright(ctx: CanvasRenderingContext2D, x: number, y: number, fn: () => void) {
+    if (!viewAngle) { ctx.save(); ctx.translate(x, y); fn(); ctx.restore(); return }
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(-viewAngle)
+    fn()
+    ctx.restore()
+}
+
+// the cells on screen; on a turned view the screen corners are turned back first (the current
+// canvas transform), so no corner is left empty
 function getVisibleBounds(
     canvas: HTMLCanvasElement,
     zoom: number,
     offset: { x: number; y: number }
 ) {
+    let x0 = 0, y0 = 0, x1 = canvas.width, y1 = canvas.height
+    const m = canvas.getContext('2d')?.getTransform()
+    if (m && !m.isIdentity) {
+        const inv = m.inverse()
+        const pts = [[0, 0], [canvas.width, 0], [0, canvas.height], [canvas.width, canvas.height]]
+            .map(([x, y]) => inv.transformPoint(new DOMPoint(x, y)))
+        x0 = Math.min(...pts.map(p => p.x)); x1 = Math.max(...pts.map(p => p.x))
+        y0 = Math.min(...pts.map(p => p.y)); y1 = Math.max(...pts.map(p => p.y))
+    }
     return {
-        minX: Math.floor((-offset.x) / zoom),
-        minY: Math.floor((-offset.y) / zoom),
-        maxX: Math.ceil((canvas.width - offset.x) / zoom),
-        maxY: Math.ceil((canvas.height - offset.y) / zoom)
+        minX: Math.floor((x0 - offset.x) / zoom),
+        minY: Math.floor((y0 - offset.y) / zoom),
+        maxX: Math.ceil((x1 - offset.x) / zoom),
+        maxY: Math.ceil((y1 - offset.y) / zoom)
     }
 }
 
@@ -381,6 +406,9 @@ export function drawCrosshair(
     const cx = canvas.width / 2
     const cy = canvas.height / 2
 
+    // on screen, not turned with the map
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.strokeStyle = COLORS.CROSSHAIR
     ctx.lineWidth = 2
 
@@ -398,6 +426,7 @@ export function drawCrosshair(
     ctx.beginPath()
     ctx.arc(cx, cy, DRAWING.CROSSHAIR_CENTER_RADIUS, 0, Math.PI * 2)
     ctx.fill()
+    ctx.restore()
 }
 
 /* ---------------- BASE (DOCK + ROBOT) ---------------- */
@@ -583,16 +612,18 @@ export function drawProblems(
     ctx.textBaseline = 'middle'
     for (const { kind, x, y, n } of groups) {
         const size = Math.min(26, 15 + 3 * Math.log2(n))
-        ctx.font = `${size}px sans-serif`
-        ctx.fillText(PROBLEM_ICONS[kind] ?? '•', x, y)
-        if (n > 1) {
-            ctx.font = 'bold 10px sans-serif'
-            ctx.fillStyle = '#fff'
-            ctx.strokeStyle = 'rgba(0,0,0,0.7)'
-            ctx.lineWidth = 3
-            ctx.strokeText(String(n), x + size * 0.55, y - size * 0.45)
-            ctx.fillText(String(n), x + size * 0.55, y - size * 0.45)
-        }
+        upright(ctx, x, y, () => {
+            ctx.font = `${size}px sans-serif`
+            ctx.fillText(PROBLEM_ICONS[kind] ?? '•', 0, 0)
+            if (n > 1) {
+                ctx.font = 'bold 10px sans-serif'
+                ctx.fillStyle = '#fff'
+                ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+                ctx.lineWidth = 3
+                ctx.strokeText(String(n), size * 0.55, -size * 0.45)
+                ctx.fillText(String(n), size * 0.55, -size * 0.45)
+            }
+        })
     }
     ctx.restore()
 }
@@ -761,6 +792,7 @@ export function drawRestRobot(
     drawRobotBody(ctx, rPx, heading, img, faded)
     ctx.restore()
     if (label) {
+        ctx.rotate(-viewAngle) // upright on a turned map
         ctx.font = '600 12px system-ui, sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
@@ -965,7 +997,7 @@ export function drawZoneOverlay(
         const [cx, cy] = calcRelevancy(zone.vertices)
         ctx.globalAlpha = visited.has(zone.id) ? 1 : 0.6
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(zone.name, offset.x + cx * mapSize.width * zoom, offset.y + cy * mapSize.height * zoom)
+        upright(ctx, offset.x + cx * mapSize.width * zoom, offset.y + cy * mapSize.height * zoom, () => ctx.fillText(zone.name!, 0, 0))
     }
     ctx.restore()
 }

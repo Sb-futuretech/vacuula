@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './map.module.scss'
 import { FaMinus, FaPlus, FaUndo, FaRegQuestionCircle } from 'react-icons/fa'
-import { MdOutlineFitScreen, MdStraighten, MdTouchApp } from 'react-icons/md'
+import { MdNavigation, MdOutlineFitScreen, MdRotateLeft, MdRotateRight, MdStraighten, MdTouchApp } from 'react-icons/md'
 import { PiBoundingBox } from 'react-icons/pi'
 import { useTranslation } from 'react-i18next'
 import Drawer from '../../components/drawer/drawer'
@@ -53,6 +53,9 @@ interface MapCanvasProps {
 // Owns everything that genuinely can't exist without a selected map: the hook, the
 // canvas element + its pan/zoom handlers, and the boundary-drawing action buttons
 // (they all need canvasRef/zoom/offset to translate screen taps into map coords).
+// one click on the turn buttons (or [ and ]): 15 degrees
+const ROTATE_STEP = Math.PI / 12
+
 export default function MapCanvas({
     mapId,
     runId,
@@ -89,7 +92,7 @@ export default function MapCanvas({
     const showTapHint = !tapHintDone && mode === 'boundaries' && !!onBoundaryTap && (boundaries?.length ?? 0) > 0
     const { t } = useTranslation()
 
-    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep, setOffset } = useMap({
+    const { canvasRef, mapSize, zoom, offset, isDragging, hasMoved, canvasHandlers, resetView, zoomStep, setOffset, angle, setAngle, rotateBy, toMapScreen } = useMap({
         mapId,
         runId,
         extraDraw,
@@ -110,13 +113,18 @@ export default function MapCanvas({
     }, [canvasRef])
 
     // index of the drawn point at canvas position x/y (CSS px), -1 if none; `reach` scales the hit radius
-    const pointAt = (x: number, y: number, reach: number) => !mapSize ? -1 : currentLinePoints.findIndex(([px, py]) =>
-        Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * reach)
+    const pointAt = (sx: number, sy: number, reach: number) => {
+        if (!mapSize) return -1
+        const { x, y } = toMapScreen(sx, sy) // turned view: back to the map's own canvas coordinates
+        return currentLinePoints.findIndex(([px, py]) =>
+            Math.hypot(offset.x + px * mapSize.width * zoom - x, offset.y + py * mapSize.height * zoom - y) <= DRAWING.POINT_RADIUS * reach)
+    }
 
     // the zone or line at canvas position x/y (CSS px): a nearby line first (thin, drawn on top),
     // else the smallest zone containing the tap; null if none
-    const boundaryAt = (x: number, y: number): string | null => {
+    const boundaryAt = (sx: number, sy: number): string | null => {
         if (!mapSize || !boundaries) return null
+        const { x, y } = toMapScreen(sx, sy)
         const toScreen = ([px, py]: Point): [number, number] =>
             [offset.x + px * mapSize.width * zoom, offset.y + py * mapSize.height * zoom]
         let line: string | null = null
@@ -151,7 +159,8 @@ export default function MapCanvas({
     // a tap (no pan) while viewing the features, at canvas position x/y (CSS px)
     const tapViewing = (x: number, y: number) => {
         const id = boundaryAt(x, y)
-        const at = mapSize ? getWorldCoords(x, y, offset, zoom, mapSize) : null
+        const m = toMapScreen(x, y)
+        const at = mapSize ? getWorldCoords(m.x, m.y, offset, zoom, mapSize) : null
         const onMap = at && at[0] >= 0 && at[0] <= 1 && at[1] >= 0 && at[1] <= 1
         setAddHere(!id && mode === 'boundaries' && onAddHere && onMap ? { x, y, at } : null)
         onBoundaryTap?.(id)
@@ -200,7 +209,8 @@ export default function MapCanvas({
         }
         if (closedAsPolygon || atPointLimit) return
         setSelectedPoint(null)
-        setCurrentLinePoints(prev => [...prev, getWorldCoords(x, y, offset, zoom, mapSize)])
+        const m = toMapScreen(x, y)
+        setCurrentLinePoints(prev => [...prev, getWorldCoords(m.x, m.y, offset, zoom, mapSize)])
     }
 
     const addPointAtCrosshair = () => {
@@ -231,8 +241,11 @@ export default function MapCanvas({
         if (arrow) {
             if (!mapSize) return true
             const px = DRAWING.NUDGE_MM * (e.shiftKey ? 5 : 1) / mmPerPixel
+            // the arrow means a direction on screen: turned back onto the map
+            const cos = Math.cos(-angle), sin = Math.sin(-angle)
+            const ax = arrow[0] * cos - arrow[1] * sin, ay = arrow[0] * sin + arrow[1] * cos
             setCurrentLinePoints(prev => prev.map((p, i) => i === active
-                ? [p[0] + arrow[0] * px / mapSize.width, p[1] + arrow[1] * px / mapSize.height]
+                ? [p[0] + ax * px / mapSize.width, p[1] + ay * px / mapSize.height]
                 : p))
         } else if (e.key === 'Backspace' || e.key === 'Delete') {
             if (active < 0) return true
@@ -247,7 +260,9 @@ export default function MapCanvas({
 
     // + / - zoom, 0 fits the map. Returns false for any other key.
     const handleZoomKey = (e: KeyboardEvent) => {
-        if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
+        if (e.key === '[') rotateBy(-ROTATE_STEP)
+        else if (e.key === ']') rotateBy(ROTATE_STEP)
+        else if (e.key === '+' || e.key === '=') zoomStep(DRAWING.ZOOM_STEP)
         else if (e.key === '-') zoomStep(1 / DRAWING.ZOOM_STEP)
         else if (e.key === '0') resetView()
         else return false
@@ -323,7 +338,7 @@ export default function MapCanvas({
                 }}
             />
 
-            {rulersOn && mapSize && (
+            {rulersOn && mapSize && !angle && (
                 <MapRulers zoom={zoom} offset={offset} mapSize={mapSize} mmPerPixel={mmPerPixel}
                     width={canvasBox.width} height={canvasBox.height} />
             )}
@@ -352,6 +367,14 @@ export default function MapCanvas({
                 <button onClick={() => zoomStep(DRAWING.ZOOM_STEP)} aria-label="Zoom in"><FaPlus size={16} /></button>
                 <button onClick={() => zoomStep(1 / DRAWING.ZOOM_STEP)} aria-label="Zoom out"><FaMinus size={16} /></button>
                 <button onClick={resetView} aria-label="Fit map"><MdOutlineFitScreen size={18} /></button>
+                <button onClick={() => rotateBy(-ROTATE_STEP)} aria-label={t('map.rotateLeft')} title={t('map.rotateLeft')}><MdRotateLeft size={19} /></button>
+                <button onClick={() => rotateBy(ROTATE_STEP)} aria-label={t('map.rotateRight')} title={t('map.rotateRight')}><MdRotateRight size={19} /></button>
+                {angle !== 0 && (
+                    // the map's "up": tap to turn it back
+                    <button onClick={() => setAngle(0)} aria-label={t('map.rotateReset')} title={t('map.rotateReset')}>
+                        <MdNavigation size={18} style={{ transform: `rotate(${angle}rad)` }} />
+                    </button>
+                )}
                 {mode !== 'boundary-edit' && (
                     <button onClick={() => setShowRulers(on => !on)} aria-label={t('map.rulers')} aria-pressed={showRulers}
                         className={showRulers ? styles.zoomButtonOn : undefined}><MdStraighten size={18} /></button>
