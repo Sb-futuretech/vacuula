@@ -33,6 +33,15 @@ if TYPE_CHECKING:
 COMMAND_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 
+def post_client_error(req: RouterHandler) -> None:
+    """POST /client-error - a page of the web app crashed: its error into this server's log"""
+    if not (data := req.read_json()): return
+    logger.warning("Web app crashed at %s: %s\n%s\ncomponents:%s\nbrowser: %s",
+                   str(data.get("url"))[:200], str(data.get("message"))[:500], str(data.get("stack"))[:3000],
+                   str(data.get("component"))[:2000], str(data.get("userAgent"))[:200])
+    req.send_ok()
+
+
 def get_server_info(req: RouterHandler) -> None:
     """GET /server - static facts about this server the web app or installer needs."""
     tz = server_timezone()

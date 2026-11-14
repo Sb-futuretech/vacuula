@@ -12,6 +12,14 @@ import Drive from "./pages/drive/drive"
 import { RequireRobot } from "./components/require/requireRobot"
 import { RequireRobots } from "./components/require/requireRobots"
 import Toaster from "./components/toast/toaster"
+import ErrorBoundary from "./components/errorBoundary/errorBoundary"
+import { useLocation } from "react-router"
+
+// a crashed page shows its error instead of a black app; going to another page tries again
+const PageBoundary = ({ children }: { children: React.ReactNode }) => {
+    const { pathname } = useLocation()
+    return <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>
+}
 
 const App = () => (
     <div className={styles.app}>
@@ -23,6 +31,7 @@ const App = () => (
             </div>
             <div className={styles.content}>
                 <RequireRobot>
+                    <PageBoundary>
                     <Routes>
                         <Route index element={<Home />} />
                         <Route path="runs" element={<Runs />} />
@@ -31,6 +40,7 @@ const App = () => (
                         <Route path="settings" element={<Settings />} />
                         <Route path="drive" element={<Drive />} />
                     </Routes>
+                    </PageBoundary>
                 </RequireRobot>
             </div>
             <div className={styles.navbar}>
