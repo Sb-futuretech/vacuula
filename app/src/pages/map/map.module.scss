@@ -789,3 +789,27 @@ $memory-full: #e8b24a;
     gap: 0.8rem;
     margin-left: auto;
 }
+
+// the problem kinds as switches: on = filled, off = outlined and faded
+.problemChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+
+    .chip, .chipOff {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid $accent;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: $text-primary;
+        background: transparent;
+
+        b { font-weight: 600; color: $text-muted; }
+    }
+    .chip { background: rgba(128, 128, 128, 0.15); }
+    .chipOff { opacity: 0.45; border-color: $text-muted; text-decoration: line-through; }
+}

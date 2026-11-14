@@ -451,13 +451,17 @@
         "coverageBadge": "{{percent}} % cleaned",
         "coverageHint": "Share of the zone (or the free floor) this run cleaned; red: missed",
         "problems": "Problem spots",
+        "bumpHaze": "Orange haze: where the robot often bumps (the darker, the more often)",
         "problemsCount": "{{count}} problems over the last runs",
         "problem": {
             "bump": "bumped",
             "tilt": "tilted",
             "lost": "lost its position",
             "stuck": "stuck",
-            "dock_tilted": "docking aborted (tilted)"
+            "dock_tilted": "docking aborted (tilted)",
+            "unreachable": "unreachable",
+            "slip": "slipped",
+            "off_base": "slid off the dock"
         },
         "floor": {
             "title": "Floor type",

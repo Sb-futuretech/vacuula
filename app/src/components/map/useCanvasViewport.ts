@@ -17,7 +17,13 @@ export const useCanvasViewport = ({
 
     const [isDragging, setIsDragging] = useState(false)
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-    const [touchStart, setTouchStart] = useState<TouchState | null>(null)
+    // touch state in refs, not state: several touchmove events arrive between two renders, and each
+    // has to compare with the previous one (state would hand them all the same old pinch distance,
+    // so the zoom jumped). touchActive: fingers are down -- iOS then also fires its own gesture
+    // events for the same pinch, which must not zoom a second time
+    const touchStartRef = useRef<TouchState | null>(null)
+    const touchDragRef = useRef<{ x: number, y: number } | null>(null)
+    const touchActiveRef = useRef(false)
     const [hasMoved, setHasMoved] = useState(false)
 
     const pan = (dx: number, dy: number) => {
@@ -93,6 +99,7 @@ export const useCanvasViewport = ({
     const gestureScaleRef = useRef(1)
     const handleGesture = (e: Event) => {
         e.preventDefault()
+        if (touchActiveRef.current) return // a touch screen: the touch events do the pinch
         const g = e as Event & { scale: number, clientX: number, clientY: number }
         if (e.type === 'gesturestart') {
             gestureScaleRef.current = 1
@@ -114,20 +121,22 @@ export const useCanvasViewport = ({
 
     const handleTouchStart = (e: React.TouchEvent) => {
         const t = e.touches
+        touchActiveRef.current = true
 
         if (t.length === 1) {
             setIsDragging(true)
-            setDragStart({ x: t[0].clientX, y: t[0].clientY })
-            setTouchStart(null)
+            touchDragRef.current = { x: t[0].clientX, y: t[0].clientY }
+            touchStartRef.current = null
             setHasMoved(false)
         } else if (t.length === 2) {
             const distance = getTouchDistance(t[0], t[1])
             // Guard: fingers landing almost on top of each other give a near-zero
             // distance, which would blow up the ratio in handleTouchMove on the very
             // first move and snap zoom to an extreme it then gets stuck at.
-            setTouchStart(distance > DRAWING.MIN_PINCH_DISTANCE
+            touchStartRef.current = distance > DRAWING.MIN_PINCH_DISTANCE
                 ? { distance, angle: getTouchAngle(t[0], t[1]) }
-                : null)
+                : null
+            touchDragRef.current = null
             setIsDragging(false)
         }
     }
@@ -136,61 +145,56 @@ export const useCanvasViewport = ({
         const t = e.touches
         setHasMoved(true)
 
-        if (t.length === 1 && isDragging) {
-            const dx = t[0].clientX - dragStart.x
-            const dy = t[0].clientY - dragStart.y
+        const drag = touchDragRef.current
+        if (t.length === 1 && drag) {
+            const dx = t[0].clientX - drag.x
+            const dy = t[0].clientY - drag.y
 
             if (
                 Math.abs(dx) >= DRAWING.MIN_MOVEMENT ||
                 Math.abs(dy) >= DRAWING.MIN_MOVEMENT
             ) {
                 pan(dx, dy)
-
-                setDragStart({
-                    x: t[0].clientX,
-                    y: t[0].clientY
-                })
+                touchDragRef.current = { x: t[0].clientX, y: t[0].clientY }
             }
         }
 
-        if (t.length === 2 && touchStart) {
+        const start = touchStartRef.current
+        if (t.length === 2 && start) {
             const rect = e.currentTarget.getBoundingClientRect()
             const distance = getTouchDistance(t[0], t[1])
 
             // Same guard as touchstart — fingers sliding to briefly overlap mid-gesture
             // shouldn't divide by near-zero either.
             if (distance > DRAWING.MIN_PINCH_DISTANCE) {
-                const ratio = distance / touchStart.distance
+                const ratio = distance / start.distance
                 const centerX = (t[0].clientX + t[1].clientX) / 2 - rect.left
                 const centerY = (t[0].clientY + t[1].clientY) / 2 - rect.top
 
                 zoomBy(Math.pow(ratio, DRAWING.PINCH_ZOOM_POWER), centerX, centerY)
 
-                setTouchStart({ distance, angle: getTouchAngle(t[0], t[1]) })
+                touchStartRef.current = { distance, angle: getTouchAngle(t[0], t[1]) }
             }
         }
     }
 
-    // *** The main fix ***
-    // Previously this unconditionally cleared everything, so lifting either finger out of
-    // a pinch a moment before the other (the normal case — hands don't lift in perfect
-    // sync) killed the gesture. Now it checks what's still down: with one finger
-    // remaining, hand off cleanly into a single-finger pan from its current position
-    // instead of losing tracking until every finger comes up.
+    // Lifting one finger of a pinch a moment before the other (the normal case) hands off to a
+    // one-finger pan from where that finger is, instead of losing the gesture.
     const handleTouchEnd = (e: React.TouchEvent) => {
         const remaining = e.touches
+        touchStartRef.current = null
 
         if (remaining.length === 1) {
             setIsDragging(true)
-            setDragStart({ x: remaining[0].clientX, y: remaining[0].clientY })
-            setTouchStart(null)
+            touchDragRef.current = { x: remaining[0].clientX, y: remaining[0].clientY }
         } else {
             setIsDragging(false)
-            setTouchStart(null)
+            touchDragRef.current = null
         }
 
         if (remaining.length === 0) {
             setHasMoved(false)
+            touchActiveRef.current = false
         }
     }
 

@@ -536,37 +536,62 @@ export const PROBLEM_ICONS: Record<Problem['kind'], string> = {
     bump: '💥', tilt: '⚠️', lost: '❓', unreachable: '⛔', slip: '〰️', stuck: '🆘', dock_tilted: '🔌', off_base: '🔌',
 }
 
-// The symbols where problems happened; with `cluster`, the same kind close together (within 4 cells,
-// about 16 cm) is one symbol with a count, so places where it happens often stand out
+// Bumps are part of how the robot works (it feels its way along furniture), so they are drawn as a soft
+// orange haze that gets stronger where it bumps often, not as one symbol each
+const BUMP_RADIUS_CELLS = 6        // about 24 cm
+const BUMP_ALPHA = 0.16
+function drawBumpHaze(ctx: CanvasRenderingContext2D, bumps: Problem[], zoom: number, offset: { x: number; y: number }) {
+    const r = Math.max(8, BUMP_RADIUS_CELLS * zoom)
+    ctx.save()
+    for (const p of bumps) {
+        const x = offset.x + p.u * zoom, y = offset.y + p.v * zoom
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+        g.addColorStop(0, `rgba(255, 110, 20, ${BUMP_ALPHA})`)
+        g.addColorStop(1, 'rgba(255, 110, 20, 0)')
+        ctx.fillStyle = g
+        ctx.fillRect(x - r, y - r, 2 * r, 2 * r)
+    }
+    ctx.restore()
+}
+
+// symbols of the same kind closer than this on screen are one symbol with a count: zoomed out a few
+// symbols, zooming in splits them up
+const PROBLEM_CLUSTER_PX = 32
+
+// Where problems happened: bumps as a haze, the rest as symbols grouped by screen distance.
+// `hidden`: kinds not to draw (the filter chips on the map page)
 export function drawProblems(
     ctx: CanvasRenderingContext2D,
     problems: Problem[],
     zoom: number,
     offset: { x: number; y: number },
-    cluster = false,
+    hidden?: ReadonlySet<Problem['kind']>,
 ) {
-    const groups = new Map<string, { kind: Problem['kind'], u: number, v: number, n: number }>()
-    for (const p of problems) {
-        const key = cluster ? `${p.kind}:${Math.round(p.u / 4)}:${Math.round(p.v / 4)}` : `${groups.size}`
-        const g = groups.get(key)
-        if (g) { g.u = (g.u * g.n + p.u) / (g.n + 1); g.v = (g.v * g.n + p.v) / (g.n + 1); g.n++ }
-        else groups.set(key, { kind: p.kind, u: p.u, v: p.v, n: 1 })
+    const shown = hidden?.size ? problems.filter(p => !hidden.has(p.kind)) : problems
+    drawBumpHaze(ctx, shown.filter(p => p.kind === 'bump'), zoom, offset)
+
+    const groups: { kind: Problem['kind'], x: number, y: number, n: number }[] = []
+    for (const p of shown) {
+        if (p.kind === 'bump') continue
+        const x = offset.x + p.u * zoom, y = offset.y + p.v * zoom
+        const g = groups.find(g => g.kind === p.kind && Math.hypot(g.x - x, g.y - y) < PROBLEM_CLUSTER_PX)
+        if (g) { g.x = (g.x * g.n + x) / (g.n + 1); g.y = (g.y * g.n + y) / (g.n + 1); g.n++ }
+        else groups.push({ kind: p.kind, x, y, n: 1 })
     }
     ctx.save()
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    for (const g of groups.values()) {
-        const x = offset.x + g.u * zoom, y = offset.y + g.v * zoom
-        const size = Math.min(26, 13 + 3 * Math.log2(g.n))
+    for (const { kind, x, y, n } of groups) {
+        const size = Math.min(26, 15 + 3 * Math.log2(n))
         ctx.font = `${size}px sans-serif`
-        ctx.fillText(PROBLEM_ICONS[g.kind] ?? '•', x, y)
-        if (g.n > 1) {
+        ctx.fillText(PROBLEM_ICONS[kind] ?? '•', x, y)
+        if (n > 1) {
             ctx.font = 'bold 10px sans-serif'
             ctx.fillStyle = '#fff'
             ctx.strokeStyle = 'rgba(0,0,0,0.7)'
             ctx.lineWidth = 3
-            ctx.strokeText(String(g.n), x + size * 0.55, y - size * 0.45)
-            ctx.fillText(String(g.n), x + size * 0.55, y - size * 0.45)
+            ctx.strokeText(String(n), x + size * 0.55, y - size * 0.45)
+            ctx.fillText(String(n), x + size * 0.55, y - size * 0.45)
         }
     }
     ctx.restore()

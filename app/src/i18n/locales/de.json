@@ -451,13 +451,17 @@
         "coverageBadge": "{{percent}} % gereinigt",
         "coverageHint": "Anteil der Zone (oder der freien Fläche), den diese Reinigung geschafft hat; rot: verpasst",
         "problems": "Problemstellen",
+        "bumpHaze": "Orange Schleier: wo der Roboter oft anstößt (je dunkler, desto öfter)",
         "problemsCount": "{{count}} Probleme in den letzten Reinigungen",
         "problem": {
             "bump": "angestoßen",
             "tilt": "gekippt",
             "lost": "Position verloren",
             "stuck": "festgesteckt",
-            "dock_tilted": "Andocken abgebrochen (gekippt)"
+            "dock_tilted": "Andocken abgebrochen (gekippt)",
+            "unreachable": "nicht erreichbar",
+            "slip": "durchgerutscht",
+            "off_base": "von der Station gerutscht"
         },
         "floor": {
             "title": "Bodenart",
