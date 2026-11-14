@@ -246,6 +246,12 @@ def get_live_track(req: RouterHandler, serial: str) -> None:
     req.send_ok(live_position.live_track(serial))
 
 
+def get_live_lidar(req: RouterHandler, serial: str) -> None:
+    """GET /robot/<serial>/live-lidar - what the gen3 robot's lidar saw in the clean running now
+    (gen3/live_position.live_lidar): the grid so far as a PNG, its pose and way; null when there is none"""
+    req.send_ok(live_position.live_lidar(serial))
+
+
 def get_last_position(req: RouterHandler, serial: str) -> None:
     """GET /robot/<serial>/last-position - where the gen3 robot was last shown on its map, also when it
     is not cleaning (gen3/live_position.py); null when it never was"""

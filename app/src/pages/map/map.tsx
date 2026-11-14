@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
@@ -40,6 +40,8 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 // gen3 robot actions of an exploration (exploring, paused, getting map ids, uploading the map)
 // a live position older than this (seconds) is not drawn: the clean has ended or the link is gone
 const LIVE_FRESH_S = 60
+// a lidar turn older than this (s) is not drawn: the robot stopped or the connection is gone
+const LIVE_SCAN_FRESH_S = 5
 // docked: its last position is where it stands if that is this close to the dock symbol (cells); else
 // it was carried home after its last run and stands on the dock symbol
 const DOCK_NEAR_CELLS = 10
@@ -94,7 +96,7 @@ export default () => {
     const [activeBoundaryId, setActiveBoundaryId] = useState<string | undefined>(undefined);
 
     const { robot } = useRobot()
-    const { livePosition } = useApp()
+    const { livePosition, liveScan } = useApp()
     const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
     // the robot on the map is drawn as the mascot chosen in the settings
     const { mascot } = useMascot()
@@ -292,6 +294,12 @@ export default () => {
 
         if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, hiddenKinds)
 
+        // gen3: what its lidar sees right now, when its frame lies on this map
+        if (liveScan?.map && liveScan.map.mapId === persistentMap && Date.now() / 1000 - liveScan.t < LIVE_SCAN_FRESH_S) {
+            const { u0, v0, mmPerCell } = liveScan.map
+            drawLidarPoints(ctx, liveScan.scan.pts.map(([x, y]) => [u0 + x / mmPerCell, v0 - y / mmPerCell]), currentZoom, currentOffset)
+        }
+
         // gen3: the robot where it is now and its way during this clean (fresh positions only); else on
         // its dock, or faded where it was last seen (it logs its position only while it cleans)
         if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
@@ -320,7 +328,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, liveScan, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
 
     // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
     const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''

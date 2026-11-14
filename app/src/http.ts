@@ -94,6 +94,32 @@ export interface MapFloor {
   patches: { kind: 'high' | 'runner', areaM2: number, share: number, rect: [number, number][] }[]
 }
 
+// gen3 lidar (server gen3/lidar.py), all in mm of the robot's own frame (y up): one turn of the lidar,
+// the robot's pose then ([x, y, heading in degrees counter-clockwise]) and the points it hit
+export interface LidarScan {
+  pose: [number, number, number]
+  pts: [number, number][]
+}
+
+// the stored map the robot's frame lies on: its id, where the frame's origin is in its cells, mm per cell
+export interface LidarMap {
+  mapId: string
+  u0: number
+  v0: number
+  mmPerCell: number
+}
+
+// what the lidar saw in the clean running now: the grid so far as a grey PNG (0 unknown, 128 free, 255
+// something there) with its top left corner (x0, y0) and cell size in mm, the robot's pose and its way
+export interface LiveLidar {
+  t: number
+  running: boolean
+  map: LidarMap | null
+  grid: { png: string, x0: number, y0: number, cell: number, width: number, height: number }
+  pose: [number, number, number]
+  track: [number, number][]
+}
+
 // a problem the robot noted in its black box (gen3), where it happened: cells of a run map or stored map
 export interface Problem {
   kind: 'bump' | 'tilt' | 'lost' | 'unreachable' | 'slip' | 'stuck' | 'dock_tilted' | 'off_base'
@@ -296,6 +322,11 @@ export class Http {
   }
 
   // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
+  // gen3: what the lidar saw in the clean running now (grid so far, pose, way), null without one
+  static getLiveLidar(serial: string) {
+    return instance.get<LiveLidar | null>(`/robot/${serial}/live-lidar`)
+  }
+
   static getLiveTrack(serial: string) {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
   }

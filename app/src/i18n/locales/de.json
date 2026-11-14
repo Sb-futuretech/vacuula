@@ -161,6 +161,7 @@
             "navigation": "Navigation",
             "cleaning": "Reinigung"
         },
+        "lidarLive": "Live: was der Roboter gerade mit seinem Lidar sieht",
         "livePosition": "Position x {{x}} · y {{y}} · {{heading}}°"
     },
     "notifications": {

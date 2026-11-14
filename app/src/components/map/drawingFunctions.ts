@@ -628,6 +628,28 @@ export function drawProblems(
     ctx.restore()
 }
 
+// The points one turn of the lidar hit (gen3), in cells of the drawn map: small dots in the accent colour
+export function drawLidarPoints(
+    ctx: CanvasRenderingContext2D,
+    points: [number, number][],
+    zoom: number,
+    offset: { x: number; y: number },
+    alpha = 0.9,
+) {
+    const r = Math.max(1.2, Math.min(3, zoom * 0.35))
+    const dots = new Path2D()
+    for (const [u, v] of points) {
+        const x = offset.x + u * zoom, y = offset.y + v * zoom
+        dots.moveTo(x + r, y)
+        dots.arc(x, y, r, 0, Math.PI * 2)
+    }
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = readMapToken('--accent') || COLORS.CROSSHAIR
+    ctx.fill(dots)
+    ctx.restore()
+}
+
 // Small arrows along a line of screen points, pointing the way it was drawn: every `spacing` px of
 // its length, so the direction of a route can be seen.
 function drawArrowsAlong(ctx: CanvasRenderingContext2D, pts: [number, number][], spacing: number, size: number) {

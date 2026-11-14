@@ -29,7 +29,7 @@ import numpy as np
 from vacuula_server.constants import DATA_DIR, MAPS_DIR
 from vacuula_server.env import BB_KEY, BB_PORT
 from vacuula_server.db import get_session
-from vacuula_server.gen3 import blackbox, coverage, floor_type
+from vacuula_server.gen3 import blackbox, coverage, floor_type, lidar
 from vacuula_server.gen3.data import Gen3MapBoundaries
 from vacuula_server.models.run import Gen3__Run
 from sqlalchemy import select
@@ -100,6 +100,7 @@ class Session:
     from_start: bool = False        # positions[0] is where it started on its map (read from the run's start)
     saved: bool = False             # problems and floor type of this run are on its map
     hidden_why: str | None = None   # why the live position is not shown (logged once per reason)
+    lidar: lidar.Run = field(default_factory=lidar.Run)  # what its lidar saw this run (gen3/lidar.py)
 
 
 @dataclass
@@ -221,6 +222,7 @@ def _poll(reader: Reader) -> None:
     reader.buf = reader.buf[used:]
     latest = None
     session = _sessions.get(reader.serial)
+    scans: list[dict] = []  # the lidar's turns read this time, oldest first
     for block in blocks:
         try:
             payload = blackbox.block_payload(block, BB_KEY)
@@ -239,7 +241,9 @@ def _poll(reader: Reader) -> None:
                     session.events.clear()
                     session.anchor = None
                     session.from_start = True
+                    session.lidar = lidar.Run()  # its scans so far are in the other frame too
                 if session:
+                    session.lidar.pose(clock, latest.x, latest.y, latest.heading)
                     session.positions.append((latest.x, latest.y))
                     session.last_pos = (latest.x, latest.y)
                     session.last_heading = latest.heading
@@ -250,12 +254,17 @@ def _poll(reader: Reader) -> None:
                     x, y = session.last_pos
                     session.floor.append((x + ahead * math.cos(session.last_heading),
                                           y + ahead * math.sin(session.last_heading), load, session.last_heading))
+            elif ptype == lidar.PKT_LDS and session:
+                if session.lidar.scan(clock, pdata) and session.lidar.last:
+                    scans.append(session.lidar.last)
             elif ptype == blackbox.PKT_TEXT and session:
                 if m := MAP_ID_RE.search(pdata):
                     session.map_id = m.group(1).decode(errors="replace")
                 _note_events(session, pdata, clock)
     if latest and session:
         _send(reader.serial, session, latest)
+    if scans and session:
+        _send_scans(reader.serial, session, scans)
     if session:
         _check_stuck(reader.serial, session)
 
@@ -416,6 +425,49 @@ def _send(serial: str, session: Session, pos: blackbox.Coords) -> None:
     shown = {"mapId": session.map_id, "u": u, "v": v, "heading": -math.degrees(pos.heading), "t": time.time()}
     _last_seen[serial] = shown
     push_to_app(serial, "livePosition", shown)
+
+
+SCANS_SENT = 6  # of the ~10 lidar turns a poll reads (2 s), this many go to the app, evenly spread
+
+
+def _lidar_map(serial: str, session: Session) -> dict | None:
+    """The stored map the robot's frame lies on (it started at the dock and the map has an origin): its id
+    and where the frame's origin is in its cells (a cell is 40 mm, y down). None without one."""
+    cal = _calibration(serial, session.map_id) if session.docked_at_start and session.map_id else None
+    if not cal:
+        return None
+    return {"mapId": session.map_id, "u0": cal["u0"], "v0": cal["v0"], "mmPerCell": cal["upc"] / lidar.UNITS_PER_MM}
+
+
+def _send_scans(serial: str, session: Session, scans: list[dict]) -> None:
+    """The lidar's last turns to the app (event "liveScan"): poses and points in mm of the robot's frame
+    (y up), each with its age in s, so the app can play them back in the time they took."""
+    step = max(1, len(scans) // SCANS_SENT)
+    picked = scans[::step][-SCANS_SENT:]
+    push_to_app(serial, "liveScan", {"t": time.time(), "map": _lidar_map(serial, session),
+                                     "scans": [{"pose": s["pose"], "pts": s["pts"][::2]} for s in picked]})
+
+
+def live_lidar(serial: str) -> dict | None:
+    """What the lidar saw in the clean running now (or just ended), for the live view: the grid so far
+    (gen3/lidar.Run.picture), the robot's pose and way in mm of its frame, and the map it lies on."""
+    with _lock:
+        session = _sessions.get(serial)
+        if not session or (session.ended_at and time.time() - session.ended_at > SESSION_KEEP_S):
+            return None
+        run = session.lidar
+        positions = list(session.positions[::TRACK_EVERY])
+    picture = run.picture()  # outside the lock: it takes a moment (the reader only adds counts meanwhile)
+    if not picture or not run.last:
+        return None
+    return {
+        "t": time.time(),
+        "running": not session.ended_at,
+        "map": _lidar_map(serial, session),
+        "grid": picture,
+        "pose": run.last["pose"],
+        "track": [[round(x / lidar.UNITS_PER_MM), round(y / lidar.UNITS_PER_MM)] for x, y in positions],
+    }
 
 
 def last_seen(serial: str) -> dict | None:

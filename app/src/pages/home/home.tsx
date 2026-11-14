@@ -15,6 +15,7 @@ import Drawer from '../../components/drawer/drawer'
 import { FaGaugeHigh, FaHouse } from 'react-icons/fa6'
 import { BiTargetLock } from "react-icons/bi";
 import { useApp } from '../../context/useApp'
+import LiveLidarView from '../../components/map/LiveLidarView'
 import { GEN3_MM_PER_CELL } from '../../components/map/gen3Run'
 import TimeAgo from 'react-timeago'
 import { GEN3_COMMANDS } from '../../http/gen3'
@@ -147,7 +148,7 @@ const navName = (v: CleaningNavigationMode) => `modes.${GEN3_NAV_KEY[v] ?? 'norm
 const cleanName = (v: CleaningMode) => `modes.${GEN3_MODE_KEY[v] ?? 'eco'}`
 
 export default function Home() {
-    const { lastHeartbeat, getGen3State, livePosition } = useApp()
+    const { lastHeartbeat, getGen3State, livePosition, liveScan } = useApp()
     const { robot } = useRobot();
     const { t } = useTranslation()
     const navigate = useNavigate()
@@ -157,6 +158,11 @@ export default function Home() {
 
     // settings: the last cleaning's map instead of the mascot (gen3); reloaded when the robot's state changes
     const showLastRun = loadHomeView() === 'lastRun' && robot.type === RobotType.NeatoGen3
+    // gen3 while it cleans: what its lidar sees, in place of the last run or the mascot (once there is some)
+    const cleaningNow = robot.type === RobotType.NeatoGen3
+        && (robot.state === Neato.Gen3.RobotState.BUSY || robot.state === Neato.Gen3.RobotState.PAUSED)
+    const [lidarShown, setLidarShown] = useState(false)
+    const showLidar = cleaningNow && lidarShown
     const [recentCleanings, setRecentCleanings] = useState<Neato.Gen3.CleaningRun[]>([])
     const [runIndex, setRunIndex] = useState(0) // 0 = the newest
     useEffect(() => {
@@ -307,8 +313,9 @@ export default function Home() {
             </div>
 
             {/* ── Mascot + ring ── */}
-            <div className={`${styles.mascotZone} ${showLastRun && lastCleaning ? styles.withMap : ''}`}>
-                {showLastRun && lastCleaning ? (
+            <div className={`${styles.mascotZone} ${showLidar || (showLastRun && lastCleaning) ? styles.withMap : ''}`}>
+                {cleaningNow && <LiveLidarView serial={robot.serial} scan={liveScan} onAvailable={setLidarShown} />}
+                {showLidar ? null : showLastRun && lastCleaning ? (
                     <LastRun
                         cleaning={lastCleaning}
                         marker={mascot.src}
