@@ -43,6 +43,15 @@ be offered back as pull requests.
   enforced (the robot silently drops the rest).
 - **Coverage heatmap** on the map page: how often each part of the floor was cleaned in the last
   10 / 30 runs, and which free floor no run reached.
+- **Problem spots without clutter** (Gen3): bumps are a soft orange haze that darkens where the
+  robot bumps often, the other problems (stuck, lost, tilted, …) are symbols grouped by zoom with a
+  count, and each kind is a chip with its count to switch it on and off.
+- **Turn the map**: two fingers on the phone, two fingers on a Mac trackpad (Safari), the turn
+  buttons (15°) or `[` / `]`. It snaps to quarter turns, labels stay upright, and the angle is kept
+  per map on the device. Pinch zoom on the phone is steady now (no jumps, no double zoom on iOS).
+- **The map's sheet** (phone) is as tall as its content, at most 88 % of the map (60 % while
+  editing a zone), and slides closed to its handle: a zone's buttons are no longer cut off, also
+  in the installed app.
 
 ### Live position and black box (Gen3)
 - **Where the robot is, live on the map** while it cleans, with the way it took, read from the
@@ -195,7 +204,8 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
 - *Not released yet* (since sb 1.3.0): the fork's own texts in German; a zone deleted from the
-  map can be taken out of a schedule entry; one robot per address (`VACUULA_ROBOT_PORTS`).
+  map can be taken out of a schedule entry; one robot per address (`VACUULA_ROBOT_PORTS`); problem
+  spots without clutter, turning the map, and the map's sheet sized to its content.
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -336,6 +346,9 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 | Date | Commit | Area | Change |
 |---|---|---|---|
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
+| 2026-11-14 | [`72b50e2`](https://github.com/Sb-futuretech/vacuula/commit/72b50e2) | Map | The map's sheet is as tall as its content (at most 88 %), slides closed; zone buttons no longer cut off on phones |
+| 2026-11-14 | [`fabe513`](https://github.com/Sb-futuretech/vacuula/commit/fabe513) | Map | Turn the map: two-finger twist, trackpad, buttons and `[` / `]`, kept per map |
+| 2026-11-14 | [`14131b9`](https://github.com/Sb-futuretech/vacuula/commit/14131b9) | Map | Bumps as a haze, problem symbols grouped by zoom, filter chips, steadier pinch zoom |
 | 2026-11-13 | [`a48f52c`](https://github.com/Sb-futuretech/vacuula/commit/a48f52c) | Server | One robot per extra port (`VACUULA_ROBOT_PORTS`): the app there sees and controls only that robot |
 | 2026-11-12 | [`f517ec2`](https://github.com/Sb-futuretech/vacuula/commit/f517ec2) | Schedule | A zone deleted from the map can be taken out of a Pi entry (it was hidden and saved again) |
 | 2026-11-11 | [`289adee`](https://github.com/Sb-futuretech/vacuula/commit/289adee) | App | German for the fork's own texts (303): statistics, map, schedule, notifications, Telegram, drive |
