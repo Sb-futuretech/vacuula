@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, type CSSProperties } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react'
 import styles from './map.module.scss'
 import Drawer from '../../components/drawer/drawer'
 
@@ -205,6 +205,18 @@ export default () => {
         return () => { cancelled = true }
     }, [showProblems, persistentMap, robot.serial, robot.type])
     const problems = showProblems && loadedProblems && loadedProblems.mapId === persistentMap ? loadedProblems.list : undefined
+    // the kinds switched off with the chips, and how many of each there are
+    const [hiddenKinds, setHiddenKinds] = useState<ReadonlySet<Problem['kind']>>(new Set())
+    const problemKinds = useMemo(() => {
+        const counts = new Map<Problem['kind'], number>()
+        for (const p of problems ?? []) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1)
+        return [...counts].sort((a, b) => b[1] - a[1])
+    }, [problems])
+    const toggleKind = (kind: Problem['kind']) => setHiddenKinds(prev => {
+        const next = new Set(prev)
+        if (!next.delete(kind)) next.add(kind)
+        return next
+    })
 
     // gen3: floor type from the brush load over the runs (black box), and carpet areas to add as a zone
     const [showFloor, setShowFloor] = useState(false)
@@ -278,7 +290,7 @@ export default () => {
             drawBase(ctx, { x: baseData[0], y: baseData[1], dir: baseData[2] ?? 0 }, currentZoom, currentOffset, mapSize, 0)
         }
 
-        if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, true)
+        if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, hiddenKinds)
 
         // gen3: the robot where it is now and its way during this clean (fresh positions only); else on
         // its dock, or faded where it was last seen (it logs its position only while it cleans)
@@ -308,7 +320,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, floorType, lastSeen, robot, mascotImg])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
 
     // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
     const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''
@@ -663,7 +675,7 @@ export default () => {
                 showBackButton={['map-edit', 'boundary-info'].includes(mode)}
                 onBackButtonClick={handleBackBtn}
                 onOpenChange={setDrawerOpen}
-                openHeightPercent={mode === 'boundary-edit' ? 60 : mode === 'boundary-info' ? 30 : 70}
+                maxHeightPercent={mode === 'boundary-edit' ? 60 : undefined} // editing: the zone stays in sight
                 title={getTitle()}
             >
                 {mode === 'map-edit' && mapEditform && persistentMap && (
@@ -805,12 +817,16 @@ export default () => {
                                 <Input type="switch" label={t('map.problems')} value={showProblems} onChange={setShowProblems} />
                                 {showProblems && (
                                     <>
-                                        <div className={styles.heatmapLegend}>
-                                            {([['bump', t('map.problem.bump')], ['tilt', t('map.problem.tilt')], ['lost', t('map.problem.lost')],
-                                                ['stuck', t('map.problem.stuck')], ['dock_tilted', t('map.problem.dock_tilted')]] as const).map(([k, label]) => (
-                                                <span key={k}>{PROBLEM_ICONS[k]} {label}</span>
+                                        <div className={styles.problemChips}>
+                                            {problemKinds.map(([kind, count]) => (
+                                                <button key={kind} type="button" aria-pressed={!hiddenKinds.has(kind)}
+                                                    className={hiddenKinds.has(kind) ? styles.chipOff : styles.chip}
+                                                    onClick={() => toggleKind(kind)}>
+                                                    {PROBLEM_ICONS[kind]} {t(`map.problem.${kind}`)} <b>{count}</b>
+                                                </button>
                                             ))}
                                         </div>
+                                        {problemKinds.some(([k]) => k === 'bump') && <span className={styles.heatmapInfo}>{t('map.bumpHaze')}</span>}
                                         <span className={styles.heatmapInfo}>
                                             {problems ? t('map.problemsCount', { count: problems.length }) : t('common.loading')}
                                         </span>

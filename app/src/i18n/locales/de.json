@@ -405,6 +405,9 @@
         "addHere": "Hier hinzufügen",
         "tapBubble": "Tippe auf eine Zone oder Linie für die Details",
         "rulers": "Lineale",
+        "rotateLeft": "Karte nach links drehen ([)",
+        "rotateRight": "Karte nach rechts drehen (])",
+        "rotateReset": "Drehung zurücksetzen",
         "helpRuler": "Der Lineal-Knopf zeigt Abstände am oberen und linken Rand (beim Zeichnen immer an).",
         "helpSelectTitle": "Zonen und Linien",
         "helpSelect": "Tippe auf eine Zone oder Linie auf der Karte oder in der Liste, um ihre Details zu sehen: ein- oder ausschalten, reinigen, bearbeiten oder löschen. Tippe auf eine leere Stelle, um zur Liste zurückzukehren; ist nichts ausgewählt, kannst du genau dort etwas hinzufügen.",
@@ -451,13 +454,17 @@
         "coverageBadge": "{{percent}} % gereinigt",
         "coverageHint": "Anteil der Zone (oder der freien Fläche), den diese Reinigung geschafft hat; rot: verpasst",
         "problems": "Problemstellen",
+        "bumpHaze": "Orange Schleier: wo der Roboter oft anstößt (je dunkler, desto öfter)",
         "problemsCount": "{{count}} Probleme in den letzten Reinigungen",
         "problem": {
             "bump": "angestoßen",
             "tilt": "gekippt",
             "lost": "Position verloren",
             "stuck": "festgesteckt",
-            "dock_tilted": "Andocken abgebrochen (gekippt)"
+            "dock_tilted": "Andocken abgebrochen (gekippt)",
+            "unreachable": "nicht erreichbar",
+            "slip": "durchgerutscht",
+            "off_base": "von der Station gerutscht"
         },
         "floor": {
             "title": "Bodenart",

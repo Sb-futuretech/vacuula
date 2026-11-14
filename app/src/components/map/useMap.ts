@@ -1,8 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { DRAWING } from './constants'
+import { COLORS, DRAWING, readMapToken } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
-import { drawMap, drawCoverage, drawCleaned, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, type CellShape } from './drawingFunctions'
+import { drawMap, drawCoverage, drawCleaned, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, setViewAngle, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_NOT_PATH, GEN3_RUN_START, cellsCentre } from './gen3Run'
 import { cleaningLoader, persistentMapLoader, useCleaning, usePersistentMap } from '../../loaders/resources'
@@ -79,14 +79,41 @@ export function useMap({
         zoom, offset, isDragging, hasMoved,
         handleMouseDown, handleMouseMove, handleMouseUp, handleWheel, handleGesture, handleDoubleClick,
         handleTouchStart, handleTouchMove, handleTouchEnd,
-        centerView, zoomBy, setZoom, setOffset
-    } = useCanvasViewport({ initialZoom: 4, initialOffset: { x: 0, y: 0 } })
+        centerView, zoomBy, setZoom, setOffset,
+        angle, setAngle, rotateBy, toMapScreen
+    } = useCanvasViewport({ initialZoom: 4, initialOffset: { x: 0, y: 0 }, canvasRef })
+
+    // the view's rotation is kept per map on this device (a map's "up" is wherever the robot started)
+    const angleKey = `vacuula.mapAngle.${mapId}`
+    useEffect(() => {
+        let a = 0
+        try { a = Number(localStorage.getItem(angleKey)) || 0 } catch { /* no storage */ }
+        setAngle(a)
+    }, [angleKey])
+    useEffect(() => {
+        try {
+            if (angle) localStorage.setItem(angleKey, String(angle))
+            else localStorage.removeItem(angleKey)
+        } catch { /* no storage */ }
+    }, [angle])
 
     const draw = useCallback((currentZoom: number = zoom, currentOffset: Offset = offset) => {
         const canvas = canvasRef.current
         if (!canvas || !cellsRef.current || !mapSize) return
         const ctx = canvas.getContext('2d')
         if (!ctx) return
+
+        // turned view: fill the whole canvas first (the map's own background is turned with it and
+        // leaves the corners), then draw everything turned around the canvas centre
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        setViewAngle(angle)
+        if (angle) {
+            ctx.fillStyle = backgroundToken ? readMapToken(backgroundToken) : COLORS.BACKGROUND
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+            ctx.translate(canvas.width / 2, canvas.height / 2)
+            ctx.rotate(angle)
+            ctx.translate(-canvas.width / 2, -canvas.height / 2)
+        }
 
         const covered = coverage && runCellsRef.current?.length === cellsRef.current.length
         if (plan) drawPlanFloor(ctx, canvas, cellsRef.current, currentZoom, currentOffset, mapSize, backgroundToken)
@@ -104,7 +131,8 @@ export function useMap({
         if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
-    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan, cleanedCells])
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+    }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan, cleanedCells, angle])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         userInteractedRef.current = true
@@ -129,10 +157,12 @@ export function useMap({
         canvas.addEventListener('wheel', onWheel, { passive: false })
         canvas.addEventListener('gesturestart', onGesture)
         canvas.addEventListener('gesturechange', onGesture)
+        canvas.addEventListener('gestureend', onGesture)
         return () => {
             canvas.removeEventListener('wheel', onWheel)
             canvas.removeEventListener('gesturestart', onGesture)
             canvas.removeEventListener('gesturechange', onGesture)
+            canvas.removeEventListener('gestureend', onGesture)
         }
     }, [mapSize])
 
@@ -203,10 +233,16 @@ export function useMap({
             ? getRunBounds(runCellsRef.current, runIgnoreSetRef.current, mapSize,
                 [runMarkers.dock ?? fitInclude, runMarkers.start, runMarkers.end].filter(p => !!p))
             : null
-        return runBounds
-            ? calcFitToBounds(runBounds, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
-            : calcFitZoomAndOffset(cellsRef.current, mapSize, width, height, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
-    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runMarkers])
+        // turned view: fit into the part of the unturned canvas that stays on screen (sides swapped
+        // near a quarter turn, smaller in between), centred on the canvas centre the view turns around
+        const c = Math.abs(Math.cos(angle)), s = Math.abs(Math.sin(angle))
+        const k = 1 / (c + s)
+        const w = (c >= s ? width : height) * k, h = (c >= s ? height : width) * k
+        const fit = runBounds
+            ? calcFitToBounds(runBounds, w, h, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM, 0.8)
+            : calcFitZoomAndOffset(cellsRef.current, mapSize, w, h, DRAWING.MIN_ZOOM, DRAWING.MAX_ZOOM)
+        return fit && { zoom: fit.zoom, offset: { x: fit.offset.x + (width - w) / 2, y: fit.offset.y + (height - h) / 2 } }
+    }, [mapSize, fitToRun, fitInclude?.[0], fitInclude?.[1], runMarkers, angle])
 
     // the run and the dock arrive after the floor: fit again unless the user moved the map
     useEffect(() => {
@@ -284,6 +320,11 @@ export function useMap({
         draw,
         resetView,
         zoomStep,
-        setOffset
+        setOffset,
+        // rotation of the view (radians), turning it, and a canvas point turned back for hit tests
+        angle,
+        setAngle,
+        rotateBy,
+        toMapScreen
     }
 }

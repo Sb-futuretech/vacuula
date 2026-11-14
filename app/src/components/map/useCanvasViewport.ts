@@ -6,24 +6,89 @@ import { getTouchDistance, getTouchAngle } from './utils'
 interface Props {
     initialZoom: number
     initialOffset: Offset
+    // the canvas, for its centre: the view turns around the middle of the canvas
+    canvasRef?: React.RefObject<HTMLCanvasElement | undefined>
+}
+
+// a two-finger twist turns the map only once it passed this, so a pinch to zoom does not turn it
+const TWIST_START = 12 * Math.PI / 180
+// letting go this close to a quarter turn snaps to it
+const SNAP = 8 * Math.PI / 180
+
+// an angle in (-PI, PI]
+export const normAngle = (a: number) => {
+    a = a % (2 * Math.PI)
+    if (a > Math.PI) a -= 2 * Math.PI
+    if (a <= -Math.PI) a += 2 * Math.PI
+    return a
 }
 
 export const useCanvasViewport = ({
     initialZoom,
-    initialOffset
+    initialOffset,
+    canvasRef
 }: Props) => {
     const [zoom, setZoom] = useState(initialZoom)
     const [offset, setOffset] = useState(initialOffset)
 
+    // Rotation of the view (radians, clockwise on screen) around the canvas centre. Zoom, offset and
+    // every hit test work in "unrotated" canvas coordinates: a screen point is turned back around the
+    // centre first (toMapScreen), so the rest of the map code does not need to know about it.
+    const [angle, setAngleState] = useState(0)
+    const angleRef = useRef(0)
+    const setAngle = (a: number) => {
+        angleRef.current = normAngle(a)
+        setAngleState(angleRef.current)
+    }
+    const centre = () => {
+        const c = canvasRef?.current
+        return c ? { x: c.width / 2, y: c.height / 2 } : { x: 0, y: 0 }
+    }
+    const unrotate = (x: number, y: number, a: number) => {
+        if (!a) return { x, y }
+        const c = centre(), cos = Math.cos(-a), sin = Math.sin(-a)
+        const dx = x - c.x, dy = y - c.y
+        return { x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos }
+    }
+    // a canvas point (CSS px) as the map code sees it (before the view's rotation)
+    const toMapScreen = (x: number, y: number) => unrotate(x, y, angleRef.current)
+
+    // turn the view by `delta`; the map point under `pivot` (canvas px) stays where it is
+    const rotateBy = (delta: number, pivot?: { x: number, y: number }) => {
+        const a0 = angleRef.current, a1 = normAngle(a0 + delta)
+        if (pivot) {
+            const u0 = unrotate(pivot.x, pivot.y, a0), u1 = unrotate(pivot.x, pivot.y, a1)
+            setOffset(prev => ({ x: prev.x + u1.x - u0.x, y: prev.y + u1.y - u0.y }))
+        }
+        setAngle(a1)
+    }
+    // close to a quarter turn: snap to it (around the centre)
+    const snapAngle = () => {
+        const q = Math.round(angleRef.current / (Math.PI / 2)) * (Math.PI / 2)
+        if (Math.abs(angleRef.current - q) < SNAP && angleRef.current !== q) setAngle(q)
+    }
+
     const [isDragging, setIsDragging] = useState(false)
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-    const [touchStart, setTouchStart] = useState<TouchState | null>(null)
+    // touch state in refs, not state: several touchmove events arrive between two renders, and each
+    // has to compare with the previous one (state would hand them all the same old pinch distance,
+    // so the zoom jumped). touchActive: fingers are down -- iOS then also fires its own gesture
+    // events for the same pinch, which must not zoom a second time
+    const touchStartRef = useRef<TouchState | null>(null)
+    const touchDragRef = useRef<{ x: number, y: number } | null>(null)
+    const touchActiveRef = useRef(false)
+    // two-finger twist: how far it turned in this gesture, and whether it turns the map yet
+    const twistRef = useRef(0)
+    const turningRef = useRef(false)
     const [hasMoved, setHasMoved] = useState(false)
 
+    // a drag on screen, turned back into the unrotated map coordinates
     const pan = (dx: number, dy: number) => {
+        const a = -angleRef.current, cos = Math.cos(a), sin = Math.sin(a)
+        const rx = dx * cos - dy * sin, ry = dx * sin + dy * cos
         setOffset(prev => ({
-            x: prev.x + dx,
-            y: prev.y + dy
+            x: prev.x + rx,
+            y: prev.y + ry
         }))
     }
 
@@ -32,7 +97,8 @@ export const useCanvasViewport = ({
     // committed state, rather than the `zoom`/`offset` closed over when this render's handlers
     // were created — matters during fast pinches/wheels, where several events can fire before
     // React re-renders in between.
-    const zoomBy = (factor: number, centerX: number, centerY: number) => {
+    const zoomBy = (factor: number, screenX: number, screenY: number) => {
+        const { x: centerX, y: centerY } = unrotate(screenX, screenY, angleRef.current)
         setZoom(prevZoom => {
             const newZoom = Math.max(DRAWING.MIN_ZOOM, Math.min(DRAWING.MAX_ZOOM, prevZoom * factor))
             setOffset(prevOffset => ({
@@ -93,15 +159,32 @@ export const useCanvasViewport = ({
     const gestureScaleRef = useRef(1)
     const handleGesture = (e: Event) => {
         e.preventDefault()
-        const g = e as Event & { scale: number, clientX: number, clientY: number }
+        if (touchActiveRef.current) return // a touch screen: the touch events do the pinch
+        const g = e as Event & { scale: number, rotation: number, clientX: number, clientY: number }
         if (e.type === 'gesturestart') {
             gestureScaleRef.current = 1
+            gestureRotationRef.current = 0
+            gestureTurningRef.current = false
+            return
+        }
+        if (e.type === 'gestureend') {
+            if (gestureTurningRef.current) snapAngle()
             return
         }
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-        zoomBy(g.scale / gestureScaleRef.current, g.clientX - rect.left, g.clientY - rect.top)
+        const at = { x: g.clientX - rect.left, y: g.clientY - rect.top }
+        zoomBy(g.scale / gestureScaleRef.current, at.x, at.y)
         gestureScaleRef.current = g.scale
+        // trackpad twist (degrees, from the start of the gesture)
+        const turned = (g.rotation ?? 0) * Math.PI / 180
+        if (!gestureTurningRef.current && Math.abs(turned) > TWIST_START) {
+            gestureTurningRef.current = true
+            rotateBy(turned, at)
+        } else if (gestureTurningRef.current) rotateBy(turned - gestureRotationRef.current, at)
+        if (gestureTurningRef.current) gestureRotationRef.current = turned
     }
+    const gestureRotationRef = useRef(0)
+    const gestureTurningRef = useRef(false)
 
     const handleDoubleClick = (e: React.MouseEvent) => {
         const rect = e.currentTarget.getBoundingClientRect()
@@ -114,20 +197,24 @@ export const useCanvasViewport = ({
 
     const handleTouchStart = (e: React.TouchEvent) => {
         const t = e.touches
+        touchActiveRef.current = true
 
         if (t.length === 1) {
             setIsDragging(true)
-            setDragStart({ x: t[0].clientX, y: t[0].clientY })
-            setTouchStart(null)
+            touchDragRef.current = { x: t[0].clientX, y: t[0].clientY }
+            touchStartRef.current = null
             setHasMoved(false)
         } else if (t.length === 2) {
             const distance = getTouchDistance(t[0], t[1])
             // Guard: fingers landing almost on top of each other give a near-zero
             // distance, which would blow up the ratio in handleTouchMove on the very
             // first move and snap zoom to an extreme it then gets stuck at.
-            setTouchStart(distance > DRAWING.MIN_PINCH_DISTANCE
+            touchStartRef.current = distance > DRAWING.MIN_PINCH_DISTANCE
                 ? { distance, angle: getTouchAngle(t[0], t[1]) }
-                : null)
+                : null
+            touchDragRef.current = null
+            twistRef.current = 0
+            turningRef.current = false
             setIsDragging(false)
         }
     }
@@ -136,61 +223,66 @@ export const useCanvasViewport = ({
         const t = e.touches
         setHasMoved(true)
 
-        if (t.length === 1 && isDragging) {
-            const dx = t[0].clientX - dragStart.x
-            const dy = t[0].clientY - dragStart.y
+        const drag = touchDragRef.current
+        if (t.length === 1 && drag) {
+            const dx = t[0].clientX - drag.x
+            const dy = t[0].clientY - drag.y
 
             if (
                 Math.abs(dx) >= DRAWING.MIN_MOVEMENT ||
                 Math.abs(dy) >= DRAWING.MIN_MOVEMENT
             ) {
                 pan(dx, dy)
-
-                setDragStart({
-                    x: t[0].clientX,
-                    y: t[0].clientY
-                })
+                touchDragRef.current = { x: t[0].clientX, y: t[0].clientY }
             }
         }
 
-        if (t.length === 2 && touchStart) {
+        const start = touchStartRef.current
+        if (t.length === 2 && start) {
             const rect = e.currentTarget.getBoundingClientRect()
             const distance = getTouchDistance(t[0], t[1])
 
             // Same guard as touchstart — fingers sliding to briefly overlap mid-gesture
             // shouldn't divide by near-zero either.
             if (distance > DRAWING.MIN_PINCH_DISTANCE) {
-                const ratio = distance / touchStart.distance
+                const ratio = distance / start.distance
                 const centerX = (t[0].clientX + t[1].clientX) / 2 - rect.left
                 const centerY = (t[0].clientY + t[1].clientY) / 2 - rect.top
 
                 zoomBy(Math.pow(ratio, DRAWING.PINCH_ZOOM_POWER), centerX, centerY)
 
-                setTouchStart({ distance, angle: getTouchAngle(t[0], t[1]) })
+                const angleNow = getTouchAngle(t[0], t[1])
+                const turned = normAngle(angleNow - start.angle)
+                twistRef.current += turned
+                if (!turningRef.current && Math.abs(twistRef.current) > TWIST_START) {
+                    turningRef.current = true
+                    rotateBy(twistRef.current, { x: centerX, y: centerY })
+                } else if (turningRef.current) rotateBy(turned, { x: centerX, y: centerY })
+
+                touchStartRef.current = { distance, angle: angleNow }
             }
         }
     }
 
-    // *** The main fix ***
-    // Previously this unconditionally cleared everything, so lifting either finger out of
-    // a pinch a moment before the other (the normal case — hands don't lift in perfect
-    // sync) killed the gesture. Now it checks what's still down: with one finger
-    // remaining, hand off cleanly into a single-finger pan from its current position
-    // instead of losing tracking until every finger comes up.
+    // Lifting one finger of a pinch a moment before the other (the normal case) hands off to a
+    // one-finger pan from where that finger is, instead of losing the gesture.
     const handleTouchEnd = (e: React.TouchEvent) => {
         const remaining = e.touches
+        touchStartRef.current = null
 
         if (remaining.length === 1) {
             setIsDragging(true)
-            setDragStart({ x: remaining[0].clientX, y: remaining[0].clientY })
-            setTouchStart(null)
+            touchDragRef.current = { x: remaining[0].clientX, y: remaining[0].clientY }
         } else {
             setIsDragging(false)
-            setTouchStart(null)
+            touchDragRef.current = null
         }
 
         if (remaining.length === 0) {
             setHasMoved(false)
+            touchActiveRef.current = false
+            if (turningRef.current) snapAngle()
+            turningRef.current = false
         }
     }
 
@@ -232,6 +324,12 @@ export const useCanvasViewport = ({
         centerView,
         zoomBy,
         setZoom,
-        setOffset
+        setOffset,
+
+        // rotation
+        angle,
+        setAngle,
+        rotateBy,
+        toMapScreen
     }
 }
