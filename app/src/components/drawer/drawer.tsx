@@ -15,9 +15,6 @@ interface DrawerProps {
     handle: boolean
     open: boolean,
     openHeightPercent?: number // handle sheets only: how far they open
-    // handle sheets only: open further when the content needs it (openHeightPercent is then the least,
-    // at most nearly the page), so short screens don't cut it off
-    fitContent?: boolean
     onOpenChange?: (open: boolean) => void,
     children?: React.ReactNode,
     footer?: React.ReactNode
@@ -33,19 +30,11 @@ interface DrawerProps {
 const HANDLE_HEIGHT = 60
 // a modal sheet pulled down further than this closes
 const CLOSE_DRAG = 80
-// a handle sheet never covers more of its page than this, so a strip of the map stays to drag on
-const MAX_SHARE = 0.88
 
 export default function Drawer(props: DrawerProps) {
     const { t } = useTranslation()
     const isPanel = useIsDesktop() && !!props.sidePanel
     const [drawerHeight, setDrawerHeight] = useState(HANDLE_HEIGHT)
-    // A handle sheet sits at the bottom of its page (the map area), which on a phone is much smaller
-    // than the window (header, navbar), and window.innerHeight is wrong in the installed iOS app.
-    // So every height is a share of the room the page gives it.
-    const sheetRef2 = useRef<HTMLDivElement>(null)
-    // (offsetParent: what the absolutely placed sheet is positioned in)
-    const room = () => (sheetRef2.current?.offsetParent as HTMLElement | null)?.clientHeight || window.innerHeight
     const [isDraggingDrawer, setIsDraggingDrawer] = useState(false)
 
     // Per-gesture values, inside the event handlers
@@ -97,7 +86,7 @@ export default function Drawer(props: DrawerProps) {
         if (!movedRef.current) return
         lastDeltaRef.current = lastYRef.current - e.clientY // flick detection
         lastYRef.current = e.clientY
-        const newHeight = Math.min(room() * MAX_SHARE, Math.max(HANDLE_HEIGHT, startHeightRef.current + total))
+        const newHeight = Math.min(window.innerHeight * 0.9, Math.max(HANDLE_HEIGHT, startHeightRef.current + total))
         currentHeightRef.current = newHeight
         setDrawerHeight(newHeight)
     }
@@ -110,7 +99,7 @@ export default function Drawer(props: DrawerProps) {
         const lastDelta = lastDeltaRef.current
         if (lastDelta < -15) closeDrawer()
         else if (lastDelta > 15) openDrawer()
-        else if ((currentHeightRef.current - HANDLE_HEIGHT) > room() * 0.2) openDrawer()
+        else if ((currentHeightRef.current - HANDLE_HEIGHT) > window.innerHeight * 0.2) openDrawer()
         else closeDrawer()
     }
 
@@ -120,23 +109,8 @@ export default function Drawer(props: DrawerProps) {
         else openDrawer()
     }
 
-    // how high an open sheet is: openHeightPercent of its page; with fitContent as high as the content
-    // needs (measured from the content itself, so it works after every drag too), at most MAX_SHARE
-    const contentRef = useRef<HTMLDivElement>(null)
-    const openHeight = () => {
-        const least = room() * ((props.openHeightPercent ?? 70) / 100)
-        const el = contentRef.current
-        if (!props.fitContent || !el) return least
-        // children are placed relative to the sheet (it is absolutely positioned): their lowest edge,
-        // the content's bottom padding (home indicator) and the sheet's 2 px top border
-        let bottom = 0
-        for (const child of Array.from(el.children) as HTMLElement[]) bottom = Math.max(bottom, child.offsetTop + child.offsetHeight)
-        const need = bottom + parseFloat(getComputedStyle(el).paddingBottom) + 2
-        return Math.min(room() * MAX_SHARE, Math.max(least, need))
-    }
-
     const openDrawer = () => {
-        setDrawerHeight(openHeight());
+        setDrawerHeight(window.innerHeight * ((props.openHeightPercent ?? 70) / 100));
         props.onOpenChange?.(true);
     }
     const closeDrawer = () => {
@@ -145,29 +119,6 @@ export default function Drawer(props: DrawerProps) {
     }
     const isDrawerOpen = () => drawerHeight > 100;
 
-    // the page changes size (phone turned, browser bars, keyboard): open sheets follow it
-    useEffect(() => {
-        const page = sheetRef2.current?.offsetParent
-        if (!page || isPanel || isModal) return
-        const ro = new ResizeObserver(() => {
-            if (!props.open || isDraggingDrawer) return
-            setDrawerHeight(openHeight())
-        })
-        ro.observe(page)
-        return () => ro.disconnect()
-    }, [props.open, props.openHeightPercent, props.fitContent, isDraggingDrawer, isPanel, isModal])
-
-    // fitContent: follow the content (it can load later or change, so its size is watched)
-    useEffect(() => {
-        const el = contentRef.current
-        if (!props.fitContent || !props.open || !el || isDraggingDrawer) return
-        const fit = () => setDrawerHeight(openHeight())
-        fit()
-        const ro = new ResizeObserver(fit)
-        for (const child of Array.from(el.children)) ro.observe(child)
-        return () => ro.disconnect()
-    }, [props.fitContent, props.open, props.children, drawerHeight > 100, isDraggingDrawer])
-
     useEffect(() => {
         if (props.open) openDrawer()
         else closeDrawer()
@@ -175,7 +126,7 @@ export default function Drawer(props: DrawerProps) {
 
     useEffect(() => {
         if (isDraggingDrawer) return
-        setDrawerHeight(props.open ? openHeight() : HANDLE_HEIGHT)
+        setDrawerHeight(props.open ? window.innerHeight * ((props.openHeightPercent ?? 70) / 100) : HANDLE_HEIGHT)
     }, [props.openHeightPercent])
 
     const backButton = props.showBackButton && (props.open || isPanel) && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
@@ -250,7 +201,6 @@ export default function Drawer(props: DrawerProps) {
 
     return (
         <div
-            ref={sheetRef2}
             className={styles.drawer}
             style={{
                 height: `${drawerHeight}px`,
@@ -270,7 +220,7 @@ export default function Drawer(props: DrawerProps) {
             </div>
 
             {drawerHeight > 100 && (
-                <div ref={contentRef} className={styles.drawerContent}>
+                <div className={styles.drawerContent}>
                     {props.children}
                 </div>
             )}
