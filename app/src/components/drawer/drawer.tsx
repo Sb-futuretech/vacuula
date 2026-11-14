@@ -120,8 +120,23 @@ export default function Drawer(props: DrawerProps) {
         else openDrawer()
     }
 
+    // how high an open sheet is: openHeightPercent of its page; with fitContent as high as the content
+    // needs (measured from the content itself, so it works after every drag too), at most MAX_SHARE
+    const contentRef = useRef<HTMLDivElement>(null)
+    const openHeight = () => {
+        const least = room() * ((props.openHeightPercent ?? 70) / 100)
+        const el = contentRef.current
+        if (!props.fitContent || !el) return least
+        // children are placed relative to the sheet (it is absolutely positioned): their lowest edge,
+        // the content's bottom padding (home indicator) and the sheet's 2 px top border
+        let bottom = 0
+        for (const child of Array.from(el.children) as HTMLElement[]) bottom = Math.max(bottom, child.offsetTop + child.offsetHeight)
+        const need = bottom + parseFloat(getComputedStyle(el).paddingBottom) + 2
+        return Math.min(room() * MAX_SHARE, Math.max(least, need))
+    }
+
     const openDrawer = () => {
-        setDrawerHeight(room() * ((props.openHeightPercent ?? 70) / 100));
+        setDrawerHeight(openHeight());
         props.onOpenChange?.(true);
     }
     const closeDrawer = () => {
@@ -136,31 +151,22 @@ export default function Drawer(props: DrawerProps) {
         if (!page || isPanel || isModal) return
         const ro = new ResizeObserver(() => {
             if (!props.open || isDraggingDrawer) return
-            const least = room() * ((props.openHeightPercent ?? 70) / 100)
-            // fitContent keeps the height it grew to, only within the new room
-            setDrawerHeight(h => Math.min(room() * MAX_SHARE, props.fitContent ? Math.max(least, h) : least))
+            setDrawerHeight(openHeight())
         })
         ro.observe(page)
         return () => ro.disconnect()
     }, [props.open, props.openHeightPercent, props.fitContent, isDraggingDrawer, isPanel, isModal])
 
-    // fitContent: grow to the content (it can load later, so its size is watched)
-    const contentRef = useRef<HTMLDivElement>(null)
+    // fitContent: follow the content (it can load later or change, so its size is watched)
     useEffect(() => {
         const el = contentRef.current
-        if (!props.fitContent || !props.open || !el) return
-        const fit = () => {
-            if (movedRef.current) return // the user is dragging it
-            // the sheet's height minus what the content gets of it = handle and border
-            const sheet = el.parentElement?.getBoundingClientRect().height ?? 0
-            const want = Math.min(room() * MAX_SHARE, sheet - el.clientHeight + el.scrollHeight)
-            setDrawerHeight(h => want > h + 2 ? want : h)
-        }
+        if (!props.fitContent || !props.open || !el || isDraggingDrawer) return
+        const fit = () => setDrawerHeight(openHeight())
         fit()
         const ro = new ResizeObserver(fit)
         for (const child of Array.from(el.children)) ro.observe(child)
         return () => ro.disconnect()
-    }, [props.fitContent, props.open, props.children, drawerHeight > 100])
+    }, [props.fitContent, props.open, props.children, drawerHeight > 100, isDraggingDrawer])
 
     useEffect(() => {
         if (props.open) openDrawer()
@@ -169,7 +175,7 @@ export default function Drawer(props: DrawerProps) {
 
     useEffect(() => {
         if (isDraggingDrawer) return
-        setDrawerHeight(props.open ? room() * ((props.openHeightPercent ?? 70) / 100) : HANDLE_HEIGHT)
+        setDrawerHeight(props.open ? openHeight() : HANDLE_HEIGHT)
     }, [props.openHeightPercent])
 
     const backButton = props.showBackButton && (props.open || isPanel) && <FaArrowLeft size={25} className={styles.handleIcon} onClick={(e) => {
