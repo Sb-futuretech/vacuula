@@ -468,9 +468,9 @@ export default () => {
                     .then(() => updatePersistentMaps(), () => { /* said so */ })
             })
         } else {
-            // The robot keeps each coordinate rounded to 4 decimals (0.40996 -> 0.41) and drops the rest,
-            // so send it exactly that: what the app shows is then what the robot stores. Only the fields
-            // it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer exactly.
+            // The server hands the robot each coordinate rounded to 3 decimals (and a short id, no name or
+            // colour), so round the same way here: what the app shows is then what the robot stores.
+            // Only the fields it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer.
             const stored: (NoGoLine | Zone)[] = next.map(({ id, name, color, type, vertices, enabled }) =>
                 ({ id, name, color, type, vertices: vertices.map(roundPoint), enabled }))
             const sent = stored.map(b => b.type === 'polygon' ? { ...b, relevancy: roundPoint(calcRelevancy(b.vertices)) } : b)

@@ -3,6 +3,7 @@ import re
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
+from vacuula_server.gen3 import boundary_alias
 from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position, floor_type, coverage_map
 from vacuula_server import notifications, telegram
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
@@ -424,6 +425,11 @@ def post_robot_command(req: RouterHandler, serial: str) -> None:
         return
 
     conn = robot_connections[serial]
+    # a set whose answer passes ~2044 bytes makes a D7 hang up or stop answering until restarted
+    if conn.gen == Generation.GEN3 and (size := boundary_alias.too_big(serial, data)) is not None:
+        req.send_bad_request(f"too many zones / lines for the robot: its answer would be {size} bytes "
+                             f"(limit {boundary_alias.REPLY_LIMIT})")
+        return
     slot = PendingRequest()
     if (conn.gen == Generation.GEN4):
         # gen4
