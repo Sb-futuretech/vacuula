@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosResponse } from "axios";
 import i18n from "./i18n";
 import { Neato, type QuickRobotInfo } from "./types";
 import type { NoGoLine, VacuulaMapData, Zone } from "./components/map/types";
@@ -230,9 +230,31 @@ export interface ZoneQueueStatus {
 export type DriveCombo = 'forward' | 'back' | 'stop' | 'arc-left' | 'arc-right' | 'pivot-left' | 'pivot-right'
 export type DriveCommand = `${'vacuum' | 'brush' | 'eco' | 'turbo'}-${'on' | 'off'}`
 
+// robot reads that are shared (see Http.sendCmd)
+const SHARED_READS = new Set(['getRobotState', 'getSchedule', 'getMapBoundaries', 'getGeneralInfo', 'getPreferences'])
+const SHARE_MS = 1500
+interface SharedRead { at: number | null, promise: Promise<AxiosResponse<unknown>> }
+const sharedReads = new Map<string, SharedRead>()
+
 export class Http {
+  // Robot commands. A read the app asks for from several places at once (on start: the robot is
+  // selected twice and the live connection opens -- three getRobotState in 0.7 s, each one a trip to the
+  // robot of 0.3-1.3 s) is shared: while one is under way, or its answer is less than SHARE_MS old,
+  // the same answer is used. Any other command (start, save, dismiss...) changes the robot: the shared
+  // answers of that robot are dropped, so a read after it always asks the robot again.
   static sendCmd<T>(robotSerial: string, cmd: object) {
-    return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+    const name = (cmd as { cmd?: string }).cmd ?? ''
+    if (!SHARED_READS.has(name)) {
+      for (const key of sharedReads.keys()) if (key.startsWith(robotSerial + '|')) sharedReads.delete(key)
+      return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+    }
+    const key = `${robotSerial}|${JSON.stringify(cmd)}`
+    const hit = sharedReads.get(key)
+    if (hit && (hit.at === null || Date.now() - hit.at < SHARE_MS)) return hit.promise as Promise<AxiosResponse<T>>
+    const entry: SharedRead = { at: null, promise: instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd)) }
+    entry.promise.then(() => { entry.at = Date.now() }, () => { if (sharedReads.get(key) === entry) sharedReads.delete(key) })
+    sharedReads.set(key, entry)
+    return entry.promise as Promise<AxiosResponse<T>>
   }
 
   static getNotifications(serial: string) {

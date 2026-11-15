@@ -1,5 +1,6 @@
 from __future__ import annotations
 from http.server import BaseHTTPRequestHandler
+import gzip
 import logging
 from vacuula_server.constants import BASE_DIR
 from vacuula_server.handlers.route_matcher import BrainslugHandler, BEEHIVE_ROUTES, NUCLEO_ROUTES, APP_ROUTES, S3_ROUTES
@@ -33,6 +34,17 @@ def _is_within_web_root(path: Path) -> bool:
 ROBOT_PORT_ROUTES = {"/api/server", "/api/robots", "/api/events", "/api/client-error"}
 ROBOT_PATH = re.compile(r"^/api/robot/([^/?]+)")
 
+
+
+# Packing for the web app (gzip): the app's JS is 715 KB, 232 KB packed; over the VPN or a phone's
+# WLAN that is most of a first load. Only text, only above GZIP_MIN.
+GZIP_MIN = 1024
+_gzip_files: dict[tuple[str, int], bytes] = {}
+
+
+def _packable(content_type: str) -> bool:
+    return content_type.startswith("text/") or content_type in (
+        "application/javascript", "application/json", "image/svg+xml", "application/manifest+json")
 
 class RouterHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -124,9 +136,19 @@ class RouterHandler(BaseHTTPRequestHandler):
 
         content_type, _ = mimetypes.guess_type(str(requested))
         content_type = content_type or "application/octet-stream"
+        # the app's files packed once (assets never change; index.html is small but cheap to pack)
+        packed = self._gzip_wanted() and _packable(content_type) and len(content) > GZIP_MIN
+        if packed:
+            key = (str(requested), len(content))
+            if key not in _gzip_files:
+                _gzip_files[key] = gzip.compress(content, 6)
+            content = _gzip_files[key]
 
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        if packed:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(content)))
         self.send_header("ETag", SERVER_BOOT_ID)
         self.send_header("Cache-Control", cache_control)
@@ -135,6 +157,9 @@ class RouterHandler(BaseHTTPRequestHandler):
         self.wfile.write(content)
         self.wfile.flush()
 
+
+    def _gzip_wanted(self) -> bool:
+        return "gzip" in (self.headers.get("Accept-Encoding") or "")
 
     # Routing logic
     def route(self):
@@ -176,9 +201,17 @@ class RouterHandler(BaseHTTPRequestHandler):
         elif isinstance(content, str):
             content = content.encode("utf-8")
 
+        # the web app's API answers packed when the browser takes it (not the robots' replies, not streams)
+        packed = close and self.path.startswith("/api/") and self._gzip_wanted() and len(content) > GZIP_MIN
+        if packed:
+            content = gzip.compress(content, 6)
+
         self.send_response(status)
 
         self.send_header("Content-Type", content_type)
+        if packed:
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Vary", "Accept-Encoding")
         if cache_control is not None:
             self.send_header("Cache-Control", cache_control)
         if content_disposition is not None:
