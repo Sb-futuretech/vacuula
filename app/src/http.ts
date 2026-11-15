@@ -369,6 +369,13 @@ export class Http {
   }
 
   // gen3: bumps, tilts, getting lost or stuck recorded on a map over the last runs (map cells)
+  // gen3: in how many of a map's last `runs` runs each cell was cleaned, worked out by the server once
+  // per run (counts as RLE over the stored map)
+  static getMapCoverage(serial: string, mapId: string, runs: number) {
+    return instance.get<{ width: number, height: number, runs: number, blackBoxRuns: number, counts: [number, number][] }>(
+      `/robot/${serial}/maps/${mapId}/coverage/${runs}`)
+  }
+
   // gen3: what the lidar saw over all runs on a map (fixed, movable, free), 404 without
   static getMapLidar(serial: string, mapId: string) {
     return instance.get<MapLidar>(`/robot/${serial}/maps/${mapId}/lidar`)

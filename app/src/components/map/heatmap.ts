@@ -59,6 +59,18 @@ export function useCoverageHeatmap(serial: string, mapId: string | undefined, en
             if (!stored) return
             const { width, height } = stored
             const floor = decodeRLE(stored.rle)
+
+            // the server keeps every run's cells and sums the last ones up: one answer instead of
+            // dozens of requests; the old way below only when it can't (an older server)
+            const fromServer = await Http.getMapCoverage(serial, mapId, maxRuns).then(res => res.data).catch(() => null)
+            if (cancelled) return
+            if (fromServer && fromServer.width === width && fromServer.height === height) {
+                const counts = new Uint16Array(width * height)
+                let i = 0
+                for (const [value, n] of fromServer.counts) { if (value) counts.fill(value, i, i + n); i += n }
+                setHeatmap({ counts, floor, runs: fromServer.runs, blackBoxRuns: fromServer.blackBoxRuns, width, height })
+                return
+            }
             const storedFloor = { width, height, dock: basePoint(stored.base) }
             const counts = new Uint16Array(width * height)
             const covered = new Uint8Array(width * height)

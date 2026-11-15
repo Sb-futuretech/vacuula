@@ -3,7 +3,7 @@ import re
 import logging
 from vacuula_server.conn import Gen2Gen3Conn
 from vacuula_server.gen3.commands import send_command
-from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position, floor_type
+from vacuula_server.gen3 import zone_queue, manual_drive, stats, boundaries_cache, pi_schedule, live_position, floor_type, coverage_map
 from vacuula_server import notifications, telegram
 from vacuula_server.env import GEN3_PORT, GEN4_PORT, HA_INGRESS
 from vacuula_server.constants import APP_VERSION, MAPS_DIR, MINIMUM_INSTALLER_VERSION
@@ -290,6 +290,23 @@ def get_run_track(req: RouterHandler, serial: str, run_id: str) -> None:
         data = json.loads(file.read_text())
     except (OSError, ValueError):
         req.send_not_found("Track not found")
+        return
+    req.send_ok(data)
+
+
+def get_map_coverage(req: RouterHandler, serial: str, map_id: str, last: str) -> None:
+    """GET /robot/<serial>/maps/<map_id>/coverage/<n> - in how many of the gen3 map's last n runs each
+    cell was cleaned (gen3/coverage_map.py: worked out once per run and kept); 404 without the map"""
+    if not re.fullmatch(r"[0-9A-Za-z:.\-]+", serial) or not re.fullmatch(r"[0-9A-Za-z:.\-]+", map_id):
+        req.send_not_found("Map not found")
+        return
+    try:
+        data = coverage_map.heatmap(serial, map_id, min(100, max(1, int(last))))
+    except Exception:
+        logger.exception("Coverage of %s, map %s not worked out", serial, map_id)
+        data = None
+    if data is None:
+        req.send_not_found("Map not found")
         return
     req.send_ok(data)
 
