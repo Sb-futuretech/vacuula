@@ -181,7 +181,11 @@ CHANGE_EVIDENCE_RUNS = 4   # the place was seen free in at least this many other
 CHANGE_FREE_SHARE = 0.1    # ... and something stood there in at most this share of them
 CHANGE_MIN_CELLS = 8       # hit cells of the run there: fewer is noise
 OBSTACLE_CM = 30           # a new thing this long (its side the lidar saw) is reported
-DOOR_CM, DOOR_THICK_CM = 60, 16  # a new straight line this long and at most this thick: a door (closed)
+DOOR_CM, DOOR_THICK_CM = 60, 16  # a door (closed): a new straight line this long, at most this thick ...
+DOOR_WALL_CELLS = 5        # ... whose both ends reach a fixed wall within this (10 cm) ...
+DOOR_SIDE_CELLS = 10       # ... with floor that is usually free this far (20 cm) on both sides of it
+# (by its place, not its shape: a thin new thing along a wall or by a door that stayed closed is an
+# obstacle -- seen 2026-11-14 at a door that was closed as always)
 
 
 def _blobs(mask: np.ndarray) -> list[np.ndarray]:
@@ -204,6 +208,30 @@ def _blobs(mask: np.ndarray) -> list[np.ndarray]:
     return out
 
 
+def _closes_gap(rows: np.ndarray, cols: np.ndarray, fixed: np.ndarray, usual_free: np.ndarray) -> bool:
+    """A new line (its cells) lies like a closed door: both its ends reach a fixed wall and the floor on
+    both sides of it is usually free."""
+    pts = np.vstack([cols, rows]).astype(float)
+    c = pts.mean(1)
+    _, vecs = np.linalg.eigh(np.cov(pts))
+    d = vecs[:, 1]                       # along the line
+    n = np.array([-d[1], d[0]])          # across it
+    t = d @ (pts - c[:, None])
+    h, w = fixed.shape
+
+    def near(mask: np.ndarray, p: np.ndarray, r: int) -> bool:
+        y, x = int(round(p[1])), int(round(p[0]))
+        return bool(mask[max(0, y - r):min(h, y + r + 1), max(0, x - r):min(w, x + r + 1)].any())
+
+    if not (near(fixed, c + d * t.min(), DOOR_WALL_CELLS) and near(fixed, c + d * t.max(), DOOR_WALL_CELLS)):
+        return False
+    for side in (1, -1):
+        along = [c + d * (t.min() + f * (t.max() - t.min())) + n * side * DOOR_SIDE_CELLS for f in (0.3, 0.5, 0.7)]
+        if sum(near(usual_free, p, 1) for p in along) < 2:
+            return False
+    return True
+
+
 def changes(serial: str, run_id: str, map_id: str | None) -> list[dict] | None:
     """What stood in a run where its map's other runs agree it is free: new obstacles and closed doors
     ({"kind": "obstacle"|"door", "lengthCm", "x", "y", "box": [x1, y1, x2, y2]}, mm of the robot's frame).
@@ -212,7 +240,14 @@ def changes(serial: str, run_id: str, map_id: str | None) -> list[dict] | None:
         return None
     runs = _run_grids(serial, map_id)
     me = next((r for r in runs if r["run"] == run_id), None)
-    others = [r for r in runs if r is not me]
+    # the runs the map's lidar map left out (they found themselves wrongly) don't say what is usual
+    left_out = set()
+    try:
+        with np.load(STORE / serial / f"{map_id.replace(':', '-')}.npz") as z:
+            left_out = {r for r, _ in json.loads(z["meta"].tobytes()).get("leftOut", [])}
+    except Exception:
+        pass
+    others = [r for r in runs if r is not me and r["run"] not in left_out]
     if me is None or len(others) < CHANGE_EVIDENCE_RUNS:
         return None
     cell = lidar.CELL_MM
@@ -236,6 +271,7 @@ def changes(serial: str, run_id: str, map_id: str | None) -> list[dict] | None:
     if len(ys) and float(_wall_distance(walls)[ys, xs].mean()) * cell / 10 > WORST_FIT_CM:
         return None
     usual_free = (seen_o >= 3) & (occ_o <= CHANGE_FREE_SHARE * seen_o)
+    fixed = (seen_o >= 3) & (occ_o >= FIXED_SHARE * seen_o)
     new = mine & usual_free
     found = []
     for part in _blobs(_grow(new)):
@@ -246,7 +282,12 @@ def changes(serial: str, run_id: str, map_id: str | None) -> list[dict] | None:
         r0, r1, c0, c1 = rows[hit].min(), rows[hit].max() + 1, cols[hit].min(), cols[hit].max() + 1
         length = max(r1 - r0, c1 - c0) * cell / 10
         thick = min(r1 - r0, c1 - c0) * cell / 10
-        kind = "door" if length >= DOOR_CM and thick <= DOOR_THICK_CM else "obstacle" if length >= OBSTACLE_CM else None
+        if length >= DOOR_CM and thick <= DOOR_THICK_CM and _closes_gap(rows[hit], cols[hit], fixed, usual_free):
+            kind = "door"
+        elif length >= OBSTACLE_CM:
+            kind = "obstacle"
+        else:
+            kind = None
         if not kind:
             continue
         bx1, bx2 = x0 + c0 * cell, x0 + c1 * cell
