@@ -470,6 +470,7 @@
             "runs_one": "From {{count}} run",
             "runs_other": "From {{count}} runs"
         },
+        "noZone": "Not in a zone",
         "problems": "Problem spots",
         "bumpHaze": "Light blue haze: where the robot often bumps (the denser, the more often)",
         "problemsCount": "{{count}} problems over the last runs",

@@ -30,7 +30,7 @@ import { COLORS } from '../../components/map/constants'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
-import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
+import { calcRelevancy, pointInPolygon, polygonArea, upsertPreserveOrder } from '../../components/map/utils'
 import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
@@ -223,6 +223,44 @@ export default () => {
         if (!next.delete(kind)) next.add(kind)
         return next
     })
+
+    // the map's features grouped (user feedback 2026-11-15): each cleaning zone with the no-go lines and
+    // no-go zones that lie mostly inside it (the smallest such zone if several), the rest under "no zone";
+    // zones and their contents by name
+    const groupedFeatures = useMemo(() => {
+        const byName = (a: { name?: string }, b: { name?: string }) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { numeric: true })
+        const isHead = (b: Zone | NoGoLine) => b.type === 'polygon' && (!('function' in b) || b.function !== 'nogo')
+        const heads = (boundaries as (Zone | NoGoLine)[]).filter(isHead).sort(byName)
+        const groups = heads.map(zone => ({ zone, children: [] as (Zone | NoGoLine)[] }))
+        const loose: (Zone | NoGoLine)[] = []
+        for (const b of (boundaries as (Zone | NoGoLine)[]).filter(b => !isHead(b))) {
+            const inside = groups.filter(g => b.vertices.filter(v => pointInPolygon(v, g.zone.vertices)).length * 2 >= b.vertices.length)
+            const home = inside.sort((a, c) => polygonArea(a.zone.vertices) - polygonArea(c.zone.vertices))[0]
+            ;(home ? home.children : loose).push(b)
+        }
+        groups.forEach(g => g.children.sort(byName))
+        return loose.length ? [...groups, { zone: undefined, children: loose.sort(byName) }] : groups
+    }, [boundaries])
+    // one feature in the list (zone, no-go zone or line)
+    const featureItem = (item: Zone | NoGoLine) => (
+        <div key={item.id} className={styles.item} style={{ background: withAlpha(item.color, 0.13) }} onClick={() => openInfo(item.id)}>
+            <div className={styles.info}>
+                <span>{item.name}</span>
+                <span className={styles.type} style={{ color: normalizeHex(item.color) ?? undefined }}>
+                    {item.type === 'polygon' ?
+                        'function' in item ? (item.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone'))
+                            : t('map.zone') : t('map.noGoLine')
+                    }
+                </span>
+            </div>
+            {(!currentMap || !('promoted' in currentMap) || currentMap.promoted) && (
+                <>
+                    {(item.type === 'polyline' || item.function === 'nogo') && (<Input type="switch" skipSection={true} value={item.enabled} onChange={() => toggleNoGo(item)} />)}
+                    {item.type === 'polygon' && ('function' in item ? item.function === 'cleaning' : true) && (<Button style='primary' disabled={!isDocked(robot)} text={t('map.cleanZone')} onClick={() => cleanZone(item)} />)}
+                </>
+            )}
+        </div>
+    )
 
     // gen3: what the lidar saw over the runs on this map: fixed (walls) and movable (chairs, doors)
     const [showLidar, setShowLidar] = useState(false)
@@ -914,22 +952,13 @@ export default () => {
                         )}
 
                         <div className={styles.featureList}>
-                            {boundaries.map((item, i) => (
-                                <div key={i} className={styles.item} style={{ background: withAlpha(item.color, 0.13) }} onClick={() => openInfo(item.id)}>
-                                    <div className={styles.info}>
-                                        <span>{item.name}</span>
-                                        <span className={styles.type} style={{ color: normalizeHex(item.color) ?? undefined }}>
-                                            {item.type === 'polygon' ?
-                                                'function' in item ? (item.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone'))
-                                                    : t('map.zone') : t('map.noGoLine')
-                                            }
-                                        </span>
-                                    </div>
-                                    {(!currentMap || !('promoted' in currentMap) || currentMap.promoted) && (
-                                        <>
-                                            {(item.type === 'polyline' || item.function === 'nogo') && (<Input type="switch" skipSection={true} value={item.enabled} onChange={() => toggleNoGo(item)} />)}
-                                            {item.type === 'polygon' && ('function' in item ? item.function === 'cleaning' : true) && (<Button style='primary' disabled={!isDocked(robot)} text={t('map.cleanZone')} onClick={() => cleanZone(item)} />)}
-                                        </>
+                            {groupedFeatures.map(group => (
+                                <div key={group.zone?.id ?? 'none'} className={styles.featureGroup}>
+                                    {group.zone ? featureItem(group.zone) : <span className={styles.groupTitle}>{t('map.noZone')}</span>}
+                                    {group.children.length > 0 && (
+                                        <div className={styles.groupChildren} style={{ borderColor: normalizeHex(group.zone?.color) ?? undefined }}>
+                                            {group.children.map(child => featureItem(child))}
+                                        </div>
                                     )}
                                 </div>
                             ))}
