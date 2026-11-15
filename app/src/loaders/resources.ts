@@ -77,3 +77,17 @@ export const cleaningsLoader = createLoader((serial: string) =>
 //             ? Http.getBoundaries(serial, mapId).then(res => res.data.boundaries)
 //             : GEN3_COMMANDS.getMapBoundaries(serial, mapId).then(res => res.data.data.boundaries)
 // )
+
+// gen3: the way a run drove (its black box track, coverage and problems); runs never change, so a loaded
+// one is kept (the home page loads the neighbours of the shown run ahead, see pages/home/home.tsx)
+export const runTrackLoader = createLoader((serial: string, runId: string) =>
+    Http.getRunTrack(serial, runId).then(res => res.data)
+)
+
+// load a run's files ahead (its map, its cells, its track) so showing it is instant; errors are
+// left for the moment it is really shown
+export const prefetchRun = (serial: string, runId: string) => {
+    if (!persistentMapLoader.peek(serial, runId)) persistentMapLoader.request(serial, runId).catch(() => {})
+    if (!cleaningLoader.peek(serial, runId)) cleaningLoader.request(serial, runId).catch(() => {})
+    if (!runTrackLoader.peek(serial, runId)) runTrackLoader.request(serial, runId).catch(() => {})
+}

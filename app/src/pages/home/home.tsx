@@ -29,7 +29,7 @@ import { useUnits } from '../../units'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import { Http } from '../../http'
 import type { NoGoLine, Zone } from '../../components/map/types'
-import { usePersistentMaps } from '../../loaders/resources'
+import { prefetchRun, usePersistentMaps } from '../../loaders/resources'
 import { fetchAllGen3Boundaries, gen3ZoneOptions, getCachedZones, splitZoneValue } from '../../loaders/gen3Boundaries'
 import { isDocked, isGen4D10 } from '../../components/topbar/robotInfo'
 import { GEN3_MODE_KEY, GEN3_NAV_KEY, gen3CleaningModeHelp, gen3NavigationHelp, getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen4NavigationMode } from '../../utils/modes'
@@ -178,6 +178,14 @@ export default function Home() {
         })
     }, [showLastRun, robot.serial, robot.state])
     const lastCleaning = recentCleanings[Math.min(runIndex, recentCleanings.length - 1)]
+    // the runs next to the shown one are loaded ahead: swiping to them shows them at once
+    useEffect(() => {
+        if (!showLastRun) return
+        for (const i of [runIndex + 1, runIndex + 2, runIndex - 1]) {
+            const run = recentCleanings[i]
+            if (run) prefetchRun(robot.serial, run.id)
+        }
+    }, [showLastRun, runIndex, recentCleanings, robot.serial])
     const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
     const [cleaningDrawerOpen, setCleaningDrawerOpen] = useState(false)
 

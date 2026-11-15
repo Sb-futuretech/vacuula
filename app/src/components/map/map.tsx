@@ -4,7 +4,7 @@ import { useRobot } from '../../context/useRobot'
 import { Neato, RobotType } from '../../types'
 import Button from '../button/button'
 import { Http, type Problem, type RunCoverage } from '../../http'
-import { usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
+import { runTrackLoader, usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
 import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -73,8 +73,10 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
     useEffect(() => {
         if (!runId || robot.type !== RobotType.NeatoGen3) return
         let cancelled = false
-        Http.getRunTrack(robot.serial, runId)
-            .then(res => { if (!cancelled) setLoadedTrack({ runId, cells: res.data.cells, coverage: res.data.coverage, problems: res.data.problems }) })
+        // kept once loaded (runs never change), and maybe loaded ahead by the home page
+        const cached = runTrackLoader.peek(robot.serial, runId)
+        const got = cached ? Promise.resolve(cached) : runTrackLoader.request(robot.serial, runId)
+        got.then(data => { if (!cancelled) setLoadedTrack({ runId, cells: data.cells, coverage: data.coverage, problems: data.problems }) })
             .catch(() => {})
         return () => { cancelled = true }
     }, [robot.serial, robot.type, runId])
