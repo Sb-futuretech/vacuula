@@ -10,6 +10,7 @@ class Gen2Gen3Conn:
     def __init__(self, password: str, wfile: StreamRequestHandler.wfile):
         self.password = password
         self.wfile = wfile
+        self.sock = None  # the socket itself (gen3.conn_watchdog closes it when the robot hangs)
 
 class Gen4Conn:
     def __init__(self, socket: SSLSocket):

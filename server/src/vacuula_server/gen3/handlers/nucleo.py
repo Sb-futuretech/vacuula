@@ -8,6 +8,7 @@ from vacuula_server.handlers.events import notify_robots_changed
 from vacuula_server.gen3.utils import get_robot_serial
 from vacuula_server.db import get_session
 from vacuula_server.gen3.event_handler import robot_message
+from vacuula_server.gen3 import conn_watchdog
 from vacuula_server.gen3.chunked import iter_chunks, MessageAssembler
 from vacuula_server.models.robot import Robot
 from sqlalchemy import select
@@ -41,6 +42,8 @@ def nucleo_init(req: RouterHandler) -> None:
 
     send_chunk(req.wfile, build_heartbeat())
     conn = RobotConn(serial, Generation.GEN3, Gen2Gen3Conn(gen3_data.password, req.wfile), req.client_address[0])
+    conn.conn.sock = sock  # for gen3.conn_watchdog, to close it when the robot stops answering
+    conn_watchdog.seen(serial)
     peer = "%s:%s" % req.client_address[:2]
     if serial in robot_connections:
         logger.warning("Robot %s opened a new command connection while the old one was still open", serial)

@@ -4,7 +4,7 @@ from vacuula_server import state
 import json
 import time
 from vacuula_server.state import pending_requests, put_drop_oldest
-from vacuula_server.gen3 import zone_queue, run_zone, run_segments, live_position, boundary_alias
+from vacuula_server.gen3 import zone_queue, run_zone, run_segments, live_position, boundary_alias, conn_watchdog
 from vacuula_server import notifications
 import typing
 
@@ -28,6 +28,8 @@ def robot_message(serial: str, data: bytes):
     if not isinstance(decoded, dict):
         logger.warning("unexpected message from %s, ignored: %.200s", serial, data)
         return
+
+    conn_watchdog.seen(serial)  # it answers: alive
 
     # the robot keeps short zone ids: put the real ids, names and colours back for everything below
     if boundary_alias.from_robot(serial, decoded):

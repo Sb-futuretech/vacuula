@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from vacuula_server.env import GEN3_PORT, HOST_IP
 from vacuula_server.handlers.router import RouterHandler
-from vacuula_server.gen3 import backfill, pi_schedule
+from vacuula_server.gen3 import backfill, pi_schedule, conn_watchdog
 from vacuula_server.logger import LoggingThreadingHTTPServer
 from vacuula_server.tls import create_ssl_context
 import threading
@@ -20,5 +20,6 @@ def start():
     logger.info("Gen3 listening on https://%s:%d", HOST_IP, GEN3_PORT)
     pi_schedule.start()
     backfill.start()
+    conn_watchdog.start()
 
 
