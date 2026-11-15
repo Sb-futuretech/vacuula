@@ -24,7 +24,8 @@ export default function LiveLidarView({ serial, onAvailable }: Props) {
     useEffect(() => {
         let cancelled = false
         const load = () => Http.getLiveLidar(serial)
-            .then(res => { if (!cancelled) setData(res.data) })
+            // only a whole answer: one without its picture (seen 2026-11-15) would crash the view
+            .then(res => { if (!cancelled) setData(res.data?.grid?.png ? res.data : null) })
             .catch(() => { })
         load()
         const id = window.setInterval(load, POLL_MS)

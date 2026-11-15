@@ -43,7 +43,7 @@ export default () => {
         if (!selectedCleaning || robot.type !== RobotType.NeatoGen3) return
         let cancelled = false
         Http.getRunLidar(robot.serial, selectedCleaning.id)
-            .then(res => { if (!cancelled) setRunLidar(res.data) })
+            .then(res => { if (!cancelled) setRunLidar(res.data?.grid?.png ? res.data : null) })
             .catch(() => { }) // 404: no lidar for this run
         return () => { cancelled = true }
     }, [selectedCleaning?.id, robot.serial, robot.type])
