@@ -471,7 +471,7 @@
             "runs_other": "Aus {{count}} Läufen"
         },
         "problems": "Problemstellen",
-        "bumpHaze": "Orange Schleier: wo der Roboter oft anstößt (je dunkler, desto öfter)",
+        "bumpHaze": "Hellblauer Schleier: wo der Roboter oft anstößt (je dichter, desto öfter)",
         "problemsCount": "{{count}} Probleme in den letzten Reinigungen",
         "problem": {
             "bump": "angestoßen",

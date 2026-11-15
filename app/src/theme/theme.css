@@ -205,7 +205,7 @@ body {
   --map-empty: #2f353b;
   --map-wall: #3ddc97;
   --map-grid: rgba(255, 255, 255, 0.2);
-  --map-polygon-fill: rgba(255, 90, 31, 0.2);
+  --map-polygon-fill: rgba(255, 255, 255, 0.14); /* zones without a colour: neutral, apart from the meaning colours */
   --map-line: #3ddc97;
   --map-crosshair: #3ddc97;
   --map-in-progress: #4ab3f5;

@@ -471,7 +471,7 @@
             "runs_other": "From {{count}} runs"
         },
         "problems": "Problem spots",
-        "bumpHaze": "Orange haze: where the robot often bumps (the darker, the more often)",
+        "bumpHaze": "Light blue haze: where the robot often bumps (the denser, the more often)",
         "problemsCount": "{{count}} problems over the last runs",
         "problem": {
             "bump": "bumped",

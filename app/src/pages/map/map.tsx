@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, MEANING, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
 import { useLiveScan } from '../../context/liveScan'
 import { lidarImage } from '../../components/map/lidarImage'
@@ -45,8 +45,6 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 const LIVE_FRESH_S = 60
 // a lidar turn older than this (s) is not drawn: the robot stopped or the connection is gone
 const LIVE_SCAN_FRESH_S = 5
-// the lidar map's movable things (chairs, doors): amber, apart from walls and zones
-const LIDAR_MOVABLE = '#f0a030'
 // docked: its last position is where it stands if that is this close to the dock symbol (cells); else
 // it was carried home after its last run and stands on the dock symbol
 const DOCK_NEAR_CELLS = 10
@@ -235,7 +233,7 @@ export default () => {
         Http.getMapLidar(robot.serial, persistentMap)
             .then(async res => {
                 const v = res.data.values
-                const img = await lidarImage(res.data.png, [[v.fixed, COLORS.WALL], [v.movable, LIDAR_MOVABLE]])
+                const img = await lidarImage(res.data.png, [[v.fixed, COLORS.WALL], [v.movable, MEANING.movable]])
                 if (!cancelled) setLidarLayer({ mapId: persistentMap, data: res.data, img })
             })
             .catch(() => { if (!cancelled) setLidarLayer('none') })
@@ -860,7 +858,7 @@ export default () => {
                                     <>
                                         <div className={styles.heatmapLegend}>
                                             <i style={{ background: COLORS.WALL }} /><span>{t('map.lidar.fixed')}</span>
-                                            <i style={{ background: LIDAR_MOVABLE }} /><span>{t('map.lidar.movable')}</span>
+                                            <i style={{ background: MEANING.movable }} /><span>{t('map.lidar.movable')}</span>
                                         </div>
                                         <span className={styles.heatmapInfo}>
                                             {lidarLayer === 'none' ? t('map.lidar.none')

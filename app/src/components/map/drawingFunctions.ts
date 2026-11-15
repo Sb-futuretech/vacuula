@@ -3,6 +3,18 @@ import type { Zone, NoGoLine, Point } from './types'
 import type { Problem } from '../../http'
 import { normalizeHex, withAlpha } from './color'
 import { GEN3_MM_PER_CELL, ROBOT_RADIUS_MM } from './gen3Run'
+
+// What a colour means on every map, one hue per meaning. Structure (walls, way, lines) is the theme's
+// mint. Checked with the dataviz palette validator on the dark map floor (#2f353b): the pairs that are
+// shown together are at least normal-vision ΔE 15.7 apart (bump vs cleaned is ΔE 7.3 for red-green
+// colour blindness, told apart by shape: a soft haze over a flat fill). Before, cleaned (pink), missed
+// (red), bumps (orange) and the default zone fill (orange-red) were ΔE 3.8-8 apart: one colour.
+export const MEANING = {
+    cleaned: '#9b87f5',  // violet: what a run cleaned
+    missed: '#ff5a5a',   // red: free floor not cleaned (a run's missed floor, the heatmap's never)
+    bump: '#38bdf8',     // light blue: where the robot bumps
+    movable: '#e0b030',  // yellow: the lidar map's movable things (chairs, doors)
+} as const
 import { calcRelevancy } from './utils'
 import dockUrl from '../../assets/dock.svg'
 
@@ -537,7 +549,7 @@ export function drawMissed(
     offset: { x: number; y: number },
 ) {
     ctx.save()
-    ctx.fillStyle = 'rgba(230, 60, 60, 0.45)'
+    ctx.fillStyle = withAlpha(MEANING.missed, 0.45)
     ctx.fill(rleCells(rle, width, zoom, offset))
     ctx.restore()
 }
@@ -566,7 +578,7 @@ export const PROBLEM_ICONS: Record<Problem['kind'], string> = {
 }
 
 // Bumps are part of how the robot works (it feels its way along furniture), so they are drawn as a soft
-// orange haze that gets stronger where it bumps often, not as one symbol each
+// light blue haze that gets stronger where it bumps often, not as one symbol each
 const BUMP_RADIUS_CELLS = 6        // about 24 cm
 const BUMP_ALPHA = 0.16
 function drawBumpHaze(ctx: CanvasRenderingContext2D, bumps: Problem[], zoom: number, offset: { x: number; y: number }) {
@@ -575,8 +587,8 @@ function drawBumpHaze(ctx: CanvasRenderingContext2D, bumps: Problem[], zoom: num
     for (const p of bumps) {
         const x = offset.x + p.u * zoom, y = offset.y + p.v * zoom
         const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-        g.addColorStop(0, `rgba(255, 110, 20, ${BUMP_ALPHA})`)
-        g.addColorStop(1, 'rgba(255, 110, 20, 0)')
+        g.addColorStop(0, withAlpha(MEANING.bump, BUMP_ALPHA))
+        g.addColorStop(1, withAlpha(MEANING.bump, 0))
         ctx.fillStyle = g
         ctx.fillRect(x - r, y - r, 2 * r, 2 * r)
     }
@@ -874,6 +886,7 @@ export function drawCoverage(
     offset: { x: number; y: number },
     mapSize: { height: number, width: number },
     resolution: number,
+    color?: string, // the plan look (home): the meaning colour instead of the run's own
 ) {
     const rCells = ROBOT_RADIUS_MM / (resolution || GEN3_MM_PER_CELL)
     const r = rCells * zoom
@@ -905,7 +918,7 @@ export function drawCoverage(
     ctx.save()
     ctx.clip(floor)
     ctx.globalAlpha = parseFloat(COLORS.RUN_OPACITY) || DRAWING.RUN_OVERLAY_OPACITY
-    ctx.fillStyle = colorForPathValue(pathValue)
+    ctx.fillStyle = color ?? colorForPathValue(pathValue)
     ctx.fill(discs)
     ctx.restore()
 }
@@ -1050,7 +1063,7 @@ export function drawHeatmap(
         ctx.fill(path)
     })
     ctx.globalAlpha = 0.28
-    ctx.fillStyle = '#ff5a5a'
+    ctx.fillStyle = MEANING.missed
     ctx.fill(never)
     ctx.restore()
 }
