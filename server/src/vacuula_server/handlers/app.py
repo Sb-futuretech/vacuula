@@ -33,13 +33,6 @@ if TYPE_CHECKING:
 COMMAND_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 
-def post_client_timing(req: RouterHandler) -> None:
-    """POST /client-timing - TEMPORARY: how long a step of the web app took on the user's device"""
-    if not (data := req.read_json()): return
-    logger.info("Web app timing: %s", json.dumps(data)[:1500])
-    req.send_ok()
-
-
 def post_client_error(req: RouterHandler) -> None:
     """POST /client-error - a page of the web app crashed: its error into this server's log"""
     if not (data := req.read_json()): return

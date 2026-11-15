@@ -31,7 +31,7 @@ def _is_within_web_root(path: Path) -> bool:
 
 # on a robot's own port (VACUULA_ROBOT_PORTS) the app may only use these server-wide routes; the log and
 # the certificate are for the main port
-ROBOT_PORT_ROUTES = {"/api/server", "/api/robots", "/api/events", "/api/client-error", "/api/client-timing"}
+ROBOT_PORT_ROUTES = {"/api/server", "/api/robots", "/api/events", "/api/client-error"}
 ROBOT_PATH = re.compile(r"^/api/robot/([^/?]+)")
 
 
