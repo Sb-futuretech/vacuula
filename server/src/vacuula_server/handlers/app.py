@@ -33,6 +33,13 @@ if TYPE_CHECKING:
 COMMAND_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 
+def post_client_timing(req: RouterHandler) -> None:
+    """POST /client-timing - TEMPORARY: how long a step of the web app took on the user's device"""
+    if not (data := req.read_json()): return
+    logger.info("Web app timing: %s", json.dumps(data)[:1500])
+    req.send_ok()
+
+
 def post_client_error(req: RouterHandler) -> None:
     """POST /client-error - a page of the web app crashed: its error into this server's log"""
     if not (data := req.read_json()): return
@@ -304,6 +311,23 @@ def get_map_coverage(req: RouterHandler, serial: str, map_id: str, last: str) ->
         data = coverage_map.heatmap(serial, map_id, min(100, max(1, int(last))))
     except Exception:
         logger.exception("Coverage of %s, map %s not worked out", serial, map_id)
+        data = None
+    if data is None:
+        req.send_not_found("Map not found")
+        return
+    req.send_ok(data)
+
+
+def get_map_offsets(req: RouterHandler, serial: str, map_id: str) -> None:
+    """GET /robot/<serial>/maps/<map_id>/offsets - where each of the gen3 map's runs lies on it
+    (gen3/coverage_map.offsets: {run id: [dx, dy]} or null for runs not on it); 404 without the map"""
+    if not re.fullmatch(r"[0-9A-Za-z:.\-]+", serial) or not re.fullmatch(r"[0-9A-Za-z:.\-]+", map_id):
+        req.send_not_found("Map not found")
+        return
+    try:
+        data = coverage_map.offsets(serial, map_id)
+    except Exception:
+        logger.exception("Run offsets of %s, map %s not worked out", serial, map_id)
         data = None
     if data is None:
         req.send_not_found("Map not found")

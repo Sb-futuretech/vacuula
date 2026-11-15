@@ -9,6 +9,7 @@ import { cleaningLoader, persistentMapLoader, useCleaning, usePersistentMap } fr
 import { useRobot } from '../../context/useRobot'
 import { RobotType } from '../../types'
 import { loadSelectedMapShape } from '../../pages/settings/mapshapes'
+import { swipeTiming } from '../../pages/home/swipeTiming'
 
 export interface MapSize { width: number; height: number }
 
@@ -132,6 +133,7 @@ export function useMap({
 
         extraDrawRef.current?.(ctx, canvas, currentZoom, currentOffset, mapSize, runMarkers)
         ctx.setTransform(1, 0, 0, 1, 0, 0)
+        if (runId) swipeTiming('drawn', { mapId })
     }, [mapSize, shape, backgroundToken, runMarkers, coverage, plan, cleanedCells, angle])
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -198,6 +200,7 @@ export function useMap({
     // Load floor map
     useEffect(() => {
         if (!persistantMapData) return
+        if (runId) swipeTiming('map data')
         cellsRef.current = decodeRLE(persistantMapData.rle)
         setMapSize({ height: persistantMapData.height, width: persistantMapData.width })
     }, [persistantMapData])

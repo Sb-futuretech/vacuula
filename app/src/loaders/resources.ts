@@ -84,6 +84,11 @@ export const runTrackLoader = createLoader((serial: string, runId: string) =>
     Http.getRunTrack(serial, runId).then(res => res.data)
 )
 
+// where the runs of a stored map lie on it, worked out by the server (seeds gen3Run's runOffset)
+export const mapOffsetsLoader = createLoader((serial: string, mapId: string) =>
+    Http.getMapOffsets(serial, mapId).then(res => res.data)
+)
+
 // load a run's files ahead (its map, its cells, its track) so showing it is instant; errors are
 // left for the moment it is really shown
 export const prefetchRun = (serial: string, runId: string) => {

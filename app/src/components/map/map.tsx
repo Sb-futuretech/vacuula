@@ -4,14 +4,15 @@ import { useRobot } from '../../context/useRobot'
 import { Neato, RobotType } from '../../types'
 import Button from '../button/button'
 import { Http, type Problem, type RunCoverage } from '../../http'
-import { runTrackLoader, usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
+import { swipeTiming } from '../../pages/home/swipeTiming'
+import { mapOffsetsLoader, runTrackLoader, usePersistentMap, usePersistentMaps, persistentMapLoader, useCleaning } from '../../loaders/resources'
 import { getGen3MapBoundaries } from '../../loaders/gen3Boundaries'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { drawBase, drawMarker, drawMissed, drawProblems, drawRunTrack, drawStartFlag, drawZoneOverlay, onDockImageReady } from './drawingFunctions'
 import { decodeRLE, pointInPolygon } from './utils'
 import type { ExtraDrawFn } from './useMap'
-import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
+import { seedRunOffsets, GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_NOT_PATH, basePoint, cellsCentre, runOffset, sameFloorDistance, zoneInRun } from './gen3Run'
 import type { VacuulaMapData, Zone } from './types'
 
 interface MapProps {
@@ -76,7 +77,7 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
         // kept once loaded (runs never change), and maybe loaded ahead by the home page
         const cached = runTrackLoader.peek(robot.serial, runId)
         const got = cached ? Promise.resolve(cached) : runTrackLoader.request(robot.serial, runId)
-        got.then(data => { if (!cancelled) setLoadedTrack({ runId, cells: data.cells, coverage: data.coverage, problems: data.problems }) })
+        got.then(data => { swipeTiming('track', { cached: !!cached }); if (!cancelled) setLoadedTrack({ runId, cells: data.cells, coverage: data.coverage, problems: data.problems }) })
             .catch(() => {})
         return () => { cancelled = true }
     }, [robot.serial, robot.type, runId])
@@ -108,12 +109,19 @@ export default function Map({ mapId, runId, marker, focusRun, coverage, plan, zo
                 // to where the run's walls lie on the map's walls
                 const data = await stored(storedMapId)
                 if (!data) return
+                // the server's offsets for the map's runs, once per map: no aligning here for those
+                const known = mapOffsetsLoader.peek(robot.serial, storedMapId)
+                    ?? await mapOffsetsLoader.request(robot.serial, storedMapId).catch(() => undefined)
+                if (known) seedRunOffsets(known)
+                const tAlign = performance.now()
                 const runSize = { width: run.width, height: run.height }
                 const storedSize = { width: data.width, height: data.height }
                 const offset = runOffset(runId, () => ({ cells: decodeRLE(persistantMapData.rle), ...runSize }),
                     () => ({ cells: decodeRLE(data.rle), ...storedSize }))
+                swipeTiming('aligned', { alignMs: Math.round(performance.now() - tAlign), fromServer: !!known && runId in known })
                 if (!offset) return
                 const boundaries = await getGen3MapBoundaries(robot.serial, storedMapId).catch(() => [])
+                swipeTiming('zones')
                 if (!cancelled) setRunZones(boundaries.filter((b): b is Zone => b.type === 'polygon').map(z => zoneInRun(z, offset, storedSize, runSize)))
                 return
             }

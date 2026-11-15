@@ -16,6 +16,7 @@ import { FaGaugeHigh, FaHouse } from 'react-icons/fa6'
 import { BiTargetLock } from "react-icons/bi";
 import { useApp } from '../../context/useApp'
 import LiveLidarView from '../../components/map/LiveLidarView'
+import { startSwipe } from './swipeTiming'
 import TimeAgo from 'react-timeago'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import Input from '../../components/input/input'
@@ -321,8 +322,8 @@ export default function Home() {
                     <LastRun
                         cleaning={lastCleaning}
                         marker={mascot.src}
-                        onOlder={runIndex < recentCleanings.length - 1 ? () => setRunIndex(i => i + 1) : undefined}
-                        onNewer={runIndex > 0 ? () => setRunIndex(i => i - 1) : undefined}
+                        onOlder={runIndex < recentCleanings.length - 1 ? () => { startSwipe(recentCleanings[runIndex + 1].id); setRunIndex(i => i + 1) } : undefined}
+                        onNewer={runIndex > 0 ? () => { startSwipe(recentCleanings[runIndex - 1].id); setRunIndex(i => i - 1) } : undefined}
                     />
                 ) : (
                     <div className={styles.statusRing}>

@@ -398,6 +398,16 @@ export class Http {
       `/robot/${serial}/maps/${mapId}/coverage/${runs}`)
   }
 
+  // gen3: where each run of a map lies on it ({run id: [dx, dy]}, null: not on it), worked out by the server
+  static getMapOffsets(serial: string, mapId: string) {
+    return instance.get<Record<string, [number, number] | null>>(`/robot/${serial}/maps/${mapId}/offsets`, { skipLoader: true })
+  }
+
+  // TEMPORARY: how long a step of the app took on the user's device, into the server's log
+  static clientTiming(data: object) {
+    return instance.post('/client-timing', JSON.stringify(data), { skipLoader: true }).catch(() => { })
+  }
+
   // gen3: what the lidar saw over all runs on a map (fixed, movable, free), 404 without
   static getMapLidar(serial: string, mapId: string) {
     return instance.get<MapLidar>(`/robot/${serial}/maps/${mapId}/lidar`)

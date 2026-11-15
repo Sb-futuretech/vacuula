@@ -32,6 +32,7 @@ from vacuula_server.models.run import Gen3__Run
 logger = logging.getLogger(__name__)
 
 STORE = DATA_DIR / "coverage_maps"
+STORE_VERSION = 2                     # 2: with each run's offset on the map
 FREE, WALL = 1, 2
 RUN_DOCK = 100
 RUN_NOT_PATH = (128, 100, 150, 200)   # background and marker blocks of a RunMap
@@ -166,9 +167,9 @@ def _place(cells: np.ndarray, shape: tuple[int, int], dx: int, dy: int) -> np.nd
 
 
 def _run_cells(serial: str, run_id: str, persistent_map: str | None, stored: np.ndarray,
-               stored_dock: tuple[float, float] | None) -> tuple[np.ndarray, bool] | None:
-    """The stored map's free cells a run cleaned and whether by its black box, or None if it doesn't
-    lie on the map (or its files are missing)."""
+               stored_dock: tuple[float, float] | None) -> tuple[np.ndarray, bool, tuple[int, int]] | None:
+    """The stored map's free cells a run cleaned, whether by its black box, and where its grid lies on
+    the map (stored cell = run cell + offset); None if it doesn't lie on the map (or files are missing)."""
     folder = MAPS_DIR / serial / run_id
     runmap_meta = _load_json(folder / "runmap.json")
     if not runmap_meta:
@@ -197,13 +198,13 @@ def _run_cells(serial: str, run_id: str, persistent_map: str | None, stored: np.
     if cov.get("cleaned") and cov.get("width") == runmap.shape[1]:
         flat = np.concatenate([np.full(n, v, dtype=np.uint8) for v, n in cov["cleaned"]])
         if flat.size == runmap.size:
-            return _place(flat.reshape(runmap.shape) == 1, stored.shape, dx, dy) & floor, True
+            return _place(flat.reshape(runmap.shape) == 1, stored.shape, dx, dy) & floor, True, (dx, dy)
     path = (runmap != 0) & ~np.isin(runmap, RUN_NOT_PATH)
     centre = _place(path, stored.shape, dx, dy)
     wide = np.zeros_like(centre)
     for ox, oy in DISC:
         wide |= _shift(centre, ox, oy)
-    return wide & floor, False
+    return wide & floor, False, (dx, dy)
 
 
 # ---- the map's store --------------------------------------------------------------------------------
@@ -212,17 +213,17 @@ def _store_path(serial: str, map_id: str) -> Path:
 
 
 def _load_store(path: Path, shape: tuple[int, int]) -> dict:
-    """{"runs": {run_id: (start, black_box, packed cells)}, "off": set of run ids not on the map}"""
+    """{"runs": {run_id: (start, black_box, packed cells, offset)}, "off": set of run ids not on the map}"""
     empty = {"runs": {}, "off": set()}
     if not path.is_file():
         return empty
     try:
         with np.load(path) as z:
             meta = json.loads(z["meta"].tobytes())
-            if tuple(meta["shape"]) != shape:
-                return empty  # the stored map changed size: start over
+            if tuple(meta["shape"]) != shape or meta.get("version") != STORE_VERSION:
+                return empty  # the stored map changed size, or an older store: start over
             packed = z["packed"]
-        runs = {r: (start, bb, packed[i]) for i, (r, start, bb) in enumerate(meta["runs"])}
+        runs = {r: (start, bb, packed[i], tuple(off)) for i, (r, start, bb, off) in enumerate(meta["runs"])}
         return {"runs": runs, "off": set(meta["off"])}
     except Exception as e:
         logger.info("Coverage store %s not readable (%s): starting over", path, e)
@@ -232,8 +233,8 @@ def _load_store(path: Path, shape: tuple[int, int]) -> dict:
 def _save_store(path: Path, shape: tuple[int, int], store: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ids = list(store["runs"])
-    meta = {"shape": list(shape), "runs": [[r, store["runs"][r][0], store["runs"][r][1]] for r in ids],
-            "off": sorted(store["off"])}
+    meta = {"version": STORE_VERSION, "shape": list(shape), "off": sorted(store["off"]),
+            "runs": [[r, store["runs"][r][0], store["runs"][r][1], list(store["runs"][r][3])] for r in ids]}
     packed = np.array([store["runs"][r][2] for r in ids], dtype=np.uint8) if ids else np.zeros((0, 0), np.uint8)
     np.savez_compressed(path, packed=packed, meta=np.frombuffer(json.dumps(meta).encode(), dtype=np.uint8))
 
@@ -265,8 +266,8 @@ def update(serial: str, map_id: str) -> tuple[np.ndarray, dict] | None:
             if got is None:
                 store["off"].add(run_id)
             else:
-                cells, bb = got
-                store["runs"][run_id] = ((run or {}).get("start_at") or run_id, bb, np.packbits(cells.ravel()))
+                cells, bb, off = got
+                store["runs"][run_id] = ((run or {}).get("start_at") or run_id, bb, np.packbits(cells.ravel()), off)
             new += 1
         if new:
             _save_store(path, stored.shape, store)
@@ -284,14 +285,27 @@ def heatmap(serial: str, map_id: str, last: int) -> dict | None:
     stored, store = got
     newest = sorted(store["runs"].items(), key=lambda kv: kv[1][0], reverse=True)[:max(1, last)]
     counts = np.zeros(stored.size, dtype=np.uint16)
-    for _, (_, _, packed) in newest:
+    for _, (_, _, packed, _) in newest:
         counts += np.unpackbits(packed, count=stored.size).astype(np.uint16)
     change = np.flatnonzero(np.diff(counts)) + 1
     starts = np.concatenate([[0], change])
     lengths = np.diff(np.concatenate([starts, [counts.size]]))
     return {"width": int(stored.shape[1]), "height": int(stored.shape[0]), "runs": len(newest),
-            "blackBoxRuns": int(sum(1 for _, (_, bb, _) in newest if bb)),
+            "blackBoxRuns": int(sum(1 for _, (_, bb, _, _) in newest if bb)),
             "counts": [[int(counts[s]), int(n)] for s, n in zip(starts, lengths)]}
+
+
+def offsets(serial: str, map_id: str) -> dict | None:
+    """Where each run of the map lies on it ({run id: [dx, dy]}: stored cell = run cell + offset), and
+    the runs that don't lie on it (null): the app places a run with it instead of working it out (that
+    took 0.15 s on a Mac per run, about a second on a phone, every time a run was first shown)."""
+    got = update(serial, map_id)
+    if got is None:
+        return None
+    _, store = got
+    out: dict = {r: [int(v[3][0]), int(v[3][1])] for r, v in store["runs"].items()}
+    out.update({r: None for r in store["off"]})
+    return out
 
 
 def update_later(serial: str, map_id: str | None) -> None:
