@@ -135,6 +135,14 @@ function fits(run: Grid, stored: Grid, dx: number, dy: number) {
 // run id -> its offset on its stored map (runs never change, aligning takes a moment). The grids are
 // only built (decoded) when the offset isn't known yet.
 const runOffsets: Record<string, { dx: number, dy: number } | null> = {}
+
+// offsets the server worked out already (GET .../maps/<id>/offsets): a run found there isn't aligned
+// here (that took 0.15 s on a Mac, about a second on a phone, the first time a run was shown)
+export function seedRunOffsets(offsets: Record<string, [number, number] | null>) {
+    for (const [runId, off] of Object.entries(offsets)) {
+        if (!(runId in runOffsets)) runOffsets[runId] = off ? { dx: off[0], dy: off[1] } : null
+    }
+}
 export function runOffset(runId: string, run: () => Grid, stored: () => Grid) {
     if (!(runId in runOffsets)) runOffsets[runId] = alignToStored(run(), stored()) ?? null
     return runOffsets[runId] ?? undefined

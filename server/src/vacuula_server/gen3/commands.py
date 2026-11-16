@@ -72,6 +72,8 @@ def build_heartbeat():
 
 def build_command(robot_serial: str, cmd: dict):
     global req_id
+    from vacuula_server.gen3 import boundary_alias
+    cmd = boundary_alias.to_robot(robot_serial, cmd)  # short zone ids, names and colours on the robot
 
     with _req_id_lock:
         this_id = req_id

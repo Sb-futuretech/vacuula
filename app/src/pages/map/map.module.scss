@@ -438,7 +438,7 @@
 
     i.never {
         margin-left: 1rem;
-        background: #ff5a5a;
+        background: #ff5a5a; // MEANING.missed (drawingFunctions.ts)
         opacity: 0.5;
     }
 }
@@ -819,4 +819,27 @@ $memory-full: #e8b24a;
         flex: 1;
         justify-content: space-between;
     }
+}
+
+// the feature list grouped by zone: a zone, then what lies in it, indented under a line in its colour
+.featureGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.groupChildren {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-left: 1.2rem;
+    padding-left: 1rem;
+    border-left: 2px solid $border-strong;
+}
+
+.groupTitle {
+    margin-top: 0.4rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $text-muted;
 }

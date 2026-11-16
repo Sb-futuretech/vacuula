@@ -9,7 +9,7 @@ import Button from '../../components/button/button'
 import { GEN3_COMMANDS } from '../../http/gen3'
 import { Http } from '../../http'
 import { Neato, RobotType, type Robot } from '../../types'
-import type { MapFloor, Problem } from '../../http'
+import type { MapFloor, MapLidar, Problem } from '../../http'
 
 import MapCanvas, { type MapMode } from './MapCanvas'
 import { RULER_PX } from './MapRulers'
@@ -22,12 +22,15 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../../i18n'
 import { useGetPromotedFloorplan } from '../../utils/floormaps'
 import type { NoGoLine, Point, UseState, Zone } from '../../components/map/types'
-import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
+import { drawZones, drawNoGoLines, drawBase, drawCrosshair, drawInProgressPolyline, drawHeatmap, drawLiveRobot, drawRestRobot, drawLidarPoints, MEANING, type RobotImage, drawProblems, drawFloorType, FLOOR_COLORS, HEATMAP_ALPHAS, PROBLEM_ICONS, onDockImageReady } from '../../components/map/drawingFunctions'
 import { useApp } from '../../context/useApp'
+import { useLiveScan } from '../../context/liveScan'
+import { lidarImage } from '../../components/map/lidarImage'
+import { COLORS } from '../../components/map/constants'
 import type { LivePosition } from '../../context/AppContext'
 import { useMascot } from '../../mascot'
 import { useCoverageHeatmap } from '../../components/map/heatmap'
-import { calcRelevancy, upsertPreserveOrder } from '../../components/map/utils'
+import { calcRelevancy, pointInPolygon, polygonArea, upsertPreserveOrder } from '../../components/map/utils'
 import { GEN3_MAX_POINTS_PER_BOUNDARY, GEN3_POINT_BYTES, GEN3_REPLY_LIMIT, gen3FeatureBytes, gen3ReplyBytes, roundPoint } from '../../components/map/gen3Budget'
 import { normalizeHex, pickUnusedPreset, withAlpha } from '../../components/map/color'
 import ColorPicker from '../../components/colorPicker/ColorPicker'
@@ -40,6 +43,8 @@ import { getGen3CleaningMode, getGen3NavigationMode, getGen4CleaningMode, getGen
 // gen3 robot actions of an exploration (exploring, paused, getting map ids, uploading the map)
 // a live position older than this (seconds) is not drawn: the clean has ended or the link is gone
 const LIVE_FRESH_S = 60
+// a lidar turn older than this (s) is not drawn: the robot stopped or the connection is gone
+const LIVE_SCAN_FRESH_S = 5
 // docked: its last position is where it stands if that is this close to the dock symbol (cells); else
 // it was carried home after its last run and stands on the dock symbol
 const DOCK_NEAR_CELLS = 10
@@ -95,6 +100,7 @@ export default () => {
 
     const { robot } = useRobot()
     const { livePosition } = useApp()
+    const liveScan = useLiveScan()
     const [lastSeen, setLastSeen] = useState<LivePosition | null>(null)
     // the robot on the map is drawn as the mascot chosen in the settings
     const { mascot } = useMascot()
@@ -218,6 +224,61 @@ export default () => {
         return next
     })
 
+    // the map's features grouped (user feedback 2026-11-15): each cleaning zone with the no-go lines and
+    // no-go zones that lie mostly inside it (the smallest such zone if several), the rest under "no zone";
+    // zones and their contents by name
+    const groupedFeatures = useMemo(() => {
+        const byName = (a: { name?: string }, b: { name?: string }) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { numeric: true })
+        const isHead = (b: Zone | NoGoLine) => b.type === 'polygon' && (!('function' in b) || b.function !== 'nogo')
+        const heads = (boundaries as (Zone | NoGoLine)[]).filter(isHead).sort(byName)
+        const groups = heads.map(zone => ({ zone, children: [] as (Zone | NoGoLine)[] }))
+        const loose: (Zone | NoGoLine)[] = []
+        for (const b of (boundaries as (Zone | NoGoLine)[]).filter(b => !isHead(b))) {
+            const inside = groups.filter(g => b.vertices.filter(v => pointInPolygon(v, g.zone.vertices)).length * 2 >= b.vertices.length)
+            const home = inside.sort((a, c) => polygonArea(a.zone.vertices) - polygonArea(c.zone.vertices))[0]
+            ;(home ? home.children : loose).push(b)
+        }
+        groups.forEach(g => g.children.sort(byName))
+        return loose.length ? [...groups, { zone: undefined, children: loose.sort(byName) }] : groups
+    }, [boundaries])
+    // one feature in the list (zone, no-go zone or line)
+    const featureItem = (item: Zone | NoGoLine) => (
+        <div key={item.id} className={styles.item} style={{ background: withAlpha(item.color, 0.13) }} onClick={() => openInfo(item.id)}>
+            <div className={styles.info}>
+                <span>{item.name}</span>
+                <span className={styles.type} style={{ color: normalizeHex(item.color) ?? undefined }}>
+                    {item.type === 'polygon' ?
+                        'function' in item ? (item.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone'))
+                            : t('map.zone') : t('map.noGoLine')
+                    }
+                </span>
+            </div>
+            {(!currentMap || !('promoted' in currentMap) || currentMap.promoted) && (
+                <>
+                    {(item.type === 'polyline' || item.function === 'nogo') && (<Input type="switch" skipSection={true} value={item.enabled} onChange={() => toggleNoGo(item)} />)}
+                    {item.type === 'polygon' && ('function' in item ? item.function === 'cleaning' : true) && (<Button style='primary' disabled={!isDocked(robot)} text={t('map.cleanZone')} onClick={() => cleanZone(item)} />)}
+                </>
+            )}
+        </div>
+    )
+
+    // gen3: what the lidar saw over the runs on this map: fixed (walls) and movable (chairs, doors)
+    const [showLidar, setShowLidar] = useState(false)
+    const [lidarLayer, setLidarLayer] = useState<{ mapId: string, data: MapLidar, img: HTMLCanvasElement } | null | 'none'>()
+    useEffect(() => {
+        if (!showLidar || !persistentMap || robot.type !== RobotType.NeatoGen3) return
+        let cancelled = false
+        Http.getMapLidar(robot.serial, persistentMap)
+            .then(async res => {
+                const v = res.data.values
+                const img = await lidarImage(res.data.png, [[v.fixed, COLORS.WALL], [v.movable, MEANING.movable]])
+                if (!cancelled) setLidarLayer({ mapId: persistentMap, data: res.data, img })
+            })
+            .catch(() => { if (!cancelled) setLidarLayer('none') })
+        return () => { cancelled = true }
+    }, [showLidar, persistentMap, robot.serial, robot.type])
+    const lidarShown = showLidar && lidarLayer && lidarLayer !== 'none' && lidarLayer.mapId === persistentMap ? lidarLayer : null
+
     // gen3: floor type from the brush load over the runs (black box), and carpet areas to add as a zone
     const [showFloor, setShowFloor] = useState(false)
     const [loadedFloor, setLoadedFloor] = useState<{ mapId: string, floor: MapFloor }>()
@@ -241,6 +302,16 @@ export default () => {
         if (floorType) drawFloorType(ctx, floorType.cells, currentZoom, currentOffset)
         // coverage of the recent runs under the zones (gen3, switched on in the panel)
         if (heatmap && heatmap.width === mapSize.width) drawHeatmap(ctx, heatmap, currentZoom, currentOffset)
+        // the lidar map over the runs: placed by where the robot's frame lies on the map
+        if (lidarShown) {
+            const { data, img } = lidarShown, { u0, v0, mmPerCell } = data.map
+            const u = u0 + data.x0 / mmPerCell, v = v0 - data.y0 / mmPerCell, k = data.cell / mmPerCell
+            ctx.save()
+            ctx.imageSmoothingEnabled = false
+            ctx.drawImage(img, currentOffset.x + u * currentZoom, currentOffset.y + v * currentZoom,
+                data.width * k * currentZoom, data.height * k * currentZoom)
+            ctx.restore()
+        }
 
         const showBoundaries = mode === 'boundary-edit'
             ? boundaries.filter(b => b.id !== activeBoundaryId)
@@ -292,6 +363,12 @@ export default () => {
 
         if (problems?.length) drawProblems(ctx, problems, currentZoom, currentOffset, hiddenKinds)
 
+        // gen3: what its lidar sees right now, when its frame lies on this map
+        if (liveScan?.map && liveScan.map.mapId === persistentMap && Date.now() / 1000 - liveScan.t < LIVE_SCAN_FRESH_S) {
+            const { u0, v0, mmPerCell } = liveScan.map
+            drawLidarPoints(ctx, liveScan.scan.pts.map(([x, y]) => [u0 + x / mmPerCell, v0 - y / mmPerCell]), currentZoom, currentOffset)
+        }
+
         // gen3: the robot where it is now and its way during this clean (fresh positions only); else on
         // its dock, or faded where it was last seen (it logs its position only while it cleans)
         if (livePosition && livePosition.last.mapId === persistentMap && Date.now() / 1000 - livePosition.last.t < LIVE_FRESH_S) {
@@ -320,7 +397,7 @@ export default () => {
             }
             drawInProgressPolyline(ctx, currentLinePoints, currentZoom, currentOffset, mapSize, selectedPoint ?? undefined)
         }
-    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, livePosition, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
+    }, [boundaries, activeBoundaryId, mode, currentLinePoints, closedAsPolygon, selectedPoint, editForm.color, currentMap, dockReady, heatmap, lidarShown, livePosition, liveScan, persistentMap, problems, hiddenKinds, floorType, lastSeen, robot, mascotImg])
 
     // gen3: where it was last seen, again whenever its state changes (a clean ended, it docked)
     const robotState = robot.type === RobotType.NeatoGen3 ? `${robot.state}/${isDocked(robot)}` : ''
@@ -391,9 +468,9 @@ export default () => {
                     .then(() => updatePersistentMaps(), () => { /* said so */ })
             })
         } else {
-            // The robot keeps each coordinate rounded to 4 decimals (0.40996 -> 0.41) and drops the rest,
-            // so send it exactly that: what the app shows is then what the robot stores. Only the fields
-            // it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer exactly.
+            // The server hands the robot each coordinate rounded to 3 decimals (and a short id, no name or
+            // colour), so round the same way here: what the app shows is then what the robot stores.
+            // Only the fields it keeps go out (no gen4 `function`), so gen3ReplyBytes predicts its answer.
             const stored: (NoGoLine | Zone)[] = next.map(({ id, name, color, type, vertices, enabled }) =>
                 ({ id, name, color, type, vertices: vertices.map(roundPoint), enabled }))
             const sent = stored.map(b => b.type === 'polygon' ? { ...b, relevancy: roundPoint(calcRelevancy(b.vertices)) } : b)
@@ -814,6 +891,23 @@ export default () => {
                         )}
                         {robot.type === RobotType.NeatoGen3 && (
                             <div className={styles.heatmap}>
+                                <Input type="switch" label={t('map.lidar.title')} value={showLidar} onChange={setShowLidar} />
+                                {showLidar && (
+                                    <>
+                                        <div className={styles.heatmapLegend}>
+                                            <i style={{ background: COLORS.WALL }} /><span>{t('map.lidar.fixed')}</span>
+                                            <i style={{ background: MEANING.movable }} /><span>{t('map.lidar.movable')}</span>
+                                        </div>
+                                        <span className={styles.heatmapInfo}>
+                                            {lidarLayer === 'none' ? t('map.lidar.none')
+                                                : lidarShown ? t('map.lidar.runs', { count: lidarShown.data.runs }) : t('common.loading')}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {robot.type === RobotType.NeatoGen3 && (
+                            <div className={styles.heatmap}>
                                 <Input type="switch" label={t('map.problems')} value={showProblems} onChange={setShowProblems} />
                                 {showProblems && (
                                     <>
@@ -858,22 +952,13 @@ export default () => {
                         )}
 
                         <div className={styles.featureList}>
-                            {boundaries.map((item, i) => (
-                                <div key={i} className={styles.item} style={{ background: withAlpha(item.color, 0.13) }} onClick={() => openInfo(item.id)}>
-                                    <div className={styles.info}>
-                                        <span>{item.name}</span>
-                                        <span className={styles.type} style={{ color: normalizeHex(item.color) ?? undefined }}>
-                                            {item.type === 'polygon' ?
-                                                'function' in item ? (item.function === 'cleaning' ? t('map.cleaningZone') : t('map.noGoZone'))
-                                                    : t('map.zone') : t('map.noGoLine')
-                                            }
-                                        </span>
-                                    </div>
-                                    {(!currentMap || !('promoted' in currentMap) || currentMap.promoted) && (
-                                        <>
-                                            {(item.type === 'polyline' || item.function === 'nogo') && (<Input type="switch" skipSection={true} value={item.enabled} onChange={() => toggleNoGo(item)} />)}
-                                            {item.type === 'polygon' && ('function' in item ? item.function === 'cleaning' : true) && (<Button style='primary' disabled={!isDocked(robot)} text={t('map.cleanZone')} onClick={() => cleanZone(item)} />)}
-                                        </>
+                            {groupedFeatures.map(group => (
+                                <div key={group.zone?.id ?? 'none'} className={styles.featureGroup}>
+                                    {group.zone ? featureItem(group.zone) : <span className={styles.groupTitle}>{t('map.noZone')}</span>}
+                                    {group.children.length > 0 && (
+                                        <div className={styles.groupChildren} style={{ borderColor: normalizeHex(group.zone?.color) ?? undefined }}>
+                                            {group.children.map(child => featureItem(child))}
+                                        </div>
                                     )}
                                 </div>
                             ))}

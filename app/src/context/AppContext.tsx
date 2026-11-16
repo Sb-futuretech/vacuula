@@ -1,7 +1,8 @@
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BASE_PATH, Http, type AppNotification, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
+import { BASE_PATH, Http, type AppNotification, type LidarMap, type LidarScan, type LoadingState, type ServerInfo, type ZoneQueueStatus } from '../http'
 import { GEN3_COMMANDS } from '../http/gen3'
+import { clearLiveScan, playLiveScans } from './liveScan'
 import type { UseState } from '../pages/map/types'
 import { Neato, RobotType, type QuickRobotInfo, type Robot } from '../types'
 import { GEN4_COMMANDS } from '../http/gen4'
@@ -246,6 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         setZoneQueue(null)
         setLivePosition(null)
+        clearLiveScan()
         setNotifications([])
         // a clean already running: its way so far, so a reload doesn't lose it
         if (robot.type === RobotType.NeatoGen3) Http.getLiveTrack(robot.serial).then(res => {
@@ -329,6 +331,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     : { last: pos, points: [[pos.u, pos.v]] })
                 return
             }
+            if (parsed.event === 'liveScan') {
+                const { map, scans } = parsed.data as { map: LidarMap | null, scans: LidarScan[] }
+                playLiveScans(map, scans)
+                return
+            }
             if (parsed.event === 'notification') {
                 setNotifications(cur => cur.some(n => n.id === parsed.data.id) ? cur : [parsed.data, ...cur])
                 return
@@ -377,6 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         return () => {
             events.close();
+            clearLiveScan()
             clearInterval(poll);
             document.removeEventListener('visibilitychange', onVisibility);
         };

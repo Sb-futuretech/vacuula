@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosResponse } from "axios";
 import i18n from "./i18n";
 import { Neato, type QuickRobotInfo } from "./types";
 import type { NoGoLine, VacuulaMapData, Zone } from "./components/map/types";
@@ -94,6 +94,59 @@ export interface MapFloor {
   patches: { kind: 'high' | 'runner', areaM2: number, share: number, rect: [number, number][] }[]
 }
 
+// gen3 lidar (server gen3/lidar.py), all in mm of the robot's own frame (y up): one turn of the lidar,
+// the robot's pose then ([x, y, heading in degrees counter-clockwise]) and the points it hit
+export interface LidarScan {
+  pose: [number, number, number]
+  pts: [number, number][]
+}
+
+// the stored map the robot's frame lies on: its id, where the frame's origin is in its cells, mm per cell
+export interface LidarMap {
+  mapId: string
+  u0: number
+  v0: number
+  mmPerCell: number
+}
+
+// what the lidar saw in the clean running now: the grid so far as a grey PNG (0 unknown, 128 free, 255
+// something there) with its top left corner (x0, y0) and cell size in mm, the robot's pose and its way
+export interface LiveLidar {
+  t: number
+  running: boolean
+  map: LidarMap | null
+  grid: { png: string, x0: number, y0: number, cell: number, width: number, height: number }
+  pose: [number, number, number]
+  track: [number, number][]
+  // finished runs: what stood where the map's other runs agree it is free (null: can't be told)
+  changes?: LidarChange[] | null
+}
+
+// a new obstacle or a closed door in a run (server gen3/lidar_map.changes): the length of the side the
+// lidar saw, its middle and box in mm of the robot's frame
+export interface LidarChange {
+  kind: 'obstacle' | 'door'
+  lengthCm: number
+  x: number
+  y: number
+  box: [number, number, number, number]
+}
+
+// what the lidar saw over all runs on a stored map (server gen3/lidar_map.py): a grey PNG whose `values`
+// mark free, movable (something there in some runs) and fixed (in nearly all), its top left corner
+// (x0, y0) and cell size in mm of the robot's frame, and where that frame lies on the map
+export interface MapLidar {
+  png: string
+  x0: number
+  y0: number
+  cell: number
+  width: number
+  height: number
+  runs: number
+  values: { free: number, movable: number, fixed: number }
+  map: LidarMap
+}
+
 // a problem the robot noted in its black box (gen3), where it happened: cells of a run map or stored map
 export interface Problem {
   kind: 'bump' | 'tilt' | 'lost' | 'unreachable' | 'slip' | 'stuck' | 'dock_tilted' | 'off_base'
@@ -177,9 +230,31 @@ export interface ZoneQueueStatus {
 export type DriveCombo = 'forward' | 'back' | 'stop' | 'arc-left' | 'arc-right' | 'pivot-left' | 'pivot-right'
 export type DriveCommand = `${'vacuum' | 'brush' | 'eco' | 'turbo'}-${'on' | 'off'}`
 
+// robot reads that are shared (see Http.sendCmd)
+const SHARED_READS = new Set(['getRobotState', 'getSchedule', 'getMapBoundaries', 'getGeneralInfo', 'getPreferences'])
+const SHARE_MS = 1500
+interface SharedRead { at: number | null, promise: Promise<AxiosResponse<unknown>> }
+const sharedReads = new Map<string, SharedRead>()
+
 export class Http {
+  // Robot commands. A read the app asks for from several places at once (on start: the robot is
+  // selected twice and the live connection opens -- three getRobotState in 0.7 s, each one a trip to the
+  // robot of 0.3-1.3 s) is shared: while one is under way, or its answer is less than SHARE_MS old,
+  // the same answer is used. Any other command (start, save, dismiss...) changes the robot: the shared
+  // answers of that robot are dropped, so a read after it always asks the robot again.
   static sendCmd<T>(robotSerial: string, cmd: object) {
-    return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+    const name = (cmd as { cmd?: string }).cmd ?? ''
+    if (!SHARED_READS.has(name)) {
+      for (const key of sharedReads.keys()) if (key.startsWith(robotSerial + '|')) sharedReads.delete(key)
+      return instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd));
+    }
+    const key = `${robotSerial}|${JSON.stringify(cmd)}`
+    const hit = sharedReads.get(key)
+    if (hit && (hit.at === null || Date.now() - hit.at < SHARE_MS)) return hit.promise as Promise<AxiosResponse<T>>
+    const entry: SharedRead = { at: null, promise: instance.post<T>(`/robot/${robotSerial}/command`, JSON.stringify(cmd)) }
+    entry.promise.then(() => { entry.at = Date.now() }, () => { if (sharedReads.get(key) === entry) sharedReads.delete(key) })
+    sharedReads.set(key, entry)
+    return entry.promise as Promise<AxiosResponse<T>>
   }
 
   static getNotifications(serial: string) {
@@ -296,6 +371,16 @@ export class Http {
   }
 
   // gen3: the way of the clean running now, for an app that opens or reloads during it (null if none)
+  // gen3: what the lidar saw in the clean running now (grid so far, pose, way), null without one
+  static getLiveLidar(serial: string) {
+    return instance.get<LiveLidar | null>(`/robot/${serial}/live-lidar`, { skipLoader: true }) // every few s: no spinner
+  }
+
+  // gen3: what the lidar saw in a finished run, like getLiveLidar (404 without one)
+  static getRunLidar(serial: string, runId: string) {
+    return instance.get<LiveLidar>(`/robot/${serial}/run/${runId}/lidar`, { skipLoader: true })
+  }
+
   static getLiveTrack(serial: string) {
     return instance.get<{ mapId: string, points: [number, number][], t: number } | null>(`/robot/${serial}/live-track`)
   }
@@ -306,6 +391,23 @@ export class Http {
   }
 
   // gen3: bumps, tilts, getting lost or stuck recorded on a map over the last runs (map cells)
+  // gen3: in how many of a map's last `runs` runs each cell was cleaned, worked out by the server once
+  // per run (counts as RLE over the stored map)
+  static getMapCoverage(serial: string, mapId: string, runs: number) {
+    return instance.get<{ width: number, height: number, runs: number, blackBoxRuns: number, counts: [number, number][] }>(
+      `/robot/${serial}/maps/${mapId}/coverage/${runs}`)
+  }
+
+  // gen3: where each run of a map lies on it ({run id: [dx, dy]}, null: not on it), worked out by the server
+  static getMapOffsets(serial: string, mapId: string) {
+    return instance.get<Record<string, [number, number] | null>>(`/robot/${serial}/maps/${mapId}/offsets`, { skipLoader: true })
+  }
+
+  // gen3: what the lidar saw over all runs on a map (fixed, movable, free), 404 without
+  static getMapLidar(serial: string, mapId: string) {
+    return instance.get<MapLidar>(`/robot/${serial}/maps/${mapId}/lidar`)
+  }
+
   static getMapProblems(serial: string, mapId: string) {
     return instance.get<Problem[]>(`/robot/${serial}/maps/${mapId}/problems`)
   }

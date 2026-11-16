@@ -21,7 +21,14 @@ logger = logging.getLogger(__name__)
 PKT_MOTORS = 44
 LOAD_FIELD, BRUSH_RPM_FIELD = 17, 18   # int32 fields of the motor packet
 HARD, LOW, HIGH = 1, 2, 3
-LOW_FROM, HIGH_FROM = 25_000, 55_000   # brush load: runner from, high pile from
+# Brush load thresholds relative to the robot's own load on hard floor: two D7 differ by a factor of two
+# (2026-11-15, the same hard floors: sb1 median 23,000, huugo 44,000 -- with fixed thresholds huugo
+# showed nearly a whole flat as runner). Factors from sb1's former fixed thresholds (25,000 / 55,000 at
+# its hard floor of about 20,300).
+LOW_FACTOR, HIGH_FACTOR = 1.25, 2.7
+BASE_SHARE = 0.2      # a robot's hard floor load: what 20 % of a run's samples stay below (most floor is hard)
+BASE_RUNS = 7         # ... as the median over its last this many runs (a run on carpet only doesn't move it)
+ROBOTS_KEY = "_robots"  # in FLOOR_FILE: per robot its runs' hard floor loads
 # where the brush acts: about 10 cm ahead of the robot's centre (from edge crossings on a D7: the load
 # changes ~20 cm later leaving a carpet than entering it at the same edge, motor lag included)
 BRUSH_AHEAD_CELLS = 2.5
@@ -45,8 +52,18 @@ def sample(packet: bytes) -> int | None:
     return load if rpm > 0 else None
 
 
-def kind(load: int) -> int:
-    return HIGH if load >= HIGH_FROM else LOW if load >= LOW_FROM else HARD
+def kind(load: float, base: float) -> int:
+    """Hard, runner or high pile, by the load against the robot's hard floor load `base`."""
+    return HIGH if load >= base * HIGH_FACTOR else LOW if load >= base * LOW_FACTOR else HARD
+
+
+def _base(data: dict, serial: str, loads: list[int]) -> float:
+    """The robot's hard floor load with this run's added (kept in `data`)."""
+    this = sorted(loads)[int(len(loads) * BASE_SHARE)]
+    runs = data.setdefault(ROBOTS_KEY, {}).setdefault(serial, {}).setdefault("base", [])
+    runs.append(this)
+    del runs[:-BASE_RUNS]
+    return statistics.median(runs)
 
 
 def _load_file() -> dict:
@@ -63,9 +80,11 @@ def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int, flo
         return
     loads = [s[2] for s in samples]
     half = SMOOTH // 2
+    with _lock:
+        base = _base(_load_file(), serial, loads)  # just to know it; kept below with the counts
     per_run: dict[tuple[int, int], list[int]] = {}
     for i, (u, v, _, side_u, side_v) in enumerate(samples):
-        k = kind(statistics.median(loads[max(0, i - half):i + half + 1])) - 1
+        k = kind(statistics.median(loads[max(0, i - half):i + half + 1]), base) - 1
         # a short line across the brush (side_u, side_v: unit vector to its side, in cells)
         steps = int(BRUSH_SIDE_CELLS * 2)
         cells = {(round(u + side_u * BRUSH_SIDE_CELLS * i / steps), round(v + side_v * BRUSH_SIDE_CELLS * i / steps))
@@ -73,14 +92,16 @@ def add_run(serial: str, map_id: str, samples: list[tuple[float, float, int, flo
         for c in cells:
             per_run.setdefault(c, [0, 0, 0])[k] += 1
     with _lock:
-        data = _load_file()
+        data = _load_file()          # fresh: another robot's run may have been added meanwhile
+        _base(data, serial, loads)   # this run's hard floor load into the robot's list
         cells = data.setdefault(serial, {}).setdefault(map_id, {})
         for (u, v), counts in per_run.items():
             # each run counts once per cell: what most of its samples there said
             c = cells.setdefault(f"{u},{v}", [0, 0, 0])
             c[max(range(3), key=lambda i: counts[i])] += 1
         FLOOR_FILE.write_text(json.dumps(data))
-    logger.info("Floor type of %s: %d samples of this run added to map %s", serial, len(samples), map_id)
+    logger.info("Floor type of %s: %d samples of this run added to map %s (hard floor load %.0f: runner from %.0f, "
+                "high pile from %.0f)", serial, len(samples), map_id, base, base * LOW_FACTOR, base * HIGH_FACTOR)
 
 
 EDGE_SHARE = 0.3   # a row or column belongs to the rectangle with at least this share of the patch's typical one

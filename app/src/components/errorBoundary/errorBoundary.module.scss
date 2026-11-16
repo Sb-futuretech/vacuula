@@ -1,0 +1,25 @@
+@use '../../variables.scss' as *;
+
+.box {
+    margin: auto;
+    padding: 2.4rem;
+    max-width: 52rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    color: $text-primary;
+
+    h2 { font-size: 1.8rem; }
+    code { font-size: 1.3rem; color: $text-muted; word-break: break-word; }
+    p { font-size: 1.3rem; color: $text-muted; }
+
+    button {
+        align-self: flex-start;
+        padding: 1rem 2rem;
+        border-radius: 1rem;
+        border: 1px solid $border-strong;
+        background: transparent;
+        color: $text-primary;
+        cursor: pointer;
+    }
+}

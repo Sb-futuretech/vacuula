@@ -64,4 +64,4 @@ ARG GIT_COMMIT=""
 ENV VACUULA_FORK_COMMIT=$GIT_COMMIT
 
 # fork: move an old database's fork version to its own table, then upstream's chain, then the fork's
-CMD ["sh", "-c", "python -m vacuula_server.fork_migrations && alembic upgrade head && alembic -n fork upgrade head && vacuula-server"]
+CMD ["sh", "-c", "python -m vacuula_server.fork_migrations && alembic upgrade head && alembic -n fork upgrade head && exec vacuula-server"]

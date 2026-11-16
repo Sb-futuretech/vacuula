@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { COLORS, DRAWING, readMapToken } from './constants'
 import { useCanvasViewport } from './useCanvasViewport'
 import { decodeRLE, calcFitZoomAndOffset, calcFitToBounds, getRunBounds } from './utils'
-import { drawMap, drawCoverage, drawCleaned, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, setViewAngle, type CellShape } from './drawingFunctions'
+import { drawMap, drawCoverage, drawCleaned, drawPlanFloor, drawPlanWalls, computeIgnoredRunValues, colorForPathValue, setViewAngle, MEANING, type CellShape } from './drawingFunctions'
 import type { Offset } from './types'
 import { GEN3_MM_PER_CELL, GEN3_RUN_DOCK, GEN3_RUN_END, GEN3_RUN_NOT_PATH, GEN3_RUN_START, cellsCentre } from './gen3Run'
 import { cleaningLoader, persistentMapLoader, useCleaning, usePersistentMap } from '../../loaders/resources'
@@ -125,8 +125,9 @@ export function useMap({
         )
         if (covered && cleanedCells) {
             const pathValue = runCellsRef.current!.find(v => v !== 0 && !runIgnoreSetRef.current.has(v))
-            drawCleaned(ctx, cleanedCells, mapSize.width, currentZoom, currentOffset, colorForPathValue(pathValue ?? 3))
-        } else if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, GEN3_MM_PER_CELL)
+            // the home page's plan look: cleaned in its meaning colour; elsewhere the run's own
+            drawCleaned(ctx, cleanedCells, mapSize.width, currentZoom, currentOffset, plan ? MEANING.cleaned : colorForPathValue(pathValue ?? 3))
+        } else if (covered) drawCoverage(ctx, cellsRef.current, runCellsRef.current!, runIgnoreSetRef.current, currentZoom, currentOffset, mapSize, GEN3_MM_PER_CELL, plan ? MEANING.cleaned : undefined)
         // walls on top, so they stay sharp over the covered area
         if (plan) drawPlanWalls(ctx, cellsRef.current, currentZoom, currentOffset, mapSize)
 
