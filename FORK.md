@@ -2,7 +2,7 @@
 
 This is a fork of [Vacuula](https://github.com/vacuula/vacuula) by Philip, the custom server for
 Neato robot vacuums whose cloud is gone. It follows upstream closely (currently based on
-**1.1.1**, beta 4) and adds features and fixes on top, mostly for **Gen3 robots**.
+**1.1.1**) and adds features and fixes on top, mostly for **Gen3 robots**.
 
 Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**. Other
 Gen3 models (D3–D6) will probably behave similarly, but have not been tested. Gen4 robots (D8–D10)
@@ -205,7 +205,8 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 (see *Versions*; the commit table marks where each one starts):
 - *Not released yet* (since sb 1.3.0): the fork's own texts in German; a zone deleted from the
   map can be taken out of a schedule entry; one robot per address (`VACUULA_ROBOT_PORTS`); problem
-  spots without clutter, turning the map, and the map's sheet sized to its content.
+  spots without clutter, turning the map, and the map's sheet sized to its content; upstream's
+  **1.1.1** release (the server stops cleanly on `docker stop`).
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -345,6 +346,7 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-16 | [`44b7c0a`](https://github.com/Sb-futuretech/vacuula/commit/44b7c0a) | Upstream | Upstream 1.1.1 merged: the server stops cleanly on SIGTERM (`exec` in the Dockerfile), so `docker stop` and deploys no longer wait 10 s and kill it |
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
 | 2026-11-14 | [`72b50e2`](https://github.com/Sb-futuretech/vacuula/commit/72b50e2) | Map | The map's sheet is as tall as its content (at most 88 %), slides closed; zone buttons no longer cut off on phones |
 | 2026-11-14 | [`fabe513`](https://github.com/Sb-futuretech/vacuula/commit/fabe513) | Map | Turn the map: two-finger twist, trackpad, buttons and `[` / `]`, kept per map |

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import signal
 import threading
+
 from vacuula_server.constants import APP_VERSION
 from vacuula_server.fork_version import FORK_COMMIT, FORK_VERSION
 from vacuula_server.db import check_db_is_up_to_date
@@ -22,8 +24,18 @@ from vacuula_server.logger import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
+shutdown_event = threading.Event()
+def do_shutdown(signum, frame):
+    logger.info("Server stopping, %s", signal.Signals(signum).name)
+    shutdown_event.set()
+
+
 def main():
     logger.info("Starting Vacuula Server %s (sb %s %s)", APP_VERSION, FORK_VERSION, FORK_COMMIT or "source")
+
+    signal.signal(signal.SIGTERM, do_shutdown)
+    signal.signal(signal.SIGINT, do_shutdown)
+
     check_db_is_up_to_date()
     ensure_ssl_certificate()
     if GEN3_ENABLED:
@@ -41,10 +53,7 @@ def main():
         mdns.start()
 
     try:
-        while True:
-            threading.Event().wait(1)
-    except KeyboardInterrupt:
-        logger.info("Server stopping")
+        shutdown_event.wait()
     finally:
         if mdns is not None:
             mdns.stop()
