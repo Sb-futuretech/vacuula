@@ -10,6 +10,11 @@ Measured on huugo 2026-11-15: its map's answer went from 1928 to ~1400 bytes.
 Short ids belong to one robot and are never reused, so a run, a schedule or a queue that holds a
 real id always finds its zone. Features saved before this keep their uuid on the robot until the
 next save; ids the table does not know pass through unchanged both ways.
+
+A short id is used in a start or a schedule only once the robot has it (`on_robot`: it came back in
+the robot's answer to a save). Until then the real id goes out, which is what the robot still
+keeps. (2026-11-16: a Pi schedule started sb1's zones with short ids made up at the start, ids the
+robot did not know, and it answered nav_floorplan_zone_wrong_floor.)
 """
 from __future__ import annotations
 
@@ -48,6 +53,9 @@ def _load() -> dict:
             FILE.replace(FILE.with_suffix(".broken"))
             _data = {}
         for serial, robot in _data.items():
+            for v in robot["ids"].values():
+                # from before `on_robot`: only a save gave a colour, and every save then went through
+                v.setdefault("on_robot", bool(v.get("color")))
             _reverse[serial] = {v["id"]: short for short, v in robot["ids"].items()}
     return _data
 
@@ -87,7 +95,7 @@ def _short_for(serial: str, real: str, name: str | None = None, color: str | Non
             robot["next"] += 1
             short = _short_name(robot["next"])
         robot["next"] += 1
-        robot["ids"][short] = {"id": real, "name": "", "color": ""}
+        robot["ids"][short] = {"id": real, "name": "", "color": "", "on_robot": False}
         rev[real] = short
         changed = True
     meta = robot["ids"][short]
@@ -96,6 +104,12 @@ def _short_for(serial: str, real: str, name: str | None = None, color: str | Non
             meta[key] = value
             changed = True
     return short, changed
+
+
+def _on_robot(serial: str, real: str) -> str:
+    """The id the robot keeps for `real`: its short id once the robot has it, else `real` itself."""
+    short = _reverse.get(serial, {}).get(real)
+    return short if short is not None and _robot(serial)["ids"][short].get("on_robot") else real
 
 
 def _round3(points):
@@ -124,21 +138,16 @@ def to_robot(serial: str, cmd: dict) -> dict:
                 if isinstance(b.get("relevancy"), list) and len(b["relevancy"]) == 2:
                     b["relevancy"] = [round(float(v), 3) for v in b["relevancy"]]
         elif name == "startCleaning":
+            _load()
             if params.get("boundaryId"):
-                params["boundaryId"], c = _short_for(serial, str(params["boundaryId"]))
-                changed |= c
+                params["boundaryId"] = _on_robot(serial, str(params["boundaryId"]))
             if isinstance(params.get("boundaryIds"), list):
-                ids = []
-                for real in params["boundaryIds"]:
-                    short, c = _short_for(serial, str(real))
-                    ids.append(short)
-                    changed |= c
-                params["boundaryIds"] = ids
+                params["boundaryIds"] = [_on_robot(serial, str(real)) for real in params["boundaryIds"]]
         else:  # setSchedule
+            _load()
             for e in params.get("events") or []:
                 if isinstance(e, dict) and e.get("boundaryId"):
-                    e["boundaryId"], c = _short_for(serial, str(e["boundaryId"]))
-                    changed |= c
+                    e["boundaryId"] = _on_robot(serial, str(e["boundaryId"]))
         if changed:
             _save()
     return {**cmd, "params": params}
@@ -169,15 +178,23 @@ def too_big(serial: str, cmd: dict) -> int | None:
 
 # ---- from the robot ------------------------------------------------------------------------------
 def from_robot(serial: str, msg: dict) -> bool:
-    """Put real ids, names and colours back into a message from the robot, in place; True if changed."""
+    """Put real ids, names and colours back into a message from the robot, in place; True if changed.
+    A short id in the robot's list of zones and lines marks it as kept by the robot."""
     with _lock:
         robot = _load().get(serial)
         if not robot or not robot["ids"]:
             return False
-        return _restore(robot["ids"], msg)
+        confirmed: list[str] = []
+        changed = _restore(robot["ids"], msg, confirmed)
+        new = [s for s in confirmed if not robot["ids"][s].get("on_robot")]
+        for s in new:
+            robot["ids"][s]["on_robot"] = True
+        if new:
+            _save()
+        return changed
 
 
-def _restore(ids: dict, node) -> bool:
+def _restore(ids: dict, node, confirmed: list[str]) -> bool:
     changed = False
     if isinstance(node, dict):
         for key, value in node.items():
@@ -193,12 +210,14 @@ def _restore(ids: dict, node) -> bool:
             elif key == "boundaries" and isinstance(value, list):
                 for b in value:
                     if isinstance(b, dict):
+                        if isinstance(b.get("id"), str) and b["id"] in ids:
+                            confirmed.append(b["id"])
                         changed |= _restore_feature(ids, b)
             elif isinstance(value, (dict, list)):
-                changed |= _restore(ids, value)
+                changed |= _restore(ids, value, confirmed)
     elif isinstance(node, list):
         for item in node:
-            changed |= _restore(ids, item)
+            changed |= _restore(ids, item, confirmed)
     return changed
 
 
