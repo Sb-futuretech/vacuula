@@ -4,7 +4,8 @@ This is a fork of [Vacuula](https://github.com/vacuula/vacuula) by Philip, the c
 Neato robot vacuums whose cloud is gone. It follows upstream closely (currently based on
 **1.1.1**) and adds features and fixes on top, mostly for **Gen3 robots**.
 
-Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**. Other
+Everything here was built and tested on a **Neato Botvac D7 Connected, firmware 4.5.3-189**, since
+sb 1.4.0 also on a second D7 with **firmware 4.6.0-72** (a second household on the same server). Other
 Gen3 models (D3–D6) will probably behave similarly, but have not been tested. Gen4 robots (D8–D10)
 run the upstream code paths; most additions are Gen3 only.
 
@@ -49,6 +50,12 @@ be offered back as pull requests.
 - **Turn the map**: two fingers on the phone, two fingers on a Mac trackpad (Safari), the turn
   buttons (15°) or `[` / `]`. It snaps to quarter turns, labels stay upright, and the angle is kept
   per map on the device. Pinch zoom on the phone is steady now (no jumps, no double zoom on iOS).
+- **Colours by meaning** on the map and in runs: cleaned violet, missed red, bumps light blue,
+  movable things yellow; walls keep the theme's colour.
+- The map page's list shows **no-go lines and no-go zones under the zone they lie in.**
+- **More zones per map** (Gen3): the robot keeps only a short form of each zone and line (a short
+  id, no name or colour, 3 decimals), the server the real ones; a map's zones take about a quarter
+  less room, e.g. 1928 → 1400 bytes. The server refuses a save the robot could not take.
 - **The map's sheet** (phone) is as tall as its content, at most 88 % of the map (60 % while
   editing a zone), and slides closed to its handle: a zone's buttons are no longer cut off, also
   in the installed app.
@@ -65,11 +72,24 @@ be offered back as pull requests.
 - The position on the map is learnt per map from the run maps' start and end marks (median of the
   last runs; a moved dock restarts it).
 
+### Lidar (Gen3)
+- **What the robot sees, live:** its lidar scan on the map while it cleans, also on its own for a
+  robot without a stored map. Read from the black box like the live position.
+- **Each run's lidar picture** (2 cm grid), kept on the server and shown in the run (*Map* /
+  *Lidar*). Runs from before are read afterwards from the robot's black box files.
+- **A lidar map per map** over its runs: fixed walls, things that move (furniture, doors) and free
+  floor. Runs whose walls lie more than 2.5 cm off are left out.
+- **What changed in a run:** new obstacles (30 cm and more) and closed doors (found by their place
+  between fixed walls, not by their shape), listed in the run and framed on its lidar picture.
+
 ### Home page
 - Optional **map of the last cleaning** instead of the mascot (*Settings → Home page*): the covered
   area, walls, zones (the cleaned ones highlighted), dock, start flag and the mascot where the robot
   ended; swipe or use the arrows to flip through the last 20 runs.
 - Gen3 battery is polled (the robot only pushes state changes).
+- Swiping through the last runs shows each at once: the coverage of every run is worked out once on
+  the server and kept, the runs next to the one shown are loaded ahead, and pages load in about
+  half the time (shared robot reads, zones in parallel, gzip).
 - Narrow phones: the control buttons shrink instead of running off the screen.
 
 ### Fixes
@@ -86,6 +106,14 @@ be offered back as pull requests.
 - Battery cycles / model in the settings are fetched again when the first request fails.
 - The robot's `life_stats` and `push_notifications` requests are answered and logged (they used to
   return 404).
+- A Gen3 robot that keeps its connection open but stops answering (seen on firmware 4.6.0) is asked
+  for its state after 2 silent minutes; after two unanswered asks the server closes the connection
+  and the robot connects again.
+- Each Gen3 problem code has its own text (several shared one, e.g. *picked up* and *tilted at the
+  start* both said *Put me down on the floor*).
+- Floor type thresholds are relative to each robot's own hard floor load (a second D7 with a
+  heavier brush showed nearly all floors as runner).
+- A page that crashes shows its error instead of a black app and reports it to the server log.
 
 ## What we learned about the D7
 Useful if you work on Gen3 support yourself:
@@ -108,6 +136,12 @@ Useful if you work on Gen3 support yourself:
     takes about 156 bytes, every further point 16.
   - Zone points too close together (about 0.007 of the map) give `bad_request`, and nothing is
     saved. Zones saved without `relevancy` give `bad_request` too.
+  - Ids need not be uuids: short ids (`a`, `s0`) are kept and echoed exactly, so are empty names,
+    3-decimal coordinates and an empty `color` - but the `color` field must be there (`bad_request`
+    without it). A name of 142 characters gives `bad_request`. Checked on both D7s on 2026-11-15/16.
+  - Firmware 4.6.0-72 has the same limit (2045 bytes worked with a 3-digit request id, 2048 did
+    not), but over it the robot **keeps the connection open and answers nothing** until the server
+    closes it, instead of hanging up.
 - Mode combinations (checked with `build/pi/d7_mode_test.py`): spot cleaning accepts everything
   but always runs Eco with normal navigation; zone cleaning takes every combination except Eco +
   Deep (`invalid_entry`, the same as for house cleaning).
@@ -203,10 +237,13 @@ The settings page shows both versions, for example `Vacuula 1.1.0 · sb 1.0.0 (a
 ## Release notes
 What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless noted. Releases
 (see *Versions*; the commit table marks where each one starts):
-- *Not released yet* (since sb 1.3.0): the fork's own texts in German; a zone deleted from the
-  map can be taken out of a schedule entry; one robot per address (`VACUULA_ROBOT_PORTS`); problem
-  spots without clutter, turning the map, and the map's sheet sized to its content; upstream's
-  **1.1.1** release (the server stops cleanly on `docker stop`).
+- **sb 1.4.0** (2026-11-16): on upstream **1.1.1** (the release: the server stops cleanly on
+  `docker stop`). Lidar for Gen3 (live, per run, a lidar map per map, new obstacles and closed
+  doors), more zones per map (short form on the robot), a watchdog for robots that stop answering,
+  faster pages and swiping through runs, colours by meaning, one text per problem code, floor type
+  per robot, the fork's own texts in German, a zone deleted from the map can be taken out of a
+  schedule entry, one robot per address (`VACUULA_ROBOT_PORTS`), problem spots without clutter,
+  turning the map, and the map's sheet sized to its content. Also tested on firmware 4.6.0-72.
 - **sb 1.3.0** (2026-11-11): on upstream **1.1.1** (beta 4: German and French, deleting and
   restoring D7 floor plans, PWA insets). Live position of Gen3 robots from their black box, the
   robot on the map outside runs, run tracks, problem spots, floor type, the away-from-base
@@ -220,6 +257,19 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - **sb 1.0.0** (2026-11-01): the fork's first numbered version, everything before.
 
 ### New features at a glance
+
+**Lidar (sb 1.4.0, Gen3)**
+- **Live:** the robot's lidar scan on the map while it cleans, and on its own for a robot without a
+  stored map. Tested on both D7s.
+- **Per run:** the run's lidar picture (*Map* / *Lidar* in the run), zoom, pan and turn like the
+  maps; older runs read afterwards from the black box.
+- **Per map:** a lidar map over its runs (fixed, movable, free), and per run what changed: new
+  obstacles and closed doors. The thresholds are still being tuned (many finds of 30-50 cm).
+
+**Zones and connection (sb 1.4.0)**
+- **More zones per map:** about 4 more on a full map, since the robot only keeps a short form.
+  Names and colours are unchanged in the app.
+- **Watchdog:** a robot that stops answering gets its connection closed and reconnects by itself.
 
 **Live position (sb 1.3.0, Gen3)**
 - **The robot moves on the map while it cleans,** as your mascot turned the way it faces, with its
@@ -235,7 +285,7 @@ What changed since October 25, tested on a D7 (Gen3, firmware 4.5.3-189) unless 
 - The server log says why the live position is not shown (not started at the dock, no map named,
   no position learnt for the map yet).
 
-**From upstream 1.1.1 (beta 4)**
+**From upstream 1.1.1 (beta 4, release since sb 1.4.0)**
 - **German and French** in *Settings → Language*. The fork's own texts are in German too (since
   289adee), in French still English.
 - D7 floor plans can be **deleted** on the map page and restored.
@@ -346,6 +396,36 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 
 | Date | Commit | Area | Change |
 |---|---|---|---|
+| 2026-11-16 | [`sb-1.4.0`](https://github.com/Sb-futuretech/vacuula/tree/sb-1.4.0) | Release | **sb 1.4.0** |
+| 2026-11-16 | [`59b98db`](https://github.com/Sb-futuretech/vacuula/commit/59b98db) | Map | Start a zone by its short id only once the robot has it (a Pi schedule had started sb1's zones with made-up ids: *zone on wrong floor*) |
+| 2026-11-16 | [`6928255`](https://github.com/Sb-futuretech/vacuula/commit/6928255) | Docs | Release notes: upstream 1.1.1 merged |
+| 2026-11-15 | [`ad2da87`](https://github.com/Sb-futuretech/vacuula/commit/ad2da87) | App | One text per Gen3 problem code (en, de) |
+| 2026-11-15 | [`b457a48`](https://github.com/Sb-futuretech/vacuula/commit/b457a48) | Server | Close the connection of a Gen3 robot that stopped answering, so it connects again |
+| 2026-11-15 | [`2bfa09c`](https://github.com/Sb-futuretech/vacuula/commit/2bfa09c) | Map | Zones: the robot keeps a short form (short id, no name or colour, 3 decimals), the server the real ids, names and colours; saves over the limit refused |
+| 2026-11-15 | [`1630ca0`](https://github.com/Sb-futuretech/vacuula/commit/1630ca0) | Map | Map list: no-go lines and no-go zones under the zone they lie in |
+| 2026-11-15 | [`b777e4c`](https://github.com/Sb-futuretech/vacuula/commit/b777e4c) | Runs | Floor type thresholds relative to each robot's own hard floor load |
+| 2026-11-15 | [`2bd5f71`](https://github.com/Sb-futuretech/vacuula/commit/2bd5f71) | Lidar | Lidar view: an answer without its picture is ignored instead of crashing |
+| 2026-11-15 | [`f3399fc`](https://github.com/Sb-futuretech/vacuula/commit/f3399fc) | Map | Colours by meaning: cleaned violet, missed red, bumps light blue, movable yellow |
+| 2026-11-15 | [`1974a6e`](https://github.com/Sb-futuretech/vacuula/commit/1974a6e) | Home | Remove the temporary timing of the home page's past runs |
+| 2026-11-15 | [`0afd395`](https://github.com/Sb-futuretech/vacuula/commit/0afd395) | Home | Run offsets from the server (and a temporary timing, removed again) |
+| 2026-11-15 | [`cf24d73`](https://github.com/Sb-futuretech/vacuula/commit/cf24d73) | Home | Swiping through the last runs shows them at once |
+| 2026-11-15 | [`d43cc0a`](https://github.com/Sb-futuretech/vacuula/commit/d43cc0a) | Server | Faster pages: shared robot reads, zones in parallel, gzip for the web app |
+| 2026-11-15 | [`58bde5c`](https://github.com/Sb-futuretech/vacuula/commit/58bde5c) | Map | Coverage heatmap from the server: each run worked out once and kept |
+| 2026-11-15 | [`88b9a02`](https://github.com/Sb-futuretech/vacuula/commit/88b9a02) | Map | Coverage heatmap: runs fetched six at a time |
+| 2026-11-15 | [`2da765e`](https://github.com/Sb-futuretech/vacuula/commit/2da765e) | Lidar | Changes: a door found by its place, not its shape |
+| 2026-11-14 | [`8a4a150`](https://github.com/Sb-futuretech/vacuula/commit/8a4a150) | Lidar | Changes: plain ints, so they go into JSON |
+| 2026-11-14 | [`3abecd4`](https://github.com/Sb-futuretech/vacuula/commit/3abecd4) | Lidar | What changed in a run: new obstacles and closed doors |
+| 2026-11-14 | [`1842535`](https://github.com/Sb-futuretech/vacuula/commit/1842535) | Lidar | A map's lidar map over its runs: fixed, movable, free |
+| 2026-11-14 | [`7933591`](https://github.com/Sb-futuretech/vacuula/commit/7933591) | Lidar | Lidar view: zoom, pan and turn like the maps, full screen in the run |
+| 2026-11-14 | [`cc91553`](https://github.com/Sb-futuretech/vacuula/commit/cc91553) | Lidar | Backfill: runs read afterwards from the robot's black box |
+| 2026-11-14 | [`9428fc6`](https://github.com/Sb-futuretech/vacuula/commit/9428fc6) | Lidar | Each run's lidar grid kept and shown in the run |
+| 2026-11-14 | [`1aab80a`](https://github.com/Sb-futuretech/vacuula/commit/1aab80a) | Home | Calm while cleaning: no spinner, no position text |
+| 2026-11-14 | [`5479fc4`](https://github.com/Sb-futuretech/vacuula/commit/5479fc4) | App | A crashed page shows its error instead of a black app, and logs it on the server |
+| 2026-11-14 | [`600e1a6`](https://github.com/Sb-futuretech/vacuula/commit/600e1a6) | Server | Live position: log how many lidar turns a run had |
+| 2026-11-14 | [`a613eda`](https://github.com/Sb-futuretech/vacuula/commit/a613eda) | Lidar | Live lidar: what the robot sees, on the map and on its own |
+| 2026-11-14 | [`1d20dd6`](https://github.com/Sb-futuretech/vacuula/commit/1d20dd6) | Upstream | release:1.1.1 |
+| 2026-11-14 | [`ec6d0a4`](https://github.com/Sb-futuretech/vacuula/commit/ec6d0a4) | Upstream | Docker shutdown (1.1.1-b6) |
+| 2026-11-10 | [`b1e81d3`](https://github.com/Sb-futuretech/vacuula/commit/b1e81d3) | Upstream | README and shutdown (1.1.1-b5) |
 | 2026-11-16 | [`44b7c0a`](https://github.com/Sb-futuretech/vacuula/commit/44b7c0a) | Upstream | Upstream 1.1.1 merged: the server stops cleanly on SIGTERM (`exec` in the Dockerfile), so `docker stop` and deploys no longer wait 10 s and kill it |
 | 2026-11-04 | [`d531f9e`](https://github.com/Sb-futuretech/vacuula/commit/d531f9e) | Map | Save zones and lines explicitly instead of from an effect |
 | 2026-11-14 | [`72b50e2`](https://github.com/Sb-futuretech/vacuula/commit/72b50e2) | Map | The map's sheet is as tall as its content (at most 88 %), slides closed; zone buttons no longer cut off on phones |
@@ -440,11 +520,13 @@ Every commit, newest first; *Upstream* rows come from Vacuula itself (release 1.
 - **After the database conversion (2026-11-01), a fork build from before it does not start**: it
   tries to create the fork's tables again. Back up the data volume before deploying, and don't roll
   back past that build without restoring the backup.
-- **Too many zones and lines per map make the D7 drop its connection after every save.** There
-  is no error reply; the robot just closes the connection and keeps doing so until the map is back
-  under the limit. The limit is the size of the robot's reply, not a number of points (see *What
-  we learned about the D7*). Since sb 1.1.0 the app keeps new edits within it; a map made too big
-  elsewhere (another app, an older build) still has to be fixed by deleting a point or feature.
+- **Too many zones and lines per map make the D7 drop its connection after every save** (4.6.0:
+  stop answering). There is no error reply. The limit is the size of the robot's reply, not a
+  number of points (see *What we learned about the D7*). Since sb 1.1.0 the app keeps new edits
+  within it, and since sb 1.4.0 the server refuses a save over it; a map made too big elsewhere
+  (another app, an older build) still has to be fixed by deleting a point or feature.
+- **Zones keep their uuid on the robot until their map's next save** (sb 1.4.0 short form). That is
+  fine: starts and schedules use the short id only once the robot has it.
 - **The map scale is not verified.** Gen3 maps carry no resolution; the app assumes 40 mm per map
   cell. A door measured on one D7 suggests the rulers read short, so check them against a known
   distance before relying on them.
